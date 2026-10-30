@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pizza Converter</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="stage">
+  <div id="smart-pill" class="hidden"><span class="smart-star">✦</span><span id="smart-pill-text"></span></div>
+  <div class="ring hidden" id="ring-in"><div class="glass" id="in-base"></div></div>
+  <div class="ring noptr hidden" id="ring-in-hi"><div class="glass hi" id="in-hi"></div></div>
+  <div class="ring" id="ring-out"><div class="glass" id="out-base"></div></div>
+  <div class="ring noptr" id="ring-out-hi"><div class="glass hi" id="out-hi"></div></div>
+  <div id="labels" class="noptr"></div>
+  <svg id="accents" class="noptr" width="560" height="560" viewBox="0 0 560 560"></svg>
+  <div id="center">
+    <div id="center-file-icon" class="idle-upload">⬆</div>
+    <div id="center-name">Drop a file to convert</div>
+    <div id="center-meta" class="clickable">or click to browse…</div>
+    <div id="center-drop-hint" class="faint"></div>
+    <div id="center-cancel" class="hidden">
+      <div id="center-cancel-icon">✕</div>
+      <div id="cancel-title">Release to cancel</div>
+      <div id="cancel-sub" class="faint">or press Esc</div>
+    </div>
+    <button id="browse-btn" class="hidden">Browse…</button>
+  </div>
+  <div id="chip" class="hidden noptr"><span id="chip-icon">▤</span><span id="chip-name"></span></div>
+  <div id="tooltip" class="hidden">
+    <div id="tooltip-title"></div>
+    <div id="tooltip-size" class="hidden"></div>
+    <div id="tooltip-delta" class="hidden"></div>
+    <div id="tooltip-text"></div>
+    <button id="tooltip-upgrade" class="hidden"></button>
+  </div>
+  <div id="hint"></div>
+  <div id="toast" class="hidden"></div>
+  <!-- edit layout mode (§9) -->
+  <div id="editbar" class="hidden">
+    <span class="edit-pencil">✎</span><b id="editbar-title"></b>
+    <span id="editbar-sub" class="sub"></span>
+    <button id="edit-done"></button>
+  </div>
+  <div id="edit-groups" class="hidden"></div>
+  <div id="sliceghost" class="hidden noptr"><span class="grip">⋮⋮</span><span id="ghost-label"></span></div>
+  <div id="tapripple" class="hidden noptr"></div>
+</div>
+<script src="i18n.js"></script>
+<!-- External scripts only (fix 29/10): Tauri injects nonces/hashes into the
+     CSP script-src, so inline <script> blocks are NOT reliably executed.
+     Also keep this page free of inline STYLE elements: one would make Tauri
+     add a style-src nonce, which blocks the inline label positions
+     (left/top attributes) that radial.js renders. -->
+<script src="tauri-bridge.js"></script>
+<script src="radial.js"></script>
+</body>
+</html>
