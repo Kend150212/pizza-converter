@@ -441,6 +441,7 @@ pub fn convert_any_cmd(
         let single_outcome: Result<String, String> = (|| {
             let result = match target.as_str() {
                 "removebg" => remove_bg_image(&app, item_path)?,
+                "scan_doc" => scan_doc_image(&app, item_path)?,
                 "split" => {
                     let probe = crate::config::resolve_output(&app, item_path, "pdf");
                     let base = probe.parent().unwrap_or_else(|| Path::new("."));
