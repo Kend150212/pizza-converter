@@ -333,6 +333,7 @@ pub fn convert_any_cmd(
                                 fmt => {
                                     let real_fmt = match fmt {
                                         "to_docx" => "docx",
+                                        "to_xlsx" => "xlsx",
                                         "to_txt" => "txt",
                                         _ => fmt,
                                     };
@@ -483,6 +484,7 @@ pub fn convert_any_cmd(
                 fmt => {
                     let real_fmt = match fmt {
                         "to_docx" => "docx",
+                        "to_xlsx" => "xlsx",
                         "to_txt" => "txt",
                         _ => fmt,
                     };

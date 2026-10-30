@@ -141,6 +141,7 @@ function fmtName(fmt) {
   if (id === 'split') return t('op_split');
   if (id === 'merge') return t('op_merge');
   if (id === 'to_docx') return 'DOCX';
+  if (id === 'to_xlsx') return 'XLSX';
   if (id === 'to_txt') return 'TXT';
   if (id === 'to_png') return 'PNG';
   return id.toUpperCase();
