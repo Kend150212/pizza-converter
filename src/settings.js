@@ -446,3 +446,17 @@ document.getElementById('debug-test-click').addEventListener('click', () => {
   dlog('Programmatic click test...');
   document.getElementById('tgl-enable').click();
 });
+
+// Load application version securely from Rust backend
+async function loadAppVersion() {
+  try {
+    const ver = await invoke('get_app_version');
+    const badge = document.getElementById('app-version-badge');
+    if (badge) badge.textContent = ver;
+    const aboutLine = document.getElementById('about-line');
+    if (aboutLine) aboutLine.textContent = `Version ${ver}`;
+  } catch (e) {
+    dlog('loadAppVersion failed:', e);
+  }
+}
+loadAppVersion();

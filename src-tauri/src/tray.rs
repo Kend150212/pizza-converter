@@ -7,10 +7,12 @@ use tauri::{
 };
 
 pub fn build_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
+    let ver_str = format!("Pizza Converter v{}", env!("CARGO_PKG_VERSION"));
+    let version_item = MenuItem::with_id(app, "version", &ver_str, false, None::<&str>)?;
     let convert = MenuItem::with_id(app, "convert", "Convert file…", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Pizza Converter", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&convert, &settings, &quit])?;
+    let menu = Menu::with_items(app, &[&version_item, &convert, &settings, &quit])?;
 
     let icon_bytes = include_bytes!("../icons/32x32.png");
     let decoded = image::load_from_memory(icon_bytes).expect("tray icon PNG");
@@ -21,7 +23,7 @@ pub fn build_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     TrayIconBuilder::new()
         .icon(icon)
         .menu(&menu)
-        .tooltip("Pizza Converter")
+        .tooltip(&ver_str)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "convert" => {
                 // Open the radial window; it offers Browse… when nothing is selected.

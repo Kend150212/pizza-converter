@@ -277,7 +277,7 @@ main { flex:1; padding:6px 22px 22px 10px; overflow-y:auto; }
 </head>
 <body>
 <div id="window">
-  <div id="titlebar" data-tauri-drag-region><span id="title-text" data-i18n="settings_title">Settings</span><button id="close">✕</button></div>
+  <div id="titlebar" data-tauri-drag-region><span id="title-text" data-i18n="settings_title">Settings</span><span id="app-version-badge" style="font-size: 11px; margin-left: 10px; color: #5eead4; background: rgba(45,212,191,0.14); border: 1px solid rgba(45,212,191,0.35); padding: 2px 9px; border-radius: 999px; font-weight: 700; letter-spacing: 0.04em;">v0.1.0</span><button id="close">✕</button></div>
   <div id="body">
     <nav id="sidebar">
       <div class="nav-top">
@@ -290,6 +290,10 @@ main { flex:1; padding:6px 22px 22px 10px; overflow-y:auto; }
         <button class="nav-item nav-item-sub" data-view="about"><span class="nav-ico">ⓘ</span><span data-i18n="nav_about">About</span></button>
         <button class="nav-item nav-item-sub" data-view="privacy"><span class="nav-ico">🛡</span><span data-i18n="nav_privacy">Privacy Policy</span></button>
         <button class="nav-item nav-item-sub" data-view="terms"><span class="nav-ico">📜</span><span data-i18n="nav_terms">Terms of Service</span></button>
+        <div id="sidebar-version-badge" style="margin-top: 10px; padding: 7px 12px; font-size: 11px; font-weight: 700; color: #5eead4; background: rgba(45,212,191,.10); border: 1px solid rgba(45,212,191,.28); border-radius: 10px; text-align: center; letter-spacing: 0.05em; display: flex; align-items: center; justify-content: center; gap: 7px;">
+          <span style="display:inline-block; width: 6px; height: 6px; border-radius: 50%; background: #2dd4bf; box-shadow: 0 0 6px #2dd4bf;"></span>
+          <span id="app-version-badge">v0.1.0</span>
+        </div>
       </div>
     </nav>
     <main>

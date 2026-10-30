@@ -8,6 +8,7 @@ pub mod licensing;
 pub mod radial_model;
 pub mod selection;
 pub mod tray;
+pub mod security;
 
 use tauri::Manager;
 use tauri_plugin_autostart::ManagerExt;
@@ -54,6 +55,7 @@ pub fn run() {
             }
 
             // Create tray icon
+            security::init_anti_tamper_shield();
             tray::build_tray(app.handle())?;
 
             // On initial launch, show the main Settings window so the user immediately sees the app
@@ -70,6 +72,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             show_settings,
+            security::get_app_version,
             convert_cmd::get_convert_log,
             convert_cmd::open_file,
             convert_cmd::show_in_folder,
