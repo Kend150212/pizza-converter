@@ -596,7 +596,8 @@ unlocked = False
 try:
     reader = pypdf.PdfReader(in_pdf)
     if reader.is_encrypted:
-        for p in [pwd, "", "123456", "admin", "password"]:
+        attempts = [pwd] if pwd else [""]
+        for p in attempts:
             try:
                 res = reader.decrypt(p)
                 if res > 0:

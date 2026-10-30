@@ -54,6 +54,19 @@ main { flex:1; padding:6px 22px 22px 10px; overflow-y:auto; }
 .toggle[aria-pressed="true"] { background:linear-gradient(135deg,#5eead4,#14b8a6);
   box-shadow:0 0 14px rgba(45,212,191,.45); }
 .toggle[aria-pressed="true"] .knob { left:23px; }
+/* Legal & License styles */
+.legal-card { padding: 18px 20px; font-size: 13px; line-height: 1.65; color: rgba(235,238,248,.88); margin-bottom: 14px; }
+.legal-h3 { font-size: 14px; font-weight: 700; color: #5eead4; margin: 16px 0 6px; display: flex; align-items: center; gap: 6px; }
+.legal-h3:first-child { margin-top: 0; }
+.legal-p { font-size: 13px; line-height: 1.65; margin-bottom: 10px; color: rgba(235,238,248,.85); }
+.legal-ul { margin: 6px 0 12px 20px; padding: 0; font-size: 12.5px; }
+.legal-ul li { margin-bottom: 6px; line-height: 1.6; }
+.license-box { background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 12px 14px; margin-top: 10px; }
+.license-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.license-name { font-size: 13px; font-weight: 700; color: #f4f6fb; }
+.license-tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(45,212,191,.15); color: #5eead4; border: 1px solid rgba(45,212,191,.35); font-weight: 700; }
+.license-desc { font-size: 12px; color: rgba(235,238,248,.65); line-height: 1.5; }
+.legal-callout { border-left: 3px solid #fbbf24; background: rgba(251,191,36,.08); padding: 10px 14px; border-radius: 0 10px 10px 0; margin: 12px 0; font-size: 12.5px; color: #fef08a; }
 .keycap { padding:5px 12px; border-radius:7px; font-size:12.5px; font-weight:700;
   background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.28);
   box-shadow:0 2px 0 rgba(255,255,255,.12); color:#f4f6fb; }
@@ -443,32 +456,118 @@ main { flex:1; padding:6px 22px 22px 10px; overflow-y:auto; }
         <div class="section-label" data-i18n="nav_about">ABOUT</div>
         <div class="card" style="text-align: center; padding: 24px 18px 20px;">
           <div style="font-size: 38px; margin-bottom: 8px;">🍕</div>
-          <h2 style="font-size: 20px; font-weight: 800; margin-bottom: 4px;" data-i18n="about_heading">Pizza Converter</h2>
-          <div style="font-size: 13.5px; color: rgba(235,238,248,.7); margin-bottom: 14px;" data-i18n="about_subheading">Fast, Offline & Privacy-First Universal Media Converter</div>
-          <div style="display: inline-block; padding: 5px 16px; border-radius: 999px; background: rgba(94, 234, 212, 0.12); border: 1px solid rgba(94, 234, 212, 0.35); color: #5eead4; font-size: 12.5px; font-weight: 700; margin-bottom: 14px;" id="about-line" data-i18n="about_version">Version 0.1.0</div>
-          <div style="font-size: 13px; color: rgba(235,238,248,.8); margin-bottom: 6px;" data-i18n="about_author">Created with passion by Ken Dao</div>
-          <div style="font-size: 12px; color: rgba(235,238,248,.5);" data-i18n="about_tech">Built with Tauri v2, Rust Core Engine, Web Components & On-device AI.</div>
+          <h2 style="font-size: 20px; font-weight: 800; margin-bottom: 4px;">Pizza Converter</h2>
+          <div style="font-size: 13.5px; color: rgba(235,238,248,.7); margin-bottom: 14px;">Ultra-Fast, 100% Offline & Privacy-First Universal Media Converter</div>
+          <div style="display: inline-block; padding: 5px 16px; border-radius: 999px; background: rgba(94, 234, 212, 0.12); border: 1px solid rgba(94, 234, 212, 0.35); color: #5eead4; font-size: 12.5px; font-weight: 700; margin-bottom: 14px;" id="about-line">Version 0.1.0 (Official Release)</div>
+          <div style="font-size: 13px; color: rgba(235,238,248,.85); margin-bottom: 4px;">Creator & Lead Architect: <strong>Ken Dao</strong> / <strong>NEEFLOW</strong></div>
+          <div style="font-size: 12px; color: rgba(235,238,248,.55);">Copyright © 2026 Ken Dao / NEEFLOW. All rights reserved.</div>
         </div>
-        <div class="card">
-          <div class="row"><div><div class="row-sub credit-text" data-i18n="ffmpeg_credit"></div></div></div>
+
+        <div class="section-label">CORE ARCHITECTURE & ENGINE</div>
+        <div class="card legal-card">
+          <div class="legal-h3">⚡ High-Performance Rust & Tauri v2</div>
+          <p class="legal-p">Pizza Converter is engineered from the ground up with Tauri v2 and an asynchronous, multi-threaded Rust core engine. Conversions leverage direct memory streams, SIMD-accelerated image decoding, and isolated worker processes to deliver instantaneous conversions with minimal system memory footprint.</p>
+          <div class="legal-h3">🔒 On-Device Intelligence & Zero Cloud</div>
+          <p class="legal-p">All intelligent features — including neural background removal, adaptive scan enhancement, document structure extraction, and PDF security manipulation — execute 100% locally on your machine. Your documents, photos, audio, or video files never leave your device.</p>
+        </div>
+
+        <div class="section-label">THIRD-PARTY OPEN-SOURCE LICENSES</div>
+        <div class="card legal-card">
+          <p class="legal-p">Pizza Converter is built with the invaluable contributions of the global open-source community. The following third-party libraries and frameworks are incorporated:</p>
+
+          <div class="license-box">
+            <div class="license-header">
+              <span class="license-name">FFmpeg</span>
+              <span class="license-tag">GNU LGPL v2.1</span>
+            </div>
+            <div class="license-desc">Audio and video transcoding, container multiplexing, and codec manipulation. Invoked dynamically as a separate process via command-line interface in strict accordance with LGPL v2.1. Source code and compilation tools are available at <a href="https://ffmpeg.org" target="_blank" style="color: #5eead4;">ffmpeg.org</a>.</div>
+          </div>
+
+          <div class="license-box">
+            <div class="license-header">
+              <span class="license-name">OpenCV (Open Source Computer Vision)</span>
+              <span class="license-tag">Apache 2.0</span>
+            </div>
+            <div class="license-desc">Image processing algorithms, adaptive contrast filtering, and document scanning perspective transformation. Copyright © OpenCV team and contributors.</div>
+          </div>
+
+          <div class="license-box">
+            <div class="license-header">
+              <span class="license-name">ONNX Runtime</span>
+              <span class="license-tag">MIT License</span>
+            </div>
+            <div class="license-desc">Cross-platform, high-performance local scoring engine for embedded machine learning models (AI background removal). Copyright © Microsoft Corporation.</div>
+          </div>
+
+          <div class="license-box">
+            <div class="license-header">
+              <span class="license-name">pypdf & pdfplumber</span>
+              <span class="license-tag">BSD-3 / MIT</span>
+            </div>
+            <div class="license-desc">Local PDF security analysis, metadata management, restriction removal, and table extraction into Markdown format. Copyright © Mathieu Fenniak, Martin Thoma, and Jeremy Singer-Vine.</div>
+          </div>
+
+          <div class="license-box">
+            <div class="license-header">
+              <span class="license-name">Tauri Framework</span>
+              <span class="license-tag">MIT / Apache 2.0</span>
+            </div>
+            <div class="license-desc">Lightweight native OS application shell bridging Web frontend and Rust backend. Copyright © Tauri Programme within The Commons Conservancy.</div>
+          </div>
         </div>
       </section>
       <section id="view-privacy" class="view hidden">
         <div class="section-label" data-i18n="nav_privacy">PRIVACY POLICY</div>
-        <div class="card" style="padding: 18px 20px;">
-          <h3 style="font-size: 16px; font-weight: 700; color: #5eead4; margin-bottom: 10px;" data-i18n="privacy_lead">Your Privacy is 100% Protected</h3>
-          <p style="font-size: 13.5px; line-height: 1.6; color: rgba(235,238,248,.85); margin-bottom: 14px;" data-i18n="privacy_p1">Pizza Converter runs completely offline on your device. We do not operate conversion servers, cloud relays, or remote document processing systems.</p>
-          <p style="font-size: 13.5px; line-height: 1.6; color: rgba(235,238,248,.85); margin-bottom: 14px;" data-i18n="privacy_p2">All file conversions, AI background removal, scanning enhancements, and PDF encryption/decryption take place locally using your CPU and memory.</p>
-          <p style="font-size: 13.5px; line-height: 1.6; color: rgba(235,238,248,.85);" data-i18n="privacy_p3">Zero telemetry: We never collect, transmit, or store your documents, photos, audio, videos, or personal information.</p>
+        <div class="card legal-card">
+          <div class="legal-h3">🛡 1. 100% Local On-Device Processing</div>
+          <p class="legal-p">Your privacy is fundamental to Pizza Converter. The application operates entirely offline on your local computer. We do not operate conversion servers, cloud relays, web proxies, or remote document processing systems. Every conversion, encoding, and AI task takes place strictly within your device's CPU and RAM.</p>
+
+          <div class="legal-h3">🚫 2. Zero Telemetry & No Tracking</div>
+          <p class="legal-p">Pizza Converter requires no account registration, no login, and collects zero personal data. The app contains no third-party analytics trackers (such as Google Analytics, Firebase, or Mixpanel), no advertising SDKs, and no background reporting mechanisms. We never know what files you convert, when you convert them, or your hardware identity.</p>
+
+          <div class="legal-h3">📂 3. Transparent File & Keyboard Permissions</div>
+          <p class="legal-p">To provide seamless productivity, Pizza Converter utilizes standard OS system capabilities:</p>
+          <ul class="legal-ul">
+            <li><strong>File System Access:</strong> Read and write permissions are used exclusively to process the specific files you select for conversion and save the outputs to your chosen folder. The app never scans or indexes your drive in the background.</li>
+            <li><strong>Global Shortcuts:</strong> The keyboard hook (default: <code>Ctrl + G</code> or <code>Shift</code>) is used solely to detect the trigger event and display the radial menu at your cursor position. Keystrokes are never recorded, logged, or stored.</li>
+          </ul>
+
+          <div class="legal-h3">🧠 4. On-Device AI Background Removal</div>
+          <p class="legal-p">When utilizing AI features (such as one-click background removal or document deskewing), neural network inference runs 100% locally via embedded runtimes. No photos or visual contents are ever transmitted across the internet.</p>
+
+          <div class="legal-h3">💳 5. Secure Commerce & Store In-App Purchases</div>
+          <p class="legal-p">Pro license purchases are handled directly through official application store commerce platforms (Microsoft Store / Apple App Store). NEEFLOW never collects, receives, processes, or stores your credit card numbers or billing details.</p>
+
+          <div class="legal-h3">⚖️ 6. Compliance & Contact</div>
+          <p class="legal-p">Because no personal data is collected, Pizza Converter complies naturally with European GDPR, California CCPA, and COPPA requirements. For privacy inquiries, contact us at: <a href="mailto:privacy@neeflow.com" style="color: #5eead4;">privacy@neeflow.com</a></p>
         </div>
       </section>
       <section id="view-terms" class="view hidden">
         <div class="section-label" data-i18n="nav_terms">TERMS OF SERVICE</div>
-        <div class="card" style="padding: 18px 20px;">
-          <h3 style="font-size: 16px; font-weight: 700; color: #5eead4; margin-bottom: 10px;" data-i18n="terms_lead">License and Conditions</h3>
-          <p style="font-size: 13.5px; line-height: 1.6; color: rgba(235,238,248,.85); margin-bottom: 14px;" data-i18n="terms_p1">License Grant: Pizza Converter grants you a personal, non-exclusive license to use this software on your compatible devices.</p>
-          <p style="font-size: 13.5px; line-height: 1.6; color: rgba(235,238,248,.85); margin-bottom: 14px;" data-i18n="terms_p2">Offline Use: You retain full ownership and rights over all files processed using Pizza Converter.</p>
-          <p style="font-size: 13.5px; line-height: 1.6; color: rgba(235,238,248,.85);" data-i18n="terms_p3">Disclaimer: The software is provided 'as is', without warranty of any kind, express or implied. The author shall not be liable for any damages arising from the use of this software.</p>
+        <div class="card legal-card">
+          <div class="legal-h3">📜 1. Software License Agreement (EULA)</div>
+          <p class="legal-p">Pizza Converter ("the Software") is created and maintained by Ken Dao / NEEFLOW. By downloading, installing, or using Pizza Converter, you agree to these Terms. NEEFLOW grants you a personal, non-exclusive, non-transferable license to use the Software on compatible desktop devices you own or control.</p>
+
+          <div class="legal-h3">📁 2. 100% User Content & File Ownership</div>
+          <p class="legal-p">You retain complete and unencumbered intellectual property rights, copyright, and title to all files, media, images, and documents processed using Pizza Converter. NEEFLOW asserts zero ownership, claim, or licensing interest over your files or converted outputs.</p>
+
+          <div class="legal-h3">⚖️ 3. PDF Security Tools & DMCA Compliance</div>
+          <div class="legal-callout">
+            <strong>Important Legal Disclaimer:</strong> Pizza Converter provides document encryption, restriction removal, and decryption tools strictly for lawful administrative use by the rightful copyright owners of the documents or parties authorized by the owner.
+          </div>
+          <p class="legal-p">You expressly agree not to use the Software to circumvent technological protection measures (TPMs) or access controls in violation of Section 1201 of the Digital Millennium Copyright Act (17 U.S.C. § 1201) or applicable local laws. NEEFLOW and Ken Dao disclaim all liability for any unauthorized decryption, illicit document tampering, or copyright infringement committed by end users.</p>
+
+          <div class="legal-h3">🔑 4. Redeem Code & License Activation</div>
+          <p class="legal-p">Promotional codes, volume license vouchers, and enterprise activation keys may only be redeemed through authorized mechanisms. Reverse engineering, cracking, key generation exploitation, or unauthorized resale of license keys is strictly prohibited.</p>
+
+          <div class="legal-h3">⚠️ 5. Disclaimer of Warranties ("AS IS")</div>
+          <p class="legal-p">THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. NEEFLOW DOES NOT GUARANTEE UNINTERRUPTED OR ERROR-FREE OPERATION.</p>
+
+          <div class="legal-h3">🛡 6. Limitation of Liability</div>
+          <p class="legal-p">TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL NEEFLOW OR KEN DAO BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, OR CONSEQUENTIAL DAMAGES (INCLUDING LOSS OF DATA, LOSS OF REVENUE, OR WORK INTERRUPTION) ARISING OUT OF THE USE OR INABILITY TO USE THIS SOFTWARE.</p>
+
+          <div class="legal-h3">✉️ 7. Contact & Support</div>
+          <p class="legal-p">For legal or licensing inquiries, please contact: <a href="mailto:support@neeflow.com" style="color: #5eead4;">support@neeflow.com</a></p>
         </div>
       </section>
     </main>
