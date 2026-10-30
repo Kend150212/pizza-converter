@@ -377,7 +377,9 @@ pub fn pdf_to_xlsx(
     let dst = output_dir.join(format!("{}.xlsx", stem_of(input)));
 
     let script = r#"
-import sys, re, openpyxl
+import sys, os, re, openpyxl
+from openpyxl.styles import Alignment
+from openpyxl.utils import get_column_letter
 
 in_pdf, out_xlsx = sys.argv[1], sys.argv[2]
 wb = openpyxl.Workbook()
@@ -387,20 +389,66 @@ converted = False
 try:
     import pdfplumber
     with pdfplumber.open(in_pdf) as pdf:
-        for idx, page in enumerate(pdf.pages):
-            ws = wb.create_sheet(title=f"Page {idx+1}")
+        for page_idx, page in enumerate(pdf.pages):
+            ws = wb.create_sheet(title=f"Page {page_idx + 1}")
+            ws.views.sheetView[0].showGridLines = True
+            
             tables = page.extract_tables()
             if tables:
                 for table in tables:
                     for row in table:
-                        ws.append([cell if cell is not None else "" for cell in row])
+                        ws.append([cell.strip() if cell else "" for cell in row])
                     ws.append([])
             else:
-                text = page.extract_text() or ""
-                for line in text.splitlines():
-                    cols = re.split(r'	+|\s{2,}', line.strip())
-                    ws.append(cols)
-    converted = True
+                words = page.extract_words()
+                if not words:
+                    continue
+                page_w = page.width
+                mid_x = page_w / 2.0
+                left_words = [w for w in words if w["x1"] <= mid_x + 30]
+                right_words = [w for w in words if w["x0"] >= mid_x - 30]
+                is_two_col = len(left_words) > 20 and len(right_words) > 20
+                
+                words_sorted = sorted(words, key=lambda w: (w["top"], w["x0"]))
+                lines = []
+                for w in words_sorted:
+                    added = False
+                    for line in lines:
+                        if abs(line["top"] - w["top"]) <= 5:
+                            line["words"].append(w)
+                            line["top"] = sum(item["top"] for item in line["words"]) / len(line["words"])
+                            added = True
+                            break
+                    if not added:
+                        lines.append({"top": w["top"], "words": [w]})
+                lines.sort(key=lambda l: l["top"])
+                
+                for line in lines:
+                    l_words = sorted(line["words"], key=lambda w: w["x0"])
+                    if is_two_col:
+                        col_a = " ".join(w["text"] for w in l_words if w["x0"] < mid_x).strip()
+                        col_b = " ".join(w["text"] for w in l_words if w["x0"] >= mid_x).strip()
+                        if col_a or col_b:
+                            ws.append([col_a, "", col_b])
+                    else:
+                        txt = " ".join(w["text"] for w in l_words).strip()
+                        if txt:
+                            ws.append([txt])
+            
+            for col in ws.columns:
+                max_len = 0
+                col_letter = get_column_letter(col[0].column)
+                for cell in col:
+                    val = str(cell.value or "")
+                    if len(val) > max_len:
+                        max_len = len(val)
+                ws.column_dimensions[col_letter].width = min(max(max_len + 3, 14), 70)
+                for cell in col:
+                    if cell.value:
+                        cell.alignment = Alignment(wrap_text=True, vertical="top")
+
+    if wb.sheetnames:
+        converted = True
 except Exception:
     pass
 
@@ -413,8 +461,7 @@ if not converted:
             page = pdf[idx]
             txt = (page.get_textpage().get_text_range() or "").strip()
             for line in txt.splitlines():
-                cols = re.split(r'	+|\s{2,}', line.strip())
-                ws.append(cols)
+                ws.append([line.strip()])
     except Exception:
         pass
 
