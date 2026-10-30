@@ -668,6 +668,11 @@ pub fn convert_pair(input: &Path, output: &Path, quality: u8, pro: bool) -> Resu
         }
         // PDF text/office/image extraction (Pro).
         ("pdf", "txt") => pdf_to_txt(input, output, pro),
+        ("pdf", "md") => {
+            let sdir = stage_dir();
+            let produced = office::pdf_to_markdown(input, &sdir)?;
+            produce(produced, Some(sdir))
+        }
         ("pdf", "xlsx") => {
             let sdir = stage_dir();
             let produced = office::pdf_to_xlsx(input, &sdir, pro)?;

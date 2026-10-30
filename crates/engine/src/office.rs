@@ -490,6 +490,132 @@ wb.save(out_xlsx)
     Err(ConvertError::Encode("PDF to XLSX conversion failed".into()))
 }
 
+/// PDF -> Markdown document (.md).
+pub fn pdf_to_markdown(
+    input: &Path,
+    output_dir: &Path,
+) -> Result<PathBuf> {
+    std::fs::create_dir_all(output_dir)?;
+    let dst = output_dir.join(format!("{}.md", stem_of(input)));
+
+    let script = r###"
+import sys, pdfplumber
+
+in_pdf, out_md = sys.argv[1], sys.argv[2]
+md_lines = []
+with pdfplumber.open(in_pdf) as pdf:
+    for page_idx, page in enumerate(pdf.pages):
+        if page_idx > 0:
+            md_lines.append("\n---\n")
+        md_lines.append(f"<!-- Page {page_idx + 1} -->\n")
+        tables = page.extract_tables()
+        if tables:
+            for table in tables:
+                if not table: continue
+                headers = [c.strip().replace("\n", " ") if c else "" for c in table[0]]
+                md_lines.append("| " + " | ".join(headers) + " |")
+                md_lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
+                for row in table[1:]:
+                    cols = [c.strip().replace("\n", " ") if c else "" for c in row]
+                    md_lines.append("| " + " | ".join(cols) + " |")
+                md_lines.append("")
+        else:
+            text = page.extract_text() or ""
+            for line in text.splitlines():
+                clean = line.strip()
+                if not clean:
+                    md_lines.append("")
+                    continue
+                if len(clean) < 60 and clean.isupper():
+                    md_lines.append(f"## {clean}\n")
+                elif clean.startswith(("•", "-", "*")):
+                    md_lines.append(f"- {clean.lstrip('•-* ')}")
+                else:
+                    md_lines.append(clean)
+
+with open(out_md, "w", encoding="utf-8") as f:
+    f.write("\n".join(md_lines))
+"###;
+    let in_s = input.to_string_lossy().into_owned();
+    let out_s = dst.to_string_lossy().into_owned();
+    if run_python(script, &[&in_s, &out_s]).is_ok() && dst.is_file() {
+        return Ok(dst);
+    }
+
+    let text = extract_pdf_text_smart(input)?;
+    std::fs::write(&dst, text)?;
+    Ok(dst)
+}
+
+/// Protect PDF with a password.
+pub fn pdf_protect(
+    input: &Path,
+    output_dir: &Path,
+    password: &str,
+) -> Result<PathBuf> {
+    std::fs::create_dir_all(output_dir)?;
+    let dst = output_dir.join(format!("{}_protected.pdf", stem_of(input)));
+
+    let script = r#"
+import sys, pypdf
+
+in_pdf, out_pdf, pwd = sys.argv[1], sys.argv[2], sys.argv[3]
+reader = pypdf.PdfReader(in_pdf)
+writer = pypdf.PdfWriter()
+for page in reader.pages:
+    writer.add_page(page)
+
+writer.encrypt(pwd)
+with open(out_pdf, "wb") as f:
+    writer.write(f)
+"#;
+    let in_s = input.to_string_lossy().into_owned();
+    let out_s = dst.to_string_lossy().into_owned();
+    let pwd_s = if password.is_empty() { "123456" } else { password };
+    if run_python(script, &[&in_s, &out_s, pwd_s]).is_ok() && dst.is_file() {
+        return Ok(dst);
+    }
+
+    Err(ConvertError::Encode("PDF Protect failed".into()))
+}
+
+/// Unlock an encrypted or permission-restricted PDF.
+pub fn pdf_unlock(
+    input: &Path,
+    output_dir: &Path,
+    password: &str,
+) -> Result<PathBuf> {
+    std::fs::create_dir_all(output_dir)?;
+    let dst = output_dir.join(format!("{}_unlocked.pdf", stem_of(input)));
+
+    let script = r#"
+import sys, pypdf
+
+in_pdf, out_pdf, pwd = sys.argv[1], sys.argv[2], sys.argv[3]
+reader = pypdf.PdfReader(in_pdf)
+if reader.is_encrypted:
+    if pwd:
+        reader.decrypt(pwd)
+    else:
+        reader.decrypt("")
+
+writer = pypdf.PdfWriter()
+for page in reader.pages:
+    writer.add_page(page)
+
+with open(out_pdf, "wb") as f:
+    writer.write(f)
+"#;
+    let in_s = input.to_string_lossy().into_owned();
+    let out_s = dst.to_string_lossy().into_owned();
+    let pwd_s = password;
+    if run_python(script, &[&in_s, &out_s, pwd_s]).is_ok() && dst.is_file() {
+        return Ok(dst);
+    }
+
+    Err(ConvertError::Encode("PDF Unlock failed (incorrect password or unencrypted file)".into()))
+}
+
 /// PDF -> PNG, one file per page (`<stem>_p<page>.png` inside `output_dir`).
 /// Renders via pypdfium2 (PDFium) first so LibreOffice is not required; falls
 /// back to LibreOffice if needed.

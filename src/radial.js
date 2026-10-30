@@ -68,7 +68,7 @@ const FCOL = {
   ico: '#3fd2ff', gif: '#ff7ab8', tiff: '#7a86ff', heic: '#2dd4bf', removebg: '#ff6b8a',
   txt: '#8a94a8', docx: '#5b9dff', pdf: '#ff6b8a', doc: '#3fd2ff', odt: '#2dd4bf', rtf: '#9a7bff',
   xlsx: '#2fd08c', csv: '#5eead4', json: '#ffb020', xml: '#7a86ff', yaml: '#ff7ab8',
-  to_docx: '#5b9dff', to_txt: '#8a94a8', to_png: '#2fd08c', compress: '#ffb020', split: '#9a7bff', merge: '#2dd4bf',
+  to_docx: '#5b9dff', to_xlsx: '#2fd08c', to_txt: '#8a94a8', to_md: '#38bdf8', to_png: '#2fd08c', compress: '#ffb020', split: '#9a7bff', merge: '#2dd4bf', protect: '#f43f5e', unlock: '#10b981', md: '#38bdf8',
   mp3: '#ff7ab8', wav: '#3fd2ff', flac: '#ffb020', ogg: '#2fd08c', m4a: '#9a7bff', mp4: '#5b9dff', mkv: '#ff6b8a', webm: '#2dd4bf',
 };
 const fcol = id => FCOL[id] || '#8a94a8';
@@ -144,7 +144,10 @@ function fmtName(fmt) {
   if (id === 'to_docx') return 'DOCX';
   if (id === 'to_xlsx') return 'XLSX';
   if (id === 'to_txt') return 'TXT';
+  if (id === 'to_md') return 'MD';
   if (id === 'to_png') return 'PNG';
+  if (id === 'protect') return 'Protect';
+  if (id === 'unlock') return 'Unlock';
   return id.toUpperCase();
 }
 function fmtLabelHTML(fmt) {
@@ -507,6 +510,17 @@ async function commit() {
     return;
   }
 
+  let password = null;
+  if (fmt.id === 'protect') {
+    const pwd = prompt('Nhập mật khẩu để bảo vệ file PDF (mặc định 123456):', '123456');
+    if (pwd === null) return;
+    password = pwd || '123456';
+  } else if (fmt.id === 'unlock') {
+    const pwd = prompt('Nhập mật khẩu mở khóa PDF (để trống nếu file không có mật khẩu mở):', '');
+    if (pwd === null) return;
+    password = pwd;
+  }
+
   // Hide radial menu immediately and run conversion in the background;
   // the top-center HUD pill displays live % progress and final file count.
   const selectedInputs = files.slice();
@@ -515,7 +529,7 @@ async function commit() {
   clearTimeout(hideTimer);
   invoke('hide_radial_cmd');
   try {
-    await invoke('convert_any_cmd', { inputs: selectedInputs, target: targetId, quality: 90 });
+    await invoke('convert_any_cmd', { inputs: selectedInputs, target: targetId, quality: 90, password: password || null });
     try { smartTarget = await invoke('smart_pick', { input_ext: fileExt }); } catch (e) {}
   } catch (e) {
     const errStr = String(e || '');

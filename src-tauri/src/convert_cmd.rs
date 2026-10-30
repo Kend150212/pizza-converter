@@ -191,6 +191,7 @@ pub fn convert_any_cmd(
     inputs: Vec<String>,
     target: String,
     quality: u8,
+    password: Option<String>,
 ) -> Result<String, String> {
     if inputs.is_empty() {
         return Err("no input".into());
@@ -282,6 +283,7 @@ pub fn convert_any_cmd(
             for _ in 0..pool_size {
                 let app = app.clone();
                 let target = target.clone();
+                let password = password.clone();
                 let in_paths = &in_paths;
                 let next_idx = next_idx.clone();
                 let done_count = done_count.clone();
@@ -307,6 +309,22 @@ pub fn convert_any_cmd(
                             let result = match target.as_str() {
                                 "removebg" => remove_bg_image(&app, item_path)?,
                                 "scan_doc" => scan_doc_image(&app, item_path)?,
+                                "protect" => {
+                                    let base = crate::config::resolve_output(&app, item_path, "pdf");
+                                    let dir = base.parent().unwrap_or_else(|| Path::new("."));
+                                    let pwd = password.as_deref().unwrap_or("123456");
+                                    let produced = convertx_engine::office::pdf_protect(item_path, dir, pwd)
+                                        .map_err(|e| e.to_string())?;
+                                    produced.to_string_lossy().into_owned()
+                                }
+                                "unlock" => {
+                                    let base = crate::config::resolve_output(&app, item_path, "pdf");
+                                    let dir = base.parent().unwrap_or_else(|| Path::new("."));
+                                    let pwd = password.as_deref().unwrap_or("");
+                                    let produced = convertx_engine::office::pdf_unlock(item_path, dir, pwd)
+                                        .map_err(|e| e.to_string())?;
+                                    produced.to_string_lossy().into_owned()
+                                }
                                 "compress" => {
                                     let out = crate::config::resolve_output(&app, item_path, "pdf");
                                     convertx_engine::compress_pdf(item_path, &out, pro)
@@ -336,6 +354,7 @@ pub fn convert_any_cmd(
                                         "to_docx" => "docx",
                                         "to_xlsx" => "xlsx",
                                         "to_txt" => "txt",
+                                        "to_md" => "md",
                                         _ => fmt,
                                     };
                                     let out = crate::config::resolve_output(&app, item_path, real_fmt);
@@ -442,6 +461,22 @@ pub fn convert_any_cmd(
             let result = match target.as_str() {
                 "removebg" => remove_bg_image(&app, item_path)?,
                 "scan_doc" => scan_doc_image(&app, item_path)?,
+                "protect" => {
+                    let base = crate::config::resolve_output(&app, item_path, "pdf");
+                    let dir = base.parent().unwrap_or_else(|| Path::new("."));
+                    let pwd = password.as_deref().unwrap_or("123456");
+                    let produced = convertx_engine::office::pdf_protect(item_path, dir, pwd)
+                        .map_err(|e| e.to_string())?;
+                    produced.to_string_lossy().into_owned()
+                }
+                "unlock" => {
+                    let base = crate::config::resolve_output(&app, item_path, "pdf");
+                    let dir = base.parent().unwrap_or_else(|| Path::new("."));
+                    let pwd = password.as_deref().unwrap_or("");
+                    let produced = convertx_engine::office::pdf_unlock(item_path, dir, pwd)
+                        .map_err(|e| e.to_string())?;
+                    produced.to_string_lossy().into_owned()
+                }
                 "split" => {
                     let probe = crate::config::resolve_output(&app, item_path, "pdf");
                     let base = probe.parent().unwrap_or_else(|| Path::new("."));
@@ -488,6 +523,7 @@ pub fn convert_any_cmd(
                         "to_docx" => "docx",
                         "to_xlsx" => "xlsx",
                         "to_txt" => "txt",
+                        "to_md" => "md",
                         _ => fmt,
                     };
                     let out = crate::config::resolve_output(&app, item_path, real_fmt);

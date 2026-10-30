@@ -85,10 +85,13 @@ fn build_groups() -> Vec<Group> {
                 f("to_docx", false, false),
                 f("to_xlsx", false, false),
                 f("to_txt", false, false),
+                f("to_md", false, false),
                 f("to_png", false, false),
                 f("compress", false, false),
                 f("split", false, false),
                 f("merge", false, false),
+                f("protect", false, false),
+                f("unlock", false, false),
             ],
         },
         Group {
@@ -169,7 +172,10 @@ pub fn supported_targets(input: String) -> Vec<String> {
         return s(&["pdf"]);
     }
     if e == "pdf" {
-        return s(&["to_docx", "to_xlsx", "to_txt", "to_png", "compress", "split", "merge"]);
+        return s(&[
+            "to_docx", "to_xlsx", "to_txt", "to_md", "to_png", "compress", "split", "merge",
+            "protect", "unlock",
+        ]);
     }
     // Data hub: all 5x5 pairs (csv/json/xml/yaml/xlsx).
     if convertx_engine::is_data_ext(&e) {
