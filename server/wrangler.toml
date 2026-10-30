@@ -1,0 +1,7 @@
+﻿name = "pizza-license-server"
+main = "worker.js"
+compatibility_date = "2026-10-30"
+
+[[kv_namespaces]]
+binding = "PIZZA_KV"
+id = "2c620c776e2340049b9204cdcee4cfdd"
