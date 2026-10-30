@@ -55,6 +55,7 @@ fn build_groups() -> Vec<Group> {
                 f("avif", false, false),
                 f("heic", false, false),
                 f("removebg", false, false),
+                f("scan_doc", false, false),
             ],
         },
         Group {
@@ -158,7 +159,7 @@ pub fn supported_targets(input: String) -> Vec<String> {
     let p = Path::new(&input);
     if convertx_engine::heic::is_heic(p) || convertx_engine::is_image_ext(&e) {
         return s(&[
-            "png", "jpg", "webp", "bmp", "ico", "gif", "tiff", "avif", "heic", "removebg",
+            "png", "jpg", "webp", "bmp", "ico", "gif", "tiff", "avif", "heic", "removebg", "scan_doc",
         ]);
     }
     if convertx_engine::office::is_word_doc_ext(&e) {

@@ -306,6 +306,7 @@ pub fn convert_any_cmd(
                         let single_outcome: Result<String, String> = (|| {
                             let result = match target.as_str() {
                                 "removebg" => remove_bg_image(&app, item_path)?,
+                                "scan_doc" => scan_doc_image(&app, item_path)?,
                                 "compress" => {
                                     let out = crate::config::resolve_output(&app, item_path, "pdf");
                                     convertx_engine::compress_pdf(item_path, &out, pro)
@@ -723,6 +724,72 @@ rgba.save(out_path, "PNG", optimize=True)
 
     rgba.save(&out).map_err(|e| e.to_string())?;
     Ok(out.to_string_lossy().into_owned())
+}
+
+
+fn scan_doc_image(app: &tauri::AppHandle, input: &Path) -> Result<String, String> {
+    let stem = input
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("output");
+    let fake_in = input.with_file_name(format!("{stem}_scan.pdf"));
+    let out = crate::config::resolve_output(app, &fake_in, "pdf");
+
+    let script = r#"
+import sys, os, cv2, numpy as np
+from PIL import Image, ImageOps
+
+try:
+    import pillow_heif
+    pillow_heif.register_heif_opener()
+except Exception:
+    pass
+
+in_path, out_path = sys.argv[1], sys.argv[2]
+pil_img = ImageOps.exif_transpose(Image.open(in_path)).convert("RGB")
+img_bgr = cv2.cvtColor(np.asarray(pil_img), cv2.COLOR_RGB2BGR)
+
+# Convert to LAB for illumination processing
+lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB)
+l, a, b = cv2.split(lab)
+
+# Estimate background illumination using morphological dilation
+ksize = max(15, int(min(img_bgr.shape[:2]) / 25))
+if ksize % 2 == 0:
+    ksize += 1
+kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (ksize, ksize))
+bg = cv2.dilate(l, kernel)
+bg = cv2.medianBlur(bg, ksize)
+
+# Normalize lighting across document paper
+diff = 255.0 - cv2.absdiff(l, bg)
+norm = cv2.normalize(diff, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
+
+# Levels: stretch paper to pure white while preserving text and ink contrast
+p_low, p_high = np.percentile(norm, (3, 94))
+norm = np.clip((norm - p_low) * 255.0 / max(p_high - p_low, 1), 0, 255).astype(np.uint8)
+
+# Reassemble enhanced LAB image
+enhanced_lab = cv2.merge([norm, a, b])
+enhanced_bgr = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
+
+# Unsharp mask for clean, sharp text strokes
+blurred = cv2.GaussianBlur(enhanced_bgr, (0, 0), 1.2)
+sharpened = cv2.addWeighted(enhanced_bgr, 1.35, blurred, -0.35, 0)
+
+# Convert to RGB and export directly as scanned PDF
+out_rgb = cv2.cvtColor(sharpened, cv2.COLOR_BGR2RGB)
+scanned_pil = Image.fromarray(out_rgb)
+scanned_pil.save(out_path, "PDF", resolution=150.0)
+"#;
+
+    let in_s = input.to_string_lossy().into_owned();
+    let out_s = out.to_string_lossy().into_owned();
+    if convertx_engine::office::run_python(script, &[&in_s, &out_s]).is_ok() && out.is_file() {
+        return Ok(out_s);
+    }
+
+    Err("Scan document processing failed".into())
 }
 
 /// Metadata for the center of the radial menu (name, ext, human size).

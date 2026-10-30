@@ -137,6 +137,7 @@ function setMask(el, paths) {
 function fmtName(fmt) {
   const id = fmt.id;
   if (id === 'removebg') return t('fmt_removebg');
+  if (id === 'scan_doc') return 'Scan Doc';
   if (id === 'compress') return t('op_compress');
   if (id === 'split') return t('op_split');
   if (id === 'merge') return t('op_merge');
