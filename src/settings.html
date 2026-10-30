@@ -20,13 +20,17 @@ html, body { width:100%; height:100%; background:#141828; overflow:hidden;
 #close:hover { background:rgba(251,113,133,.35); }
 #body { display:flex; height:calc(100% - 62px); }
 /* sidebar */
-#sidebar { width:212px; padding:6px 12px; display:flex; flex-direction:column; gap:6px; }
-.nav-item { display:flex; align-items:center; gap:10px; padding:11px 14px; border-radius:14px;
-  border:none; background:transparent; color:#f4f6fb; font-size:14px; font-weight:600; cursor:pointer; text-align:left; }
+#sidebar { width:218px; padding:10px 12px 14px; display:flex; flex-direction:column; justify-content:space-between; height:100%; border-right:1px solid rgba(255,255,255,.08); }
+.nav-top, .nav-bottom { display:flex; flex-direction:column; gap:5px; }
+.nav-bottom { padding-top:10px; border-top:1px solid rgba(255,255,255,.10); }
+.nav-item { display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:12px;
+  border:none; background:transparent; color:#f4f6fb; font-size:13.5px; font-weight:600; cursor:pointer; text-align:left; }
 .nav-item:hover { background:rgba(255,255,255,.07); }
 .nav-item.active { background:linear-gradient(155deg, rgba(255,255,255,.20), rgba(255,255,255,.08));
   border:1px solid rgba(255,255,255,.25);
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.nav-item-sub { font-size:12.5px; padding:8px 12px; opacity:0.8; }
+.nav-item-sub:hover, .nav-item-sub.active { opacity:1; }
 .nav-ico { width:20px; text-align:center; opacity:.9; }
 .pro-badge { margin-left:auto; font-size:10px; font-weight:800; letter-spacing:.08em; color:#fbbf24;
   border:1px solid rgba(251,191,36,.5); background:rgba(251,191,36,.12);
@@ -263,11 +267,17 @@ main { flex:1; padding:6px 22px 22px 10px; overflow-y:auto; }
   <div id="titlebar" data-tauri-drag-region><span id="title-text" data-i18n="settings_title">Settings</span><button id="close">✕</button></div>
   <div id="body">
     <nav id="sidebar">
-      <button class="nav-item active" data-view="general"><span class="nav-ico">⚙</span><span data-i18n="nav_general">General</span></button>
-      <button class="nav-item" data-view="guide"><span class="nav-ico">📖</span><span data-i18n="nav_guide">Guide</span></button>
-      <button class="nav-item" data-view="pro"><span class="nav-ico">🔒</span><span data-i18n="nav_pro">Pizza Converter Pro</span><span class="pro-badge" data-i18n="pro_tag">PRO</span></button>
-      <button class="nav-item" data-view="history"><span class="nav-ico">🕒</span><span data-i18n="nav_history">History</span></button>
-      <button class="nav-item" data-view="about"><span class="nav-ico">ⓘ</span><span data-i18n="nav_about">About</span></button>
+      <div class="nav-top">
+        <button class="nav-item active" data-view="general"><span class="nav-ico">⚙</span><span data-i18n="nav_general">General</span></button>
+        <button class="nav-item" data-view="guide"><span class="nav-ico">📖</span><span data-i18n="nav_guide">Guide</span></button>
+        <button class="nav-item" data-view="pro"><span class="nav-ico">🔒</span><span data-i18n="nav_pro">Pizza Converter Pro</span><span class="pro-badge" data-i18n="pro_tag">PRO</span></button>
+        <button class="nav-item" data-view="history"><span class="nav-ico">🕒</span><span data-i18n="nav_history">History</span></button>
+      </div>
+      <div class="nav-bottom">
+        <button class="nav-item nav-item-sub" data-view="about"><span class="nav-ico">ⓘ</span><span data-i18n="nav_about">About</span></button>
+        <button class="nav-item nav-item-sub" data-view="privacy"><span class="nav-ico">🛡</span><span data-i18n="nav_privacy">Privacy Policy</span></button>
+        <button class="nav-item nav-item-sub" data-view="terms"><span class="nav-ico">📜</span><span data-i18n="nav_terms">Terms of Service</span></button>
+      </div>
     </nav>
     <main>
       <section id="view-general" class="view">
@@ -408,6 +418,20 @@ main { flex:1; padding:6px 22px 22px 10px; overflow-y:auto; }
         <div class="center"><button class="btn-ghost" id="btn-restore" data-i18n="restore_btn">Restore purchase</button></div>
         <div class="fineprint" data-i18n="checkout_note"></div>
         <div id="msg"></div>
+
+        <div class="card" style="margin-top: 14px;">
+          <div class="row">
+            <div>
+              <div class="row-title" data-i18n="redeem_label">Redeem Code</div>
+              <div class="row-sub" data-i18n="redeem_ph">Enter redeem code to unlock Pro features</div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; padding-bottom: 12px; margin-top: 4px;">
+            <input type="text" id="redeem-input" class="path-field" data-i18n-ph="redeem_ph" placeholder="Enter code (e.g. PIZZA-PRO-...)" style="text-transform: uppercase; font-family: monospace; font-weight: 700; letter-spacing: 0.05em;" />
+            <button class="btn-ghost" id="btn-redeem" data-i18n="redeem_btn" style="flex-shrink: 0; background: linear-gradient(135deg, rgba(94, 234, 212, 0.25), rgba(20, 184, 166, 0.15)); border-color: rgba(94, 234, 212, 0.45); color: #5eead4;">Activate</button>
+          </div>
+          <div id="redeem-msg" class="hidden" style="font-size: 12.5px; font-weight: 600; padding-bottom: 8px;"></div>
+        </div>
       </section>
       <section id="view-history" class="view hidden">
         <div class="section-label" data-i18n="recent_conversions">RECENT CONVERSIONS</div>
@@ -416,11 +440,35 @@ main { flex:1; padding:6px 22px 22px 10px; overflow-y:auto; }
         <div class="fineprint" data-i18n="history_fineprint"></div>
       </section>
       <section id="view-about" class="view hidden">
-        <div class="card">
-          <div class="row"><div><div class="row-title" id="about-line"></div><div class="row-sub" data-i18n="slogan"></div></div></div>
+        <div class="section-label" data-i18n="nav_about">ABOUT</div>
+        <div class="card" style="text-align: center; padding: 24px 18px 20px;">
+          <div style="font-size: 38px; margin-bottom: 8px;">🍕</div>
+          <h2 style="font-size: 20px; font-weight: 800; margin-bottom: 4px;" data-i18n="about_heading">Pizza Converter</h2>
+          <div style="font-size: 13.5px; color: rgba(235,238,248,.7); margin-bottom: 14px;" data-i18n="about_subheading">Fast, Offline & Privacy-First Universal Media Converter</div>
+          <div style="display: inline-block; padding: 5px 16px; border-radius: 999px; background: rgba(94, 234, 212, 0.12); border: 1px solid rgba(94, 234, 212, 0.35); color: #5eead4; font-size: 12.5px; font-weight: 700; margin-bottom: 14px;" id="about-line" data-i18n="about_version">Version 0.1.0</div>
+          <div style="font-size: 13px; color: rgba(235,238,248,.8); margin-bottom: 6px;" data-i18n="about_author">Created with passion by Ken Dao</div>
+          <div style="font-size: 12px; color: rgba(235,238,248,.5);" data-i18n="about_tech">Built with Tauri v2, Rust Core Engine, Web Components & On-device AI.</div>
         </div>
         <div class="card">
           <div class="row"><div><div class="row-sub credit-text" data-i18n="ffmpeg_credit"></div></div></div>
+        </div>
+      </section>
+      <section id="view-privacy" class="view hidden">
+        <div class="section-label" data-i18n="nav_privacy">PRIVACY POLICY</div>
+        <div class="card" style="padding: 18px 20px;">
+          <h3 style="font-size: 16px; font-weight: 700; color: #5eead4; margin-bottom: 10px;" data-i18n="privacy_lead">Your Privacy is 100% Protected</h3>
+          <p style="font-size: 13.5px; line-height: 1.6; color: rgba(235,238,248,.85); margin-bottom: 14px;" data-i18n="privacy_p1">Pizza Converter runs completely offline on your device. We do not operate conversion servers, cloud relays, or remote document processing systems.</p>
+          <p style="font-size: 13.5px; line-height: 1.6; color: rgba(235,238,248,.85); margin-bottom: 14px;" data-i18n="privacy_p2">All file conversions, AI background removal, scanning enhancements, and PDF encryption/decryption take place locally using your CPU and memory.</p>
+          <p style="font-size: 13.5px; line-height: 1.6; color: rgba(235,238,248,.85);" data-i18n="privacy_p3">Zero telemetry: We never collect, transmit, or store your documents, photos, audio, videos, or personal information.</p>
+        </div>
+      </section>
+      <section id="view-terms" class="view hidden">
+        <div class="section-label" data-i18n="nav_terms">TERMS OF SERVICE</div>
+        <div class="card" style="padding: 18px 20px;">
+          <h3 style="font-size: 16px; font-weight: 700; color: #5eead4; margin-bottom: 10px;" data-i18n="terms_lead">License and Conditions</h3>
+          <p style="font-size: 13.5px; line-height: 1.6; color: rgba(235,238,248,.85); margin-bottom: 14px;" data-i18n="terms_p1">License Grant: Pizza Converter grants you a personal, non-exclusive license to use this software on your compatible devices.</p>
+          <p style="font-size: 13.5px; line-height: 1.6; color: rgba(235,238,248,.85); margin-bottom: 14px;" data-i18n="terms_p2">Offline Use: You retain full ownership and rights over all files processed using Pizza Converter.</p>
+          <p style="font-size: 13.5px; line-height: 1.6; color: rgba(235,238,248,.85);" data-i18n="terms_p3">Disclaimer: The software is provided 'as is', without warranty of any kind, express or implied. The author shall not be liable for any damages arising from the use of this software.</p>
         </div>
       </section>
     </main>

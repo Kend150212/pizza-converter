@@ -91,6 +91,7 @@ pub fn run() {
             licensing::is_pro,
             licensing::set_pro,
             licensing::restore_purchase,
+            licensing::redeem_code,
             radial_model::get_radial_model,
             radial_model::get_layout_model,
             radial_model::supported_targets,

@@ -588,24 +588,42 @@ pub fn pdf_unlock(
     std::fs::create_dir_all(output_dir)?;
     let dst = output_dir.join(format!("{}_unlocked.pdf", stem_of(input)));
 
-    let script = r#"
+    let script = r###"
 import sys, pypdf
 
-in_pdf, out_pdf, pwd = sys.argv[1], sys.argv[2], sys.argv[3]
-reader = pypdf.PdfReader(in_pdf)
-if reader.is_encrypted:
-    if pwd:
-        reader.decrypt(pwd)
-    else:
-        reader.decrypt("")
+in_pdf, out_pdf, pwd = sys.argv[1], sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else ""
+unlocked = False
+try:
+    reader = pypdf.PdfReader(in_pdf)
+    if reader.is_encrypted:
+        for p in [pwd, "", "123456", "admin", "password"]:
+            try:
+                res = reader.decrypt(p)
+                if res > 0:
+                    break
+            except Exception:
+                pass
+    writer = pypdf.PdfWriter()
+    for page in reader.pages:
+        writer.add_page(page)
+    with open(out_pdf, "wb") as f:
+        writer.write(f)
+    unlocked = True
+except Exception:
+    pass
 
-writer = pypdf.PdfWriter()
-for page in reader.pages:
-    writer.add_page(page)
+if not unlocked:
+    try:
+        import pypdfium2 as pdfium
+        doc = pdfium.PdfDocument(in_pdf, password=pwd or None)
+        doc.save(out_pdf)
+        unlocked = True
+    except Exception:
+        pass
 
-with open(out_pdf, "wb") as f:
-    writer.write(f)
-"#;
+if not unlocked:
+    sys.exit(1)
+"###;
     let in_s = input.to_string_lossy().into_owned();
     let out_s = dst.to_string_lossy().into_owned();
     let pwd_s = password;

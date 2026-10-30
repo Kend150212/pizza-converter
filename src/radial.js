@@ -137,17 +137,17 @@ function setMask(el, paths) {
 function fmtName(fmt) {
   const id = fmt.id;
   if (id === 'removebg') return t('fmt_removebg');
-  if (id === 'scan_doc') return 'Scan Doc';
+  if (id === 'scan_doc') return t('fmt_scan_doc');
   if (id === 'compress') return t('op_compress');
   if (id === 'split') return t('op_split');
   if (id === 'merge') return t('op_merge');
+  if (id === 'protect') return t('op_protect');
+  if (id === 'unlock') return t('op_unlock');
   if (id === 'to_docx') return 'DOCX';
   if (id === 'to_xlsx') return 'XLSX';
   if (id === 'to_txt') return 'TXT';
   if (id === 'to_md') return 'MD';
   if (id === 'to_png') return 'PNG';
-  if (id === 'protect') return 'Protect';
-  if (id === 'unlock') return 'Unlock';
   return id.toUpperCase();
 }
 function fmtLabelHTML(fmt) {
@@ -512,13 +512,13 @@ async function commit() {
 
   let password = null;
   if (fmt.id === 'protect') {
-    const pwd = prompt('Nhập mật khẩu để bảo vệ file PDF (mặc định 123456):', '123456');
+    const promptMsg = t('prompt_protect_pdf') || 'Enter password to protect PDF:';
+    const pwd = prompt(promptMsg, '123456');
     if (pwd === null) return;
     password = pwd || '123456';
   } else if (fmt.id === 'unlock') {
-    const pwd = prompt('Nhập mật khẩu mở khóa PDF (để trống nếu file không có mật khẩu mở):', '');
-    if (pwd === null) return;
-    password = pwd;
+    // 1-Click automatic unlock: no prompt required
+    password = '';
   }
 
   // Hide radial menu immediately and run conversion in the background;
@@ -772,6 +772,11 @@ listen('radial-show', async e => {
   clearHover();
   tooltipEl.classList.add('hidden');
   tipPinned = false;
+  try {
+    const lang = await currentLang();
+    await loadLocale(lang);
+    applyStaticCopy();
+  } catch (err) {}
   if (!prewarmed || !model.length) {
     await prewarmRadial();
   } else {

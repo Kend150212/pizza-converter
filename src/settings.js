@@ -46,10 +46,19 @@ document.querySelectorAll('.nav-item').forEach(btn => {
     document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-    document.getElementById('view-' + btn.dataset.view).classList.remove('hidden');
-    const title = { guide: t('guide_title'), pro: t('pro_title'), history: t('nav_history') }[btn.dataset.view] || t('settings_title');
+    const viewId = btn.dataset.view;
+    const targetView = document.getElementById('view-' + viewId);
+    if (targetView) targetView.classList.remove('hidden');
+    const title = {
+      guide: t('guide_title'),
+      pro: t('pro_title'),
+      history: t('nav_history'),
+      about: t('nav_about'),
+      privacy: t('nav_privacy'),
+      terms: t('nav_terms')
+    }[viewId] || t('settings_title');
     document.getElementById('title-text').textContent = title;
-    if (btn.dataset.view === 'history') renderHistory();
+    if (viewId === 'history') renderHistory();
   });
 });
 
@@ -276,6 +285,39 @@ document.getElementById('btn-upgrade').addEventListener('click', async () => {
 document.getElementById('btn-restore').addEventListener('click', async () => {
   try { await invoke('restore_purchase'); } catch (e) { msg(e); }
 });
+
+// Redeem Code handler
+const redeemBtn = document.getElementById('btn-redeem');
+const redeemInput = document.getElementById('redeem-input');
+const redeemMsg = document.getElementById('redeem-msg');
+
+if (redeemBtn && redeemInput) {
+  redeemBtn.addEventListener('click', async () => {
+    const code = (redeemInput.value || '').trim();
+    if (!code) {
+      redeemMsg.textContent = t('redeem_ph') || 'Please enter a code';
+      redeemMsg.style.color = '#fbbf24';
+      redeemMsg.classList.remove('hidden');
+      return;
+    }
+    redeemBtn.disabled = true;
+    try {
+      await invoke('redeem_code', { code });
+      redeemMsg.textContent = t('redeem_success') || '✓ Code activated!';
+      redeemMsg.style.color = '#5eead4';
+      redeemMsg.classList.remove('hidden');
+      const upg = document.getElementById('btn-upgrade');
+      if (upg) { upg.textContent = '✓ Pro Active (Full Access Unlocked)'; upg.disabled = true; }
+      const rst = document.getElementById('btn-restore');
+      if (rst) rst.classList.add('hidden');
+    } catch (err) {
+      redeemMsg.textContent = t('redeem_invalid') || 'Invalid or expired redeem code.';
+      redeemMsg.style.color = '#f87171';
+      redeemMsg.classList.remove('hidden');
+      redeemBtn.disabled = false;
+    }
+  });
+}
 
 // ---- language dropdown ----
 const langList = document.getElementById('lang-list');

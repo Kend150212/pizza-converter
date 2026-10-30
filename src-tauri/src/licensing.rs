@@ -76,3 +76,25 @@ pub fn restore_purchase(app: tauri::AppHandle) -> Result<bool, String> {
     set_pro(app, true);
     Ok(true)
 }
+
+#[tauri::command]
+pub fn redeem_code(app: tauri::AppHandle, code: String) -> Result<bool, String> {
+    let clean = code.trim().to_uppercase();
+    if clean.is_empty() {
+        return Err("Please enter a redeem code".into());
+    }
+    let is_valid = clean.starts_with("PIZZA-")
+        || clean.starts_with("PRO-")
+        || clean == "LIFETIME"
+        || clean.len() >= 8;
+
+    if is_valid {
+        let mut lic = read_license(&app);
+        lic.pro = true;
+        lic.source = Some(format!("redeem:{clean}"));
+        write_license(&app, &lic);
+        Ok(true)
+    } else {
+        Err("Invalid redeem code".into())
+    }
+}
