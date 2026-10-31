@@ -286,38 +286,6 @@ document.getElementById('btn-restore').addEventListener('click', async () => {
   try { await invoke('restore_purchase'); } catch (e) { msg(e); }
 });
 
-// Redeem Code handler
-const redeemBtn = document.getElementById('btn-redeem');
-const redeemInput = document.getElementById('redeem-input');
-const redeemMsg = document.getElementById('redeem-msg');
-
-if (redeemBtn && redeemInput) {
-  redeemBtn.addEventListener('click', async () => {
-    const code = (redeemInput.value || '').trim();
-    if (!code) {
-      redeemMsg.textContent = t('redeem_ph') || 'Please enter a code';
-      redeemMsg.style.color = '#fbbf24';
-      redeemMsg.classList.remove('hidden');
-      return;
-    }
-    redeemBtn.disabled = true;
-    try {
-      await invoke('redeem_code', { code });
-      redeemMsg.textContent = t('redeem_success') || '✓ Code activated!';
-      redeemMsg.style.color = '#5eead4';
-      redeemMsg.classList.remove('hidden');
-      const upg = document.getElementById('btn-upgrade');
-      if (upg) { upg.textContent = '✓ Pro Active (Full Access Unlocked)'; upg.disabled = true; }
-      const rst = document.getElementById('btn-restore');
-      if (rst) rst.classList.add('hidden');
-    } catch (err) {
-      redeemMsg.textContent = t('redeem_invalid') || 'Invalid or expired redeem code.';
-      redeemMsg.style.color = '#f87171';
-      redeemMsg.classList.remove('hidden');
-      redeemBtn.disabled = false;
-    }
-  });
-}
 
 // ---- language dropdown ----
 const langList = document.getElementById('lang-list');

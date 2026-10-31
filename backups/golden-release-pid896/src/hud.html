@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pizza Converter Progress</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #f4f6fb;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#pill {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 320px;
+  padding: 10px 14px 11px;
+  border-radius: 14px;
+  background: linear-gradient(155deg, rgba(24, 29, 48, 0.96), rgba(16, 20, 34, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+#pill.hidden {
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+}
+.top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(94, 234, 212, 0.25);
+  border-top-color: #2dd4bf;
+  animation: spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+.badge-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.badge-icon.done {
+  background: rgba(45, 212, 191, 0.2);
+  color: #2dd4bf;
+  border: 1px solid rgba(45, 212, 191, 0.55);
+}
+.badge-icon.err {
+  background: rgba(251, 113, 133, 0.2);
+  color: #fb7185;
+  border: 1px solid rgba(251, 113, 133, 0.55);
+}
+#title {
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.right-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#pct {
+  font-size: 12px;
+  font-weight: 800;
+  color: #5eead4;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+#btn-close {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+#btn-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+#sub {
+  font-size: 11px;
+  color: rgba(235, 238, 248, 0.65);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bar-track {
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+#bar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #3b82f6, #2dd4bf);
+  transition: width 0.25s ease;
+}
+#bar-fill.err {
+  background: linear-gradient(90deg, #f43f5e, #fb7185);
+}
+#hud-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+#hud-actions.hidden {
+  display: none !important;
+}
+.hud-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.hud-btn.primary {
+  background: linear-gradient(135deg, rgba(45, 212, 191, 0.24), rgba(45, 212, 191, 0.12));
+  border: 1px solid rgba(45, 212, 191, 0.55);
+  color: #5eead4;
+}
+.hud-btn.primary:hover {
+  background: linear-gradient(135deg, rgba(45, 212, 191, 0.38), rgba(45, 212, 191, 0.22));
+  box-shadow: 0 0 10px rgba(45, 212, 191, 0.35);
+  transform: translateY(-1px);
+}
+.hud-btn.secondary {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #f4f6fb;
+}
+.hud-btn.secondary:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.35);
+  transform: translateY(-1px);
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+</style>
+</head>
+<body>
+<div id="pill" class="hidden">
+  <div class="top-row">
+    <div class="left">
+      <div id="ico" class="spinner"></div>
+      <div id="title">Converting…</div>
+    </div>
+    <div class="right-meta">
+      <div id="pct">0%</div>
+      <button id="btn-close" title="Close">✕</button>
+    </div>
+  </div>
+  <div id="sub">Preparing files…</div>
+  <div class="bar-track"><div id="bar-fill"></div></div>
+  <div id="hud-actions" class="hidden">
+    <button id="btn-open-file" class="hud-btn primary">
+      <span>↗</span> <span id="lbl-open">Mở file</span>
+    </button>
+    <button id="btn-show-folder" class="hud-btn secondary">
+      <span>📁</span> <span id="lbl-folder">Thư mục</span>
+    </button>
+  </div>
+</div>
+<script src="tauri-bridge.js"></script>
+<script>
+const { invoke } = window.__TAURI__.core;
+const { listen } = window.__TAURI__.event;
+
+const pill = document.getElementById('pill');
+const ico = document.getElementById('ico');
+const titleEl = document.getElementById('title');
+const pctEl = document.getElementById('pct');
+const subEl = document.getElementById('sub');
+const barFill = document.getElementById('bar-fill');
+const actionsEl = document.getElementById('hud-actions');
+const btnOpenFile = document.getElementById('btn-open-file');
+const btnShowFolder = document.getElementById('btn-show-folder');
+const btnClose = document.getElementById('btn-close');
+const lblOpen = document.getElementById('lbl-open');
+const lblFolder = document.getElementById('lbl-folder');
+
+let hideTimer = null;
+let lastOutPath = null;
+let isDone = false;
+
+async function syncLocale() {
+  try {
+    const cfg = await invoke('get_config');
+    if (cfg && cfg.language === 'en') {
+      lblOpen.textContent = 'Open file';
+      lblFolder.textContent = 'Folder';
+    } else {
+      lblOpen.textContent = 'Mở file';
+      lblFolder.textContent = 'Thư mục';
+    }
+  } catch (e) {}
+}
+syncLocale();
+
+function scheduleHide(ms) {
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(() => {
+    pill.classList.add('hidden');
+    setTimeout(() => invoke('hide_hud_cmd').catch(() => {}), 240);
+  }, ms);
+}
+
+btnClose.addEventListener('click', (e) => {
+  e.stopPropagation();
+  clearTimeout(hideTimer);
+  pill.classList.add('hidden');
+  setTimeout(() => invoke('hide_hud_cmd').catch(() => {}), 200);
+});
+
+pill.addEventListener('mouseenter', () => {
+  if (isDone) { clearTimeout(hideTimer); hideTimer = null; }
+});
+
+pill.addEventListener('mouseleave', () => {
+  if (isDone) scheduleHide(2500);
+});
+
+btnOpenFile.addEventListener('click', async (e) => {
+  e.stopPropagation();
+  if (lastOutPath) {
+    try { await invoke('open_file', { path: lastOutPath }); } catch (err) {}
+    pill.classList.add('hidden');
+    setTimeout(() => invoke('hide_hud_cmd').catch(() => {}), 200);
+  }
+});
+
+btnShowFolder.addEventListener('click', async (e) => {
+  e.stopPropagation();
+  if (lastOutPath) {
+    try { await invoke('show_in_folder', { path: lastOutPath }); } catch (err) {}
+    pill.classList.add('hidden');
+    setTimeout(() => invoke('hide_hud_cmd').catch(() => {}), 200);
+  }
+});
+
+let simTimer = null;
+function startSmoothProgress(currentPct) {
+  clearInterval(simTimer);
+  let p = currentPct;
+  simTimer = setInterval(() => {
+    if (isDone || p >= 95) {
+      clearInterval(simTimer);
+      return;
+    }
+    p += 1;
+    pctEl.textContent = `${p}%`;
+    barFill.style.width = `${p}%`;
+  }, 400);
+}
+
+listen('convert-progress', (e) => {
+  const p = e.payload || {};
+  clearTimeout(hideTimer);
+  pill.classList.remove('hidden');
+
+  const total = p.total || 1;
+  const done = p.done || 0;
+  const pct = Math.max(0, Math.min(100, p.percent ?? Math.round((done / total) * 100)));
+  const tgt = (p.target || '').replace(/^to_/, '').toUpperCase();
+
+  pctEl.textContent = `${pct}%`;
+  barFill.style.width = `${pct}%`;
+  barFill.classList.toggle('err', p.state === 'error');
+
+  if (p.state === 'running') {
+    isDone = false;
+    actionsEl.classList.add('hidden');
+    ico.className = 'spinner';
+    ico.textContent = '';
+    const stepNum = Math.min(done + 1, total);
+    titleEl.textContent = total > 1
+      ? `Converting ${stepNum}/${total} → ${tgt}`
+      : `Converting → ${tgt}`;
+    subEl.textContent = p.current || '';
+    startSmoothProgress(pct);
+  } else if (p.state === 'done') {
+    isDone = true;
+    clearInterval(simTimer);
+    pctEl.textContent = `100%`;
+    barFill.style.width = `100%`;
+    ico.className = 'badge-icon done';
+    ico.textContent = '✓';
+    titleEl.textContent = total > 1
+      ? `Converted ${done}/${total} files → ${tgt}`
+      : `Converted 1 file → ${tgt}`;
+    subEl.textContent = p.current || 'Saved successfully';
+
+    if (p.out_path) {
+      lastOutPath = p.out_path;
+      actionsEl.classList.remove('hidden');
+      syncLocale();
+      scheduleHide(5000);
+    } else {
+      actionsEl.classList.add('hidden');
+      scheduleHide(2800);
+    }
+  } else if (p.state === 'error') {
+    isDone = false;
+    clearInterval(simTimer);
+    actionsEl.classList.add('hidden');
+    ico.className = 'badge-icon err';
+    ico.textContent = '!';
+    titleEl.textContent = `Conversion error`;
+    subEl.textContent = p.error || 'Failed to convert';
+    scheduleHide(3600);
+  }
+});
+</script>
+</body>
+</html>

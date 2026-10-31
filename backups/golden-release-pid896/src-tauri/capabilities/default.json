@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "IPC permissions for the radial + settings windows. Without a capability, Tauri v2 rejects every core plugin command (event listen, window hide...) with 'not allowed by ACL'. App commands from invoke_handler stay allowed (no app ACL manifest).",
+  "windows": ["radial", "settings", "hud"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-start-dragging"
+  ]
+}

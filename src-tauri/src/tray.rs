@@ -2,7 +2,7 @@
 
 use tauri::{
     menu::{Menu, MenuItem},
-    tray::TrayIconBuilder,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager,
 };
 
@@ -24,6 +24,17 @@ pub fn build_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         .icon(icon)
         .menu(&menu)
         .tooltip(&ver_str)
+        .show_menu_on_left_click(false)
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                crate::show_settings_window(tray.app_handle());
+            }
+        })
         .on_menu_event(|app, event| match event.id.as_ref() {
             "convert" => {
                 // Open the radial window; it offers Browse… when nothing is selected.
@@ -38,10 +49,7 @@ pub fn build_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                 }
             }
             "settings" => {
-                if let Some(w) = app.get_webview_window("settings") {
-                    let _ = w.show();
-                    let _ = w.set_focus();
-                }
+                crate::show_settings_window(app);
             }
             "quit" => app.exit(0),
             _ => {}

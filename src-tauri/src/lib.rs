@@ -13,13 +13,36 @@ pub mod security;
 use tauri::Manager;
 use tauri_plugin_autostart::ManagerExt;
 
-/// Show the Settings window (called from the radial Pro tooltip).
-#[tauri::command]
-fn show_settings(app: tauri::AppHandle) {
+/// Show or restore the Settings window.
+/// If the window was minimized, restores it. If destroyed, recreates it.
+pub fn show_settings_window(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("settings") {
+        let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
+    } else {
+        if let Ok(w) = tauri::WebviewWindowBuilder::new(
+            app,
+            "settings",
+            tauri::WebviewUrl::App("settings.html".into()),
+        )
+        .title("Pizza Converter")
+        .inner_size(780.0, 872.0)
+        .resizable(false)
+        .decorations(true)
+        .center()
+        .build()
+        {
+            let _ = w.show();
+            let _ = w.set_focus();
+        }
     }
+}
+
+/// Show the Settings window (called from the radial Pro tooltip or JS bridge).
+#[tauri::command]
+fn show_settings(app: tauri::AppHandle) {
+    show_settings_window(&app);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -37,13 +60,18 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(w) = app.get_webview_window("settings") {
-                let _ = w.show();
-                let _ = w.set_focus();
-            }
+            show_settings_window(app);
         }))
         .plugin(autostart_plugin)
         .plugin(tauri_plugin_dialog::init())
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "settings" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .setup(|app| {
             // Apply autostart preference from config
             let cfg = config::load(app.handle());
@@ -59,11 +87,7 @@ pub fn run() {
             tray::build_tray(app.handle())?;
 
             // On initial launch, show the main Settings window so the user immediately sees the app
-            if let Some(w) = app.get_webview_window("settings") {
-                let _ = w.show();
-                let _ = w.center();
-                let _ = w.set_focus();
-            }
+            show_settings_window(app.handle());
 
             // Start global instant shortcut listener
             hotkey::spawn_shift_hold_listener(app.handle().clone());

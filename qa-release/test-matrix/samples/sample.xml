@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<items>
+  <item id="1"><name>Bánh mì</name><price>15000</price></item>
+  <item id="2"><name>Cà phê</name><price>25000</price></item>
+  <item id="3"><name>Phở</name><price>45000</price></item>
+</items>

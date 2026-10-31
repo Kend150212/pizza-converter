@@ -1,0 +1,1456 @@
+{
+ "build": "build-003",
+ "time": "20261029-1644",
+ "total": 181,
+ "passed": 120,
+ "results": [
+  {
+   "case": "PNG->PNG",
+   "src": "sample.png",
+   "out": "images/png-to-png.png",
+   "pass": true,
+   "convert": "",
+   "verify": "PNG"
+  },
+  {
+   "case": "PNG->JPG",
+   "src": "sample.png",
+   "out": "images/png-to-jpg.jpg",
+   "pass": true,
+   "convert": "",
+   "verify": "JPEG"
+  },
+  {
+   "case": "PNG->WEBP",
+   "src": "sample.png",
+   "out": "images/png-to-webp.webp",
+   "pass": true,
+   "convert": "",
+   "verify": "WEBP"
+  },
+  {
+   "case": "PNG->AVIF",
+   "src": "sample.png",
+   "out": "images/png-to-avif.avif",
+   "pass": true,
+   "convert": "",
+   "verify": "AVIF; ffprobe đọc được"
+  },
+  {
+   "case": "PNG->BMP",
+   "src": "sample.png",
+   "out": "images/png-to-bmp.bmp",
+   "pass": true,
+   "convert": "",
+   "verify": "BMP"
+  },
+  {
+   "case": "PNG->ICO",
+   "src": "sample.png",
+   "out": "images/png-to-ico.ico",
+   "pass": true,
+   "convert": "",
+   "verify": "ICO"
+  },
+  {
+   "case": "PNG->GIF",
+   "src": "sample.png",
+   "out": "images/png-to-gif.gif",
+   "pass": true,
+   "convert": "",
+   "verify": "GIF"
+  },
+  {
+   "case": "PNG->TIFF",
+   "src": "sample.png",
+   "out": "images/png-to-tif.tif",
+   "pass": true,
+   "convert": "",
+   "verify": "TIFF"
+  },
+  {
+   "case": "JPG->PNG",
+   "src": "sample.jpg",
+   "out": "images/jpg-to-png.png",
+   "pass": true,
+   "convert": "",
+   "verify": "PNG"
+  },
+  {
+   "case": "JPG->JPG",
+   "src": "sample.jpg",
+   "out": "images/jpg-to-jpg.jpg",
+   "pass": true,
+   "convert": "",
+   "verify": "JPEG"
+  },
+  {
+   "case": "JPG->WEBP",
+   "src": "sample.jpg",
+   "out": "images/jpg-to-webp.webp",
+   "pass": true,
+   "convert": "",
+   "verify": "WEBP"
+  },
+  {
+   "case": "JPG->AVIF",
+   "src": "sample.jpg",
+   "out": "images/jpg-to-avif.avif",
+   "pass": true,
+   "convert": "",
+   "verify": "AVIF; ffprobe đọc được"
+  },
+  {
+   "case": "JPG->BMP",
+   "src": "sample.jpg",
+   "out": "images/jpg-to-bmp.bmp",
+   "pass": true,
+   "convert": "",
+   "verify": "BMP"
+  },
+  {
+   "case": "JPG->ICO",
+   "src": "sample.jpg",
+   "out": "images/jpg-to-ico.ico",
+   "pass": true,
+   "convert": "",
+   "verify": "ICO"
+  },
+  {
+   "case": "JPG->GIF",
+   "src": "sample.jpg",
+   "out": "images/jpg-to-gif.gif",
+   "pass": true,
+   "convert": "",
+   "verify": "GIF"
+  },
+  {
+   "case": "JPG->TIFF",
+   "src": "sample.jpg",
+   "out": "images/jpg-to-tif.tif",
+   "pass": true,
+   "convert": "",
+   "verify": "TIFF"
+  },
+  {
+   "case": "WEBP->PNG",
+   "src": "sample.webp",
+   "out": "images/webp-to-png.png",
+   "pass": true,
+   "convert": "",
+   "verify": "PNG"
+  },
+  {
+   "case": "WEBP->JPG",
+   "src": "sample.webp",
+   "out": "images/webp-to-jpg.jpg",
+   "pass": true,
+   "convert": "",
+   "verify": "JPEG"
+  },
+  {
+   "case": "WEBP->WEBP",
+   "src": "sample.webp",
+   "out": "images/webp-to-webp.webp",
+   "pass": true,
+   "convert": "",
+   "verify": "WEBP"
+  },
+  {
+   "case": "WEBP->AVIF",
+   "src": "sample.webp",
+   "out": "images/webp-to-avif.avif",
+   "pass": true,
+   "convert": "",
+   "verify": "AVIF; ffprobe đọc được"
+  },
+  {
+   "case": "WEBP->BMP",
+   "src": "sample.webp",
+   "out": "images/webp-to-bmp.bmp",
+   "pass": true,
+   "convert": "",
+   "verify": "BMP"
+  },
+  {
+   "case": "WEBP->ICO",
+   "src": "sample.webp",
+   "out": "images/webp-to-ico.ico",
+   "pass": true,
+   "convert": "",
+   "verify": "ICO"
+  },
+  {
+   "case": "WEBP->GIF",
+   "src": "sample.webp",
+   "out": "images/webp-to-gif.gif",
+   "pass": true,
+   "convert": "",
+   "verify": "GIF"
+  },
+  {
+   "case": "WEBP->TIFF",
+   "src": "sample.webp",
+   "out": "images/webp-to-tif.tif",
+   "pass": true,
+   "convert": "",
+   "verify": "TIFF"
+  },
+  {
+   "case": "AVIF->PNG",
+   "src": "sample.avif",
+   "out": "images/avif-to-png.png",
+   "pass": false,
+   "convert": "pizza-convert: error: decode error: AVIF decoding needs the v1 native decoder (not in PoC)",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "AVIF->JPG",
+   "src": "sample.avif",
+   "out": "images/avif-to-jpg.jpg",
+   "pass": false,
+   "convert": "pizza-convert: error: decode error: AVIF decoding needs the v1 native decoder (not in PoC)",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "AVIF->WEBP",
+   "src": "sample.avif",
+   "out": "images/avif-to-webp.webp",
+   "pass": false,
+   "convert": "pizza-convert: error: decode error: AVIF decoding needs the v1 native decoder (not in PoC)",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "AVIF->AVIF",
+   "src": "sample.avif",
+   "out": "images/avif-to-avif.avif",
+   "pass": false,
+   "convert": "pizza-convert: error: decode error: AVIF decoding needs the v1 native decoder (not in PoC)",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "AVIF->BMP",
+   "src": "sample.avif",
+   "out": "images/avif-to-bmp.bmp",
+   "pass": false,
+   "convert": "pizza-convert: error: decode error: AVIF decoding needs the v1 native decoder (not in PoC)",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "AVIF->ICO",
+   "src": "sample.avif",
+   "out": "images/avif-to-ico.ico",
+   "pass": false,
+   "convert": "pizza-convert: error: decode error: AVIF decoding needs the v1 native decoder (not in PoC)",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "AVIF->GIF",
+   "src": "sample.avif",
+   "out": "images/avif-to-gif.gif",
+   "pass": false,
+   "convert": "pizza-convert: error: decode error: AVIF decoding needs the v1 native decoder (not in PoC)",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "AVIF->TIFF",
+   "src": "sample.avif",
+   "out": "images/avif-to-tif.tif",
+   "pass": false,
+   "convert": "pizza-convert: error: decode error: AVIF decoding needs the v1 native decoder (not in PoC)",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "BMP->PNG",
+   "src": "sample.bmp",
+   "out": "images/bmp-to-png.png",
+   "pass": true,
+   "convert": "",
+   "verify": "PNG"
+  },
+  {
+   "case": "BMP->JPG",
+   "src": "sample.bmp",
+   "out": "images/bmp-to-jpg.jpg",
+   "pass": true,
+   "convert": "",
+   "verify": "JPEG"
+  },
+  {
+   "case": "BMP->WEBP",
+   "src": "sample.bmp",
+   "out": "images/bmp-to-webp.webp",
+   "pass": true,
+   "convert": "",
+   "verify": "WEBP"
+  },
+  {
+   "case": "BMP->AVIF",
+   "src": "sample.bmp",
+   "out": "images/bmp-to-avif.avif",
+   "pass": true,
+   "convert": "",
+   "verify": "AVIF; ffprobe đọc được"
+  },
+  {
+   "case": "BMP->BMP",
+   "src": "sample.bmp",
+   "out": "images/bmp-to-bmp.bmp",
+   "pass": true,
+   "convert": "",
+   "verify": "BMP"
+  },
+  {
+   "case": "BMP->ICO",
+   "src": "sample.bmp",
+   "out": "images/bmp-to-ico.ico",
+   "pass": true,
+   "convert": "",
+   "verify": "ICO"
+  },
+  {
+   "case": "BMP->GIF",
+   "src": "sample.bmp",
+   "out": "images/bmp-to-gif.gif",
+   "pass": true,
+   "convert": "",
+   "verify": "GIF"
+  },
+  {
+   "case": "BMP->TIFF",
+   "src": "sample.bmp",
+   "out": "images/bmp-to-tif.tif",
+   "pass": true,
+   "convert": "",
+   "verify": "TIFF"
+  },
+  {
+   "case": "ICO->PNG",
+   "src": "sample.ico",
+   "out": "images/ico-to-png.png",
+   "pass": true,
+   "convert": "",
+   "verify": "PNG"
+  },
+  {
+   "case": "ICO->JPG",
+   "src": "sample.ico",
+   "out": "images/ico-to-jpg.jpg",
+   "pass": true,
+   "convert": "",
+   "verify": "JPEG"
+  },
+  {
+   "case": "ICO->WEBP",
+   "src": "sample.ico",
+   "out": "images/ico-to-webp.webp",
+   "pass": true,
+   "convert": "",
+   "verify": "WEBP"
+  },
+  {
+   "case": "ICO->AVIF",
+   "src": "sample.ico",
+   "out": "images/ico-to-avif.avif",
+   "pass": true,
+   "convert": "",
+   "verify": "AVIF; ffprobe đọc được"
+  },
+  {
+   "case": "ICO->BMP",
+   "src": "sample.ico",
+   "out": "images/ico-to-bmp.bmp",
+   "pass": true,
+   "convert": "",
+   "verify": "BMP"
+  },
+  {
+   "case": "ICO->ICO",
+   "src": "sample.ico",
+   "out": "images/ico-to-ico.ico",
+   "pass": true,
+   "convert": "",
+   "verify": "ICO"
+  },
+  {
+   "case": "ICO->GIF",
+   "src": "sample.ico",
+   "out": "images/ico-to-gif.gif",
+   "pass": true,
+   "convert": "",
+   "verify": "GIF"
+  },
+  {
+   "case": "ICO->TIFF",
+   "src": "sample.ico",
+   "out": "images/ico-to-tif.tif",
+   "pass": true,
+   "convert": "",
+   "verify": "TIFF"
+  },
+  {
+   "case": "GIF->PNG",
+   "src": "sample.gif",
+   "out": "images/gif-to-png.png",
+   "pass": true,
+   "convert": "",
+   "verify": "PNG"
+  },
+  {
+   "case": "GIF->JPG",
+   "src": "sample.gif",
+   "out": "images/gif-to-jpg.jpg",
+   "pass": true,
+   "convert": "",
+   "verify": "JPEG"
+  },
+  {
+   "case": "GIF->WEBP",
+   "src": "sample.gif",
+   "out": "images/gif-to-webp.webp",
+   "pass": true,
+   "convert": "",
+   "verify": "WEBP"
+  },
+  {
+   "case": "GIF->AVIF",
+   "src": "sample.gif",
+   "out": "images/gif-to-avif.avif",
+   "pass": true,
+   "convert": "",
+   "verify": "AVIF; ffprobe đọc được"
+  },
+  {
+   "case": "GIF->BMP",
+   "src": "sample.gif",
+   "out": "images/gif-to-bmp.bmp",
+   "pass": true,
+   "convert": "",
+   "verify": "BMP"
+  },
+  {
+   "case": "GIF->ICO",
+   "src": "sample.gif",
+   "out": "images/gif-to-ico.ico",
+   "pass": true,
+   "convert": "",
+   "verify": "ICO"
+  },
+  {
+   "case": "GIF->GIF",
+   "src": "sample.gif",
+   "out": "images/gif-to-gif.gif",
+   "pass": true,
+   "convert": "",
+   "verify": "GIF"
+  },
+  {
+   "case": "GIF->TIFF",
+   "src": "sample.gif",
+   "out": "images/gif-to-tif.tif",
+   "pass": true,
+   "convert": "",
+   "verify": "TIFF"
+  },
+  {
+   "case": "TIFF->PNG",
+   "src": "sample.tif",
+   "out": "images/tif-to-png.png",
+   "pass": true,
+   "convert": "",
+   "verify": "PNG"
+  },
+  {
+   "case": "TIFF->JPG",
+   "src": "sample.tif",
+   "out": "images/tif-to-jpg.jpg",
+   "pass": true,
+   "convert": "",
+   "verify": "JPEG"
+  },
+  {
+   "case": "TIFF->WEBP",
+   "src": "sample.tif",
+   "out": "images/tif-to-webp.webp",
+   "pass": true,
+   "convert": "",
+   "verify": "WEBP"
+  },
+  {
+   "case": "TIFF->AVIF",
+   "src": "sample.tif",
+   "out": "images/tif-to-avif.avif",
+   "pass": true,
+   "convert": "",
+   "verify": "AVIF; ffprobe đọc được"
+  },
+  {
+   "case": "TIFF->BMP",
+   "src": "sample.tif",
+   "out": "images/tif-to-bmp.bmp",
+   "pass": true,
+   "convert": "",
+   "verify": "BMP"
+  },
+  {
+   "case": "TIFF->ICO",
+   "src": "sample.tif",
+   "out": "images/tif-to-ico.ico",
+   "pass": true,
+   "convert": "",
+   "verify": "ICO"
+  },
+  {
+   "case": "TIFF->GIF",
+   "src": "sample.tif",
+   "out": "images/tif-to-gif.gif",
+   "pass": true,
+   "convert": "",
+   "verify": "GIF"
+  },
+  {
+   "case": "TIFF->TIFF",
+   "src": "sample.tif",
+   "out": "images/tif-to-tif.tif",
+   "pass": true,
+   "convert": "",
+   "verify": "TIFF"
+  },
+  {
+   "case": "HEIC->PNG",
+   "src": "sample.heic",
+   "out": "images/heic-to-png.png",
+   "pass": true,
+   "convert": "",
+   "verify": "PNG"
+  },
+  {
+   "case": "HEIC->JPG",
+   "src": "sample.heic",
+   "out": "images/heic-to-jpg.jpg",
+   "pass": true,
+   "convert": "",
+   "verify": "JPEG"
+  },
+  {
+   "case": "HEIC->WEBP",
+   "src": "sample.heic",
+   "out": "images/heic-to-webp.webp",
+   "pass": true,
+   "convert": "",
+   "verify": "WEBP"
+  },
+  {
+   "case": "HEIC->AVIF",
+   "src": "sample.heic",
+   "out": "images/heic-to-avif.avif",
+   "pass": true,
+   "convert": "",
+   "verify": "AVIF; ffprobe đọc được"
+  },
+  {
+   "case": "HEIC->BMP",
+   "src": "sample.heic",
+   "out": "images/heic-to-bmp.bmp",
+   "pass": true,
+   "convert": "",
+   "verify": "BMP"
+  },
+  {
+   "case": "HEIC->ICO",
+   "src": "sample.heic",
+   "out": "images/heic-to-ico.ico",
+   "pass": true,
+   "convert": "",
+   "verify": "ICO"
+  },
+  {
+   "case": "HEIC->GIF",
+   "src": "sample.heic",
+   "out": "images/heic-to-gif.gif",
+   "pass": true,
+   "convert": "",
+   "verify": "GIF"
+  },
+  {
+   "case": "HEIC->TIFF",
+   "src": "sample.heic",
+   "out": "images/heic-to-tif.tif",
+   "pass": true,
+   "convert": "",
+   "verify": "TIFF"
+  },
+  {
+   "case": "TXT->TXT",
+   "src": "sample.txt",
+   "out": "docs/txt-to-txt.txt",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: txt -> txt",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "TXT->DOCX",
+   "src": "sample.txt",
+   "out": "docs/txt-to-docx.docx",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: txt -> docx",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "TXT->PDF",
+   "src": "sample.txt",
+   "out": "docs/txt-to-pdf.pdf",
+   "pass": true,
+   "convert": "",
+   "verify": "PDF; có %%EOF"
+  },
+  {
+   "case": "TXT->DOC",
+   "src": "sample.txt",
+   "out": "docs/txt-to-doc.doc",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: txt -> doc",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "TXT->ODT",
+   "src": "sample.txt",
+   "out": "docs/txt-to-odt.odt",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: txt -> odt",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "TXT->RTF",
+   "src": "sample.txt",
+   "out": "docs/txt-to-rtf.rtf",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: txt -> rtf",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "DOCX->TXT",
+   "src": "sample.docx",
+   "out": "docs/docx-to-txt.txt",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: docx -> txt",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "DOCX->DOCX",
+   "src": "sample.docx",
+   "out": "docs/docx-to-docx.docx",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: docx -> docx",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "DOCX->PDF",
+   "src": "sample.docx",
+   "out": "docs/docx-to-pdf.pdf",
+   "pass": true,
+   "convert": "",
+   "verify": "PDF; có %%EOF"
+  },
+  {
+   "case": "DOCX->DOC",
+   "src": "sample.docx",
+   "out": "docs/docx-to-doc.doc",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: docx -> doc",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "DOCX->ODT",
+   "src": "sample.docx",
+   "out": "docs/docx-to-odt.odt",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: docx -> odt",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "DOCX->RTF",
+   "src": "sample.docx",
+   "out": "docs/docx-to-rtf.rtf",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: docx -> rtf",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "PDF->TXT",
+   "src": "sample.pdf",
+   "out": "docs/pdf-to-txt.txt",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: pdf -> txt",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "PDF->DOCX",
+   "src": "sample.pdf",
+   "out": "docs/pdf-to-docx.docx",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: pdf -> docx",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "PDF->PDF",
+   "src": "sample.pdf",
+   "out": "docs/pdf-to-pdf.pdf",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: pdf -> pdf",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "PDF->DOC",
+   "src": "sample.pdf",
+   "out": "docs/pdf-to-doc.doc",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: pdf -> doc",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "PDF->ODT",
+   "src": "sample.pdf",
+   "out": "docs/pdf-to-odt.odt",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: pdf -> odt",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "PDF->RTF",
+   "src": "sample.pdf",
+   "out": "docs/pdf-to-rtf.rtf",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: pdf -> rtf",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "DOC->TXT",
+   "src": "sample.doc",
+   "out": "docs/doc-to-txt.txt",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: doc -> txt",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "DOC->DOCX",
+   "src": "sample.doc",
+   "out": "docs/doc-to-docx.docx",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: doc -> docx",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "DOC->PDF",
+   "src": "sample.doc",
+   "out": "docs/doc-to-pdf.pdf",
+   "pass": true,
+   "convert": "",
+   "verify": "PDF; có %%EOF"
+  },
+  {
+   "case": "DOC->DOC",
+   "src": "sample.doc",
+   "out": "docs/doc-to-doc.doc",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: doc -> doc",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "DOC->ODT",
+   "src": "sample.doc",
+   "out": "docs/doc-to-odt.odt",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: doc -> odt",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "DOC->RTF",
+   "src": "sample.doc",
+   "out": "docs/doc-to-rtf.rtf",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: doc -> rtf",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "ODT->TXT",
+   "src": "sample.odt",
+   "out": "docs/odt-to-txt.txt",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: odt -> txt",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "ODT->DOCX",
+   "src": "sample.odt",
+   "out": "docs/odt-to-docx.docx",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: odt -> docx",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "ODT->PDF",
+   "src": "sample.odt",
+   "out": "docs/odt-to-pdf.pdf",
+   "pass": true,
+   "convert": "",
+   "verify": "PDF; có %%EOF"
+  },
+  {
+   "case": "ODT->DOC",
+   "src": "sample.odt",
+   "out": "docs/odt-to-doc.doc",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: odt -> doc",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "ODT->ODT",
+   "src": "sample.odt",
+   "out": "docs/odt-to-odt.odt",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: odt -> odt",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "ODT->RTF",
+   "src": "sample.odt",
+   "out": "docs/odt-to-rtf.rtf",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: odt -> rtf",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "RTF->TXT",
+   "src": "sample.rtf",
+   "out": "docs/rtf-to-txt.txt",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: rtf -> txt",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "RTF->DOCX",
+   "src": "sample.rtf",
+   "out": "docs/rtf-to-docx.docx",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: rtf -> docx",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "RTF->PDF",
+   "src": "sample.rtf",
+   "out": "docs/rtf-to-pdf.pdf",
+   "pass": true,
+   "convert": "",
+   "verify": "PDF; có %%EOF"
+  },
+  {
+   "case": "RTF->DOC",
+   "src": "sample.rtf",
+   "out": "docs/rtf-to-doc.doc",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: rtf -> doc",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "RTF->ODT",
+   "src": "sample.rtf",
+   "out": "docs/rtf-to-odt.odt",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: rtf -> odt",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "RTF->RTF",
+   "src": "sample.rtf",
+   "out": "docs/rtf-to-rtf.rtf",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: rtf -> rtf",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "XLSX->XLSX",
+   "src": "sample.xlsx",
+   "out": "data/xlsx-to-xlsx.xlsx",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: xlsx -> xlsx",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "XLSX->CSV",
+   "src": "sample.xlsx",
+   "out": "data/xlsx-to-csv.csv",
+   "pass": true,
+   "convert": "",
+   "verify": "4 dòng"
+  },
+  {
+   "case": "XLSX->JSON",
+   "src": "sample.xlsx",
+   "out": "data/xlsx-to-json.json",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: xlsx -> json",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "XLSX->XML",
+   "src": "sample.xlsx",
+   "out": "data/xlsx-to-xml.xml",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: xlsx -> xml",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "XLSX->YAML",
+   "src": "sample.xlsx",
+   "out": "data/xlsx-to-yaml.yaml",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: xlsx -> yaml",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "CSV->XLSX",
+   "src": "sample.csv",
+   "out": "data/csv-to-xlsx.xlsx",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: csv -> xlsx",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "CSV->CSV",
+   "src": "sample.csv",
+   "out": "data/csv-to-csv.csv",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: csv -> csv",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "CSV->JSON",
+   "src": "sample.csv",
+   "out": "data/csv-to-json.json",
+   "pass": true,
+   "convert": "",
+   "verify": "parse JSON ok"
+  },
+  {
+   "case": "CSV->XML",
+   "src": "sample.csv",
+   "out": "data/csv-to-xml.xml",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: csv -> xml",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "CSV->YAML",
+   "src": "sample.csv",
+   "out": "data/csv-to-yaml.yaml",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: csv -> yaml",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "JSON->XLSX",
+   "src": "sample.json",
+   "out": "data/json-to-xlsx.xlsx",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: json -> xlsx",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "JSON->CSV",
+   "src": "sample.json",
+   "out": "data/json-to-csv.csv",
+   "pass": true,
+   "convert": "",
+   "verify": "4 dòng"
+  },
+  {
+   "case": "JSON->JSON",
+   "src": "sample.json",
+   "out": "data/json-to-json.json",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: json -> json",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "JSON->XML",
+   "src": "sample.json",
+   "out": "data/json-to-xml.xml",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: json -> xml",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "JSON->YAML",
+   "src": "sample.json",
+   "out": "data/json-to-yaml.yaml",
+   "pass": true,
+   "convert": "",
+   "verify": "có cấu trúc key: value"
+  },
+  {
+   "case": "XML->XLSX",
+   "src": "sample.xml",
+   "out": "data/xml-to-xlsx.xlsx",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: xml -> xlsx",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "XML->CSV",
+   "src": "sample.xml",
+   "out": "data/xml-to-csv.csv",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: xml -> csv",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "XML->JSON",
+   "src": "sample.xml",
+   "out": "data/xml-to-json.json",
+   "pass": true,
+   "convert": "",
+   "verify": "parse JSON ok"
+  },
+  {
+   "case": "XML->XML",
+   "src": "sample.xml",
+   "out": "data/xml-to-xml.xml",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: xml -> xml",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "XML->YAML",
+   "src": "sample.xml",
+   "out": "data/xml-to-yaml.yaml",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: xml -> yaml",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "YAML->XLSX",
+   "src": "sample.yaml",
+   "out": "data/yaml-to-xlsx.xlsx",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: yaml -> xlsx",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "YAML->CSV",
+   "src": "sample.yaml",
+   "out": "data/yaml-to-csv.csv",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: yaml -> csv",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "YAML->JSON",
+   "src": "sample.yaml",
+   "out": "data/yaml-to-json.json",
+   "pass": true,
+   "convert": "",
+   "verify": "parse JSON ok"
+  },
+  {
+   "case": "YAML->XML",
+   "src": "sample.yaml",
+   "out": "data/yaml-to-xml.xml",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: yaml -> xml",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "YAML->YAML",
+   "src": "sample.yaml",
+   "out": "data/yaml-to-yaml.yaml",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: yaml -> yaml",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "PDF->DOCX",
+   "src": "sample.pdf",
+   "out": "pdftools/pdf-to-docx.docx",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: pdf -> docx",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "PDF->TXT",
+   "src": "sample.pdf",
+   "out": "pdftools/pdf-to-txt.txt",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: pdf -> txt",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "PDF->PNG",
+   "src": "sample.pdf",
+   "out": "pdftools/pdf-to-png.png",
+   "pass": false,
+   "convert": "pizza-convert: error: unsupported output format: pdf -> png",
+   "verify": "chưa convert"
+  },
+  {
+   "case": "PDF_OP_COMPRESS->PDF",
+   "src": "sample.pdf",
+   "out": "pdftools/compress.pdf",
+   "pass": true,
+   "convert": "",
+   "verify": "PDF; có %%EOF"
+  },
+  {
+   "case": "PDF_OP_SPLIT->PDF",
+   "src": "sample-3pages.pdf",
+   "out": "pdftools/split/",
+   "pass": true,
+   "convert": "",
+   "verify": "PDF; có %%EOF"
+  },
+  {
+   "case": "PDF_OP_MERGE->PDF",
+   "src": "sample.pdf+sample-3pages.pdf",
+   "out": "pdftools/merged.pdf",
+   "pass": true,
+   "convert": "",
+   "verify": "PDF; có %%EOF"
+  },
+  {
+   "case": "MP3->MP3",
+   "src": "sample.mp3",
+   "out": "audio/mp3-to-mp3.mp3",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "MP3->WAV",
+   "src": "sample.mp3",
+   "out": "audio/mp3-to-wav.wav",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "MP3->FLAC",
+   "src": "sample.mp3",
+   "out": "audio/mp3-to-flac.flac",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "MP3->OGG",
+   "src": "sample.mp3",
+   "out": "audio/mp3-to-ogg.ogg",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "MP3->M4A",
+   "src": "sample.mp3",
+   "out": "audio/mp3-to-m4a.m4a",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "WAV->MP3",
+   "src": "sample.wav",
+   "out": "audio/wav-to-mp3.mp3",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "WAV->WAV",
+   "src": "sample.wav",
+   "out": "audio/wav-to-wav.wav",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "WAV->FLAC",
+   "src": "sample.wav",
+   "out": "audio/wav-to-flac.flac",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "WAV->OGG",
+   "src": "sample.wav",
+   "out": "audio/wav-to-ogg.ogg",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "WAV->M4A",
+   "src": "sample.wav",
+   "out": "audio/wav-to-m4a.m4a",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "FLAC->MP3",
+   "src": "sample.flac",
+   "out": "audio/flac-to-mp3.mp3",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "FLAC->WAV",
+   "src": "sample.flac",
+   "out": "audio/flac-to-wav.wav",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "FLAC->FLAC",
+   "src": "sample.flac",
+   "out": "audio/flac-to-flac.flac",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "FLAC->OGG",
+   "src": "sample.flac",
+   "out": "audio/flac-to-ogg.ogg",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "FLAC->M4A",
+   "src": "sample.flac",
+   "out": "audio/flac-to-m4a.m4a",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "OGG->MP3",
+   "src": "sample.ogg",
+   "out": "audio/ogg-to-mp3.mp3",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "OGG->WAV",
+   "src": "sample.ogg",
+   "out": "audio/ogg-to-wav.wav",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "OGG->FLAC",
+   "src": "sample.ogg",
+   "out": "audio/ogg-to-flac.flac",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "OGG->OGG",
+   "src": "sample.ogg",
+   "out": "audio/ogg-to-ogg.ogg",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "OGG->M4A",
+   "src": "sample.ogg",
+   "out": "audio/ogg-to-m4a.m4a",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "M4A->MP3",
+   "src": "sample.m4a",
+   "out": "audio/m4a-to-mp3.mp3",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "M4A->WAV",
+   "src": "sample.m4a",
+   "out": "audio/m4a-to-wav.wav",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "M4A->FLAC",
+   "src": "sample.m4a",
+   "out": "audio/m4a-to-flac.flac",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "M4A->OGG",
+   "src": "sample.m4a",
+   "out": "audio/m4a-to-ogg.ogg",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "M4A->M4A",
+   "src": "sample.m4a",
+   "out": "audio/m4a-to-m4a.m4a",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "MP4->MP4",
+   "src": "sample.mp4",
+   "out": "video/mp4-to-mp4.mp4",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "MP4->MKV",
+   "src": "sample.mp4",
+   "out": "video/mp4-to-mkv.mkv",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "MP4->WEBM",
+   "src": "sample.mp4",
+   "out": "video/mp4-to-webm.webm",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "MKV->MP4",
+   "src": "sample.mkv",
+   "out": "video/mkv-to-mp4.mp4",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "MKV->MKV",
+   "src": "sample.mkv",
+   "out": "video/mkv-to-mkv.mkv",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "MKV->WEBM",
+   "src": "sample.mkv",
+   "out": "video/mkv-to-webm.webm",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "WEBM->MP4",
+   "src": "sample.webm",
+   "out": "video/webm-to-mp4.mp4",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "WEBM->MKV",
+   "src": "sample.webm",
+   "out": "video/webm-to-mkv.mkv",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "WEBM->WEBM",
+   "src": "sample.webm",
+   "out": "video/webm-to-webm.webm",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "MP4->MP3",
+   "src": "sample.mp4",
+   "out": "cross/mp4-to-mp3.mp3",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "MP4->WAV",
+   "src": "sample.mp4",
+   "out": "cross/mp4-to-wav.wav",
+   "pass": true,
+   "convert": "",
+   "verify": "ffprobe đọc được stream"
+  },
+  {
+   "case": "OFFICE->PDF",
+   "src": "sample.docx",
+   "out": "officepdf/docx-to-pdf.pdf",
+   "pass": true,
+   "convert": "",
+   "verify": "PDF; có %%EOF"
+  },
+  {
+   "case": "OFFICE->PDF",
+   "src": "sample.xlsx",
+   "out": "officepdf/xlsx-to-pdf.pdf",
+   "pass": true,
+   "convert": "",
+   "verify": "PDF; có %%EOF"
+  },
+  {
+   "case": "OFFICE->PDF",
+   "src": "sample.pptx",
+   "out": "officepdf/pptx-to-pdf.pdf",
+   "pass": true,
+   "convert": "",
+   "verify": "PDF; có %%EOF"
+  },
+  {
+   "case": "OFFICE->PDF",
+   "src": "sample.odt",
+   "out": "officepdf/odt-to-pdf.pdf",
+   "pass": true,
+   "convert": "",
+   "verify": "PDF; có %%EOF"
+  },
+  {
+   "case": "OFFICE->PDF",
+   "src": "sample.rtf",
+   "out": "officepdf/rtf-to-pdf.pdf",
+   "pass": true,
+   "convert": "",
+   "verify": "PDF; có %%EOF"
+  },
+  {
+   "case": "OFFICE->PDF",
+   "src": "sample.txt",
+   "out": "officepdf/txt-to-pdf.pdf",
+   "pass": true,
+   "convert": "",
+   "verify": "PDF; có %%EOF"
+  }
+ ]
+}

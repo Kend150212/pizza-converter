@@ -829,8 +829,8 @@ scanned_pil.save(out_path, "PDF", resolution=150.0)
     Err("Scan document processing failed".into())
 }
 
-/// Metadata for the center of the radial menu (name, ext, human size).
-#[tauri::command]
+/// Metadata for the center of the radial menu (name, ext, human size, optional thumbnail).
+#[tauri::command(async)]
 pub fn file_meta(path: String) -> Result<serde_json::Value, String> {
     let p = Path::new(&path);
     let md = std::fs::metadata(p).map_err(|e| e.to_string())?;
@@ -844,12 +844,73 @@ pub fn file_meta(path: String) -> Result<serde_json::Value, String> {
         .and_then(|e| e.to_str())
         .unwrap_or("")
         .to_ascii_uppercase();
+    let ext_lower = ext.to_ascii_lowercase();
+    let thumbnail = generate_thumbnail_data_url(p, &ext_lower);
     Ok(serde_json::json!({
         "name": name,
         "ext": ext,
         "size_bytes": md.len(),
         "size_display": human_size(md.len()),
+        "thumbnail": thumbnail,
     }))
+}
+
+fn encode_base64(bytes: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity((bytes.len() + 2) / 3 * 4);
+    for chunk in bytes.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = if chunk.len() > 1 { chunk[1] as u32 } else { 0 };
+        let b2 = if chunk.len() > 2 { chunk[2] as u32 } else { 0 };
+        let n = (b0 << 16) | (b1 << 8) | b2;
+        out.push(TABLE[((n >> 18) & 0x3F) as usize] as char);
+        out.push(TABLE[((n >> 12) & 0x3F) as usize] as char);
+        if chunk.len() > 1 {
+            out.push(TABLE[((n >> 6) & 0x3F) as usize] as char);
+        } else {
+            out.push('=');
+        }
+        if chunk.len() > 2 {
+            out.push(TABLE[(n & 0x3F) as usize] as char);
+        } else {
+            out.push('=');
+        }
+    }
+    out
+}
+
+fn generate_thumbnail_data_url(p: &Path, ext_lower: &str) -> Option<String> {
+    let is_std_img = matches!(
+        ext_lower,
+        "png" | "jpg" | "jpeg" | "webp" | "bmp" | "ico" | "gif" | "tif" | "tiff" | "avif"
+    );
+    let is_heic = matches!(ext_lower, "heic" | "heif");
+    if !is_std_img && !is_heic {
+        return None;
+    }
+
+    let img = if is_heic {
+        let tmp = std::env::temp_dir().join("pizza_thumb_heic.png");
+        convertx_engine::heic::heic_to_png(p, &tmp).ok()?;
+        let loaded = image::open(&tmp).ok();
+        let _ = std::fs::remove_file(&tmp);
+        loaded?
+    } else {
+        image::open(p).ok()?
+    };
+
+    let (w, h) = (img.width(), img.height());
+    if w == 0 || h == 0 {
+        return None;
+    }
+    let side = w.min(h);
+    let cropped = img.crop_imm((w - side) / 2, (h - side) / 2, side, side);
+    let thumb = cropped.resize_exact(112, 112, image::imageops::FilterType::Triangle);
+
+    let mut buf = std::io::Cursor::new(Vec::new());
+    thumb.write_to(&mut buf, image::ImageFormat::Png).ok()?;
+    let b64 = encode_base64(&buf.into_inner());
+    Some(format!("data:image/png;base64,{b64}"))
 }
 
 fn human_size(bytes: u64) -> String {

@@ -1,0 +1,49 @@
+[package]
+name = "pizza-converter"
+version = "0.1.0"
+edition = "2021"
+# The Tauri app binary (src/main.rs). Required because this package also
+# defines the pizza-convert CLI bin — without it `cargo tauri build`
+# fails with "failed to find main binary".
+default-run = "pizza-converter"
+
+[lib]
+name = "convertx_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "pizza-convert"
+path = "src/bin/pizza-convert.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-dialog = "2"
+convertx-engine = { path = "../crates/engine" }
+image = "0.24"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rdev = "0.5"
+device_query = "1"
+dirs = "5"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+# Windows Shell/COM for Explorer selection (auto-detect selected files).
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Ole",
+    "Win32_System_DataExchange",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_Common",
+    "Win32_UI_WindowsAndMessaging",
+] }

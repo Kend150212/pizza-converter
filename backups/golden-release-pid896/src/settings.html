@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pizza Converter</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; height:100%; background:#141828; overflow:hidden;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color:#f4f6fb;
+  user-select:none; -webkit-user-select:none; }
+#window { margin:18px; width:744px; height:836px; border-radius:24px; padding:0; overflow:hidden;
+  background: linear-gradient(155deg, #1e2338, #191d31);
+  border:1px solid rgba(255,255,255,.30);
+  box-shadow: 0 24px 70px rgba(0,0,0,.5), inset 0 1px 1px rgba(255,255,255,.35); }
+/* titlebar: custom, no traffic lights */
+#titlebar { display:flex; align-items:center; justify-content:space-between;
+  padding:18px 22px 14px; font-size:16px; font-weight:700; letter-spacing:.02em; }
+#close { width:30px; height:30px; border-radius:50%; border:1px solid rgba(255,255,255,.3);
+  background:rgba(255,255,255,.12); color:#f4f6fb; font-size:14px; cursor:pointer; }
+#close:hover { background:rgba(251,113,133,.35); }
+#body { display:flex; height:calc(100% - 62px); }
+/* sidebar */
+#sidebar { width:212px; padding:6px 12px; display:flex; flex-direction:column; gap:6px; }
+.nav-item { display:flex; align-items:center; gap:10px; padding:11px 14px; border-radius:14px;
+  border:none; background:transparent; color:#f4f6fb; font-size:14px; font-weight:600; cursor:pointer; text-align:left; }
+.nav-item:hover { background:rgba(255,255,255,.07); }
+.nav-item.active { background:linear-gradient(155deg, rgba(255,255,255,.20), rgba(255,255,255,.08));
+  border:1px solid rgba(255,255,255,.25);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.nav-ico { width:20px; text-align:center; opacity:.9; }
+.pro-badge { margin-left:auto; font-size:10px; font-weight:800; letter-spacing:.08em; color:#fbbf24;
+  border:1px solid rgba(251,191,36,.5); background:rgba(251,191,36,.12);
+  padding:2px 8px; border-radius:999px; }
+/* main */
+main { flex:1; padding:6px 22px 22px 10px; overflow-y:auto; }
+.view.hidden { display:none; }
+.card { border-radius:18px; padding:6px 18px; margin-bottom:14px;
+  background: linear-gradient(155deg, rgba(255,255,255,.10), rgba(255,255,255,.04));
+  border:1px solid rgba(255,255,255,.18);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+.row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 0; }
+.row + .row { border-top:1px solid rgba(255,255,255,.10); }
+.row-title { font-size:14px; font-weight:600; }
+.row-sub { font-size:12.5px; color:rgba(235,238,248,.6); margin-top:2px; }
+/* toggle 48x28 */
+.toggle { width:48px; height:28px; border-radius:999px; border:none; cursor:pointer; position:relative;
+  background:rgba(255,255,255,.16); transition:background .15s ease; flex-shrink:0; }
+.toggle .knob { position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%;
+  background:#fff; transition:left .15s ease; box-shadow:0 2px 6px rgba(0,0,0,.35); }
+.toggle[aria-pressed="true"] { background:linear-gradient(135deg,#5eead4,#14b8a6);
+  box-shadow:0 0 14px rgba(45,212,191,.45); }
+.toggle[aria-pressed="true"] .knob { left:23px; }
+.keycap { padding:5px 12px; border-radius:7px; font-size:12.5px; font-weight:700;
+  background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.28);
+  box-shadow:0 2px 0 rgba(255,255,255,.12); color:#f4f6fb; }
+.btn-ghost { padding:8px 16px; border-radius:999px; cursor:pointer; font-size:13px; font-weight:600;
+  background:rgba(255,255,255,.12); color:#f4f6fb; border:1px solid rgba(255,255,255,.28); }
+.btn-ghost:hover { background:rgba(255,255,255,.22); }
+.output-row { display:flex; gap:10px; padding:4px 0 14px; }
+.path-field { flex:1; padding:9px 14px; border-radius:12px; font-size:13px; color:rgba(235,238,248,.85);
+  background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.14);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* segmented control for Trigger Key */
+.shortcut-selector-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.segmented-control {
+  display: inline-flex;
+  padding: 3px;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  gap: 2px;
+}
+.seg-btn {
+  padding: 6px 14px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(235, 238, 248, 0.65);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.seg-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+.seg-btn.active {
+  background: linear-gradient(135deg, rgba(45, 212, 191, 0.28), rgba(45, 212, 191, 0.14));
+  color: #5eead4;
+  border-color: rgba(45, 212, 191, 0.55);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), 0 0 12px rgba(45, 212, 191, 0.25);
+}
+.custom-hotkey-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.custom-hotkey-label {
+  font-size: 12px;
+  color: rgba(235, 238, 248, 0.6);
+}
+.btn-hotkey-input {
+  min-width: 105px;
+  padding: 5px 12px;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(45, 212, 191, 0.45);
+  color: #5eead4;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+.btn-hotkey-input:hover {
+  border-color: #5eead4;
+  background: rgba(45, 212, 191, 0.15);
+}
+.btn-hotkey-input.recording {
+  border-color: #f59e0b;
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.2);
+  animation: pulse-border 1.2s infinite ease-in-out;
+}
+.btn-ghost-sm {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(235, 238, 248, 0.65);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-ghost-sm:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+@keyframes pulse-border {
+  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+/* guide cards & steps */
+.guide-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px 0;
+}
+.guide-step + .guide-step {
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+}
+.step-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 800;
+  background: rgba(45, 212, 191, 0.15);
+  color: #5eead4;
+  border: 1px solid rgba(45, 212, 191, 0.45);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.step-content {
+  flex: 1;
+}
+.step-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+.step-desc {
+  font-size: 13px;
+  color: rgba(235, 238, 248, 0.7);
+  line-height: 1.5;
+}
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 0;
+}
+.shortcut-row + .shortcut-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+}
+.shortcut-keys {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.shortcut-desc {
+  font-size: 13px;
+  color: rgba(235, 238, 248, 0.75);
+}
+/* pro hero */
+#pro-hero { text-align:center; padding:18px 10px 14px; }
+#pro-emblem { width:52px; height:52px; border-radius:18px; margin:0 auto 12px;
+  background:linear-gradient(135deg,rgba(251,191,36,.25),rgba(245,158,11,.1));
+  border:1px solid rgba(251,191,36,.55);
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 0 28px rgba(251,191,36,.25); }
+#pro-hero h2 { font-size:22px; font-weight:800; margin-bottom:4px; }
+#pro-hero .sub { font-size:13.5px; color:rgba(235,238,248,.7); margin-bottom:12px; }
+#pro-price { font-size:26px; font-weight:800; color:#fbbf24; }
+#pro-price-note { font-size:12px; color:rgba(235,238,248,.55); margin-top:2px; }
+.benefit { display:flex; align-items:center; gap:12px; padding:11px 0; font-size:14px; font-weight:600; }
+.benefit + .benefit { border-top:1px solid rgba(255,255,255,.10); }
+.benefit .tick { color:#2dd4bf; font-weight:800; }
+.cta { width:100%; padding:13px; border-radius:14px; border:none; cursor:pointer; font-size:15px; font-weight:800;
+  background:linear-gradient(135deg,#5eead4,#14b8a6); color:#06281f; margin:4px 0 10px;
+  box-shadow:0 8px 26px rgba(45,212,191,.35); }
+.cta:hover { filter:brightness(1.07); }
+.center { text-align:center; }
+.fineprint { font-size:11.5px; color:rgba(235,238,248,.5); text-align:center; margin-top:12px; line-height:1.5; }
+#msg { min-height:20px; text-align:center; font-size:13px; color:rgba(235,238,248,.75); margin-top:10px; }
+.hidden { display:none !important; }
+/* history view (8c) */
+.section-label { font-size:11.5px; font-weight:800; letter-spacing:.14em;
+  color:rgba(235,238,248,.5); margin:4px 4px 12px; }
+.hist-row { display:flex; align-items:center; gap:14px; padding:14px 4px; }
+.hist-row + .hist-row { border-top:1px solid rgba(255,255,255,.10); }
+.hist-ico { width:44px; height:44px; border-radius:14px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:20px;
+  background:rgba(45,212,191,.12); border:1px solid rgba(45,212,191,.35); }
+.hist-name { font-size:14.5px; font-weight:700; margin-bottom:3px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:340px; }
+.hist-sub { font-size:12.5px; color:rgba(235,238,248,.6); }
+.btn-undo { margin-left:auto; padding:8px 20px; border-radius:999px; cursor:pointer;
+  font-size:13px; font-weight:700; color:#5eead4; flex-shrink:0;
+  background:rgba(45,212,191,.10); border:1px solid rgba(45,212,191,.55); }
+.btn-undo:hover { background:rgba(45,212,191,.22); }
+.btn-undo:disabled { opacity:.4; cursor:default; }
+.link-btn { background:none; border:none; cursor:pointer; font-size:14px; font-weight:700;
+  color:rgba(235,238,248,.75); padding:10px; }
+.link-btn:hover { color:#fff; }
+#hist-empty { text-align:center; padding:34px 10px; color:rgba(235,238,248,.55); font-size:13.5px; }
+#perm-banner { border-color:rgba(251,191,36,.5); background:rgba(251,191,36,.08); }
+.keycap-group { display:flex; gap:10px; align-items:center; }
+.credit-text { line-height:1.6; }
+.row.row-tight { padding-bottom:6px; }
+#debug-panel { position:fixed; bottom:0; left:0; right:0; max-height:200px; overflow-y:auto; background:#000; color:#0f0;
+  font:11px monospace; padding:8px; z-index:9999; border-top:1px solid #0f0; }
+#debug-panel .debug-head { display:flex; justify-content:space-between; margin-bottom:4px; }
+#debug-copy { background:#0f0; color:#000; border:none; padding:2px 8px; cursor:pointer; }
+#debug-test-click { background:#ff0; color:#000; border:none; padding:4px 12px; margin-top:4px; cursor:pointer; }
+</style>
+</head>
+<body>
+<div id="window">
+  <div id="titlebar" data-tauri-drag-region><span id="title-text" data-i18n="settings_title">Settings</span><button id="close">✕</button></div>
+  <div id="body">
+    <nav id="sidebar">
+      <button class="nav-item active" data-view="general"><span class="nav-ico">⚙</span><span data-i18n="nav_general">General</span></button>
+      <button class="nav-item" data-view="guide"><span class="nav-ico">📖</span><span data-i18n="nav_guide">Guide</span></button>
+      <button class="nav-item" data-view="pro"><span class="nav-ico">🔒</span><span data-i18n="nav_pro">Pizza Converter Pro</span><span class="pro-badge" data-i18n="pro_tag">PRO</span></button>
+      <button class="nav-item" data-view="history"><span class="nav-ico">🕒</span><span data-i18n="nav_history">History</span></button>
+      <button class="nav-item" data-view="about"><span class="nav-ico">ⓘ</span><span data-i18n="nav_about">About</span></button>
+    </nav>
+    <main>
+      <section id="view-general" class="view">
+        <div class="card hidden" id="perm-banner">
+          <div class="row">
+            <div><div class="row-title" data-i18n="perm_title">Keyboard permission needed</div><div class="row-sub" data-i18n="perm_sub"></div></div>
+            <button class="btn-ghost" id="btn-perm" data-i18n="perm_btn">Open Settings…</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="row">
+            <div><div class="row-title" data-i18n="enable_label">Enable Pizza Converter</div><div class="row-sub" data-i18n="enable_sub"></div></div>
+            <button class="toggle" id="tgl-enable" aria-pressed="true"><span class="knob"></span></button>
+          </div>
+          <div class="row">
+            <div><div class="row-title" data-i18n="trigger_label">Trigger shortcut</div><div class="row-sub" data-i18n="trigger_key_desc"></div></div>
+            <div class="shortcut-selector-box">
+              <div class="segmented-control" id="trigger-key-segmented">
+                <button class="seg-btn active" data-key="ctrl+g">Ctrl + G</button>
+                <button class="seg-btn" data-key="alt+g">Alt + G</button>
+                <button class="seg-btn" data-key="ctrl+shift">Ctrl + Shift</button>
+                <button class="seg-btn" data-key="alt+shift">Alt + Shift</button>
+                <button class="seg-btn" data-key="ctrl+space">Ctrl + Space</button>
+              </div>
+              <div class="custom-hotkey-row">
+                <span class="custom-hotkey-label" data-i18n="custom_hotkey_label">Hoặc phím tắt tùy chỉnh:</span>
+                <button id="btn-record-hotkey" class="btn-hotkey-input" title="Bấm để ghi phím tắt mới">
+                  <span id="record-hotkey-text">Ctrl + G</span>
+                </button>
+                <button id="btn-reset-hotkey" class="btn-ghost-sm" data-i18n="default_btn">Mặc định</button>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div><div class="row-title" data-i18n="autostart_label">Launch at login</div><div class="row-sub" data-i18n="autostart_sub"></div></div>
+            <button class="toggle" id="tgl-autostart" aria-pressed="true"><span class="knob"></span></button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="row row-tight">
+            <div><div class="row-title" data-i18n="output_label">Output folder</div><div class="row-sub" data-i18n="output_sub"></div></div>
+          </div>
+          <div class="output-row"><div id="output-path" class="path-field"></div><button class="btn-ghost" id="btn-browse-dir" data-i18n="browse">Browse…</button></div>
+        </div>
+        <div class="card">
+          <div class="row">
+            <div><div class="row-title" data-i18n="lang_label">Language</div><div class="row-sub" data-i18n="lang_sub"></div></div>
+            <div class="dropdown">
+              <button id="lang-btn"><span id="lang-current">English</span><span>▴</span></button>
+              <div id=\"lang-list\" class=\"dropdown-list hidden\"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="view-guide" class="view hidden">
+        <div class="section-label" data-i18n="guide_title">HOW TO USE PIZZA CONVERTER</div>
+        <div class="card">
+          <div class="guide-step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <div class="step-title" data-i18n="guide_step1_title">1. Select your files</div>
+              <div class="step-desc" data-i18n="guide_step1_desc">Select one or multiple files in File Explorer or Finder.</div>
+            </div>
+          </div>
+          <div class="guide-step">
+            <div class="step-num">2</div>
+            <div class="step-content">
+              <div class="step-title" data-i18n="guide_step2_title">2. Press shortcut (Ctrl + G)</div>
+              <div class="step-desc" data-i18n="guide_step2_desc">Press shortcut (default: Ctrl + G). The Pizza radial wheel pops up instantly and stays until you pick a slice, press Esc, or click outside.</div>
+            </div>
+          </div>
+          <div class="guide-step">
+            <div class="step-num">3</div>
+            <div class="step-content">
+              <div class="step-title" data-i18n="guide_step3_title">3. Pick a slice & Done!</div>
+              <div class="step-desc" data-i18n="guide_step3_desc">Hover over any format slice and click to convert in a flash.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-label" data-i18n="shortcuts_title">SHORTCUTS & GESTURES</div>
+        <div class="card">
+          <div class="shortcut-row">
+            <div class="shortcut-keys"><span class="keycap">Esc</span></div>
+            <div class="shortcut-desc" data-i18n="shortcut_esc">Instantly dismiss and close the radial menu.</div>
+          </div>
+          <div class="shortcut-row">
+            <div class="shortcut-keys"><span class="keycap">Center Drop</span></div>
+            <div class="shortcut-desc" data-i18n="shortcut_center">Drop in center to cancel, or click center to browse files.</div>
+          </div>
+          <div class="shortcut-row">
+            <div class="shortcut-keys"><span class="keycap">✎ Edit layout</span></div>
+            <div class="shortcut-desc" data-i18n="shortcut_edit">Click '✎ Edit layout' at the bottom to reorder and toggle slices.</div>
+          </div>
+          <div class="shortcut-row">
+            <div class="shortcut-keys"><span class="keycap">Ctrl</span> + <span class="keycap">Shift</span> + <span class="keycap">D</span></div>
+            <div class="shortcut-desc" data-i18n="shortcut_debug">Toggle developer debug panel.</div>
+          </div>
+        </div>
+
+        <div class="section-label" data-i18n="tips_title">PRO TIPS</div>
+        <div class="card">
+          <div class="row">
+            <div>
+              <div class="row-title">⚡ Batch Conversion</div>
+              <div class="row-sub" data-i18n="tip_batch">Batch convert multiple files at once.</div>
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <div class="row-title">📑 Smart Merge PDF</div>
+              <div class="row-sub" data-i18n="tip_merge">Select 2 or more PDFs to automatically merge into one.</div>
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <div class="row-title">✨ AI Remove Background</div>
+              <div class="row-sub" data-i18n="tip_removebg">One-click background removal runs 100% locally.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="view-pro" class="view hidden">
+        <div id="pro-hero">
+          <div id="pro-emblem"><svg viewBox="0 0 24 24" width="30" height="30"><rect x="5" y="10" width="14" height="10" rx="2.5" fill="none" stroke="#fbbf24" stroke-width="1.8"/><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="#fbbf24" stroke-width="1.8"/></svg></div>
+          <h2 data-i18n="pro_title">Pizza Converter Pro</h2>
+          <div class="sub" data-i18n="pro_sub"></div>
+          <div id="pro-price" data-i18n="price_note"></div>
+          <div id="pro-price-note" data-i18n="price_tbd"></div>
+        </div>
+        <div class="card">
+          <div class="benefit"><span class="tick">✓</span><span data-i18n="b1"></span></div>
+          <div class="benefit"><span class="tick">✓</span><span data-i18n="b2"></span></div>
+          <div class="benefit"><span class="tick">✓</span><span data-i18n="b3"></span></div>
+          <div class="benefit"><span class="tick">✓</span><span data-i18n="b4"></span></div>
+        </div>
+        <button class="cta" id="btn-upgrade" data-i18n="upgrade_cta">Upgrade to Pro</button>
+        <div class="center"><button class="btn-ghost" id="btn-restore" data-i18n="restore_btn">Restore purchase</button></div>
+        <div class="fineprint" data-i18n="checkout_note"></div>
+        <div id="msg"></div>
+      </section>
+      <section id="view-history" class="view hidden">
+        <div class="section-label" data-i18n="recent_conversions">RECENT CONVERSIONS</div>
+        <div class="card" id="hist-card"><div id="hist-list"></div><div id="hist-empty" class="hidden" data-i18n="history_empty">No conversions yet.</div></div>
+        <div class="center"><button class="link-btn" id="btn-clear-hist" data-i18n="clear_history">Clear history</button></div>
+        <div class="fineprint" data-i18n="history_fineprint"></div>
+      </section>
+      <section id="view-about" class="view hidden">
+        <div class="card">
+          <div class="row"><div><div class="row-title" id="about-line"></div><div class="row-sub" data-i18n="slogan"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="row"><div><div class="row-sub credit-text" data-i18n="ffmpeg_credit"></div></div></div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+<div id="debug-panel" class="hidden">
+  <div class="debug-head">
+    <b>DEBUG LOG (Ctrl+Shift+D to toggle)</b>
+    <button id="debug-copy">Copy Log</button>
+  </div>
+  <div id="debug-log"></div>
+  <button id="debug-test-click">Test: Programmatic Toggle Click</button>
+</div>
+<script src="i18n.js"></script>
+<script src="tauri-bridge.js"></script>
+<script src="settings.js"></script>
+</body>
+</html>

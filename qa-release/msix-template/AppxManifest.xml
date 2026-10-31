@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AppxManifest TEMPLATE cho Pizza Converter (Tauri v2)
+  QA & Phát hành · 29/10/2026 (cập nhật tên 29/10: "Pizza Converter" đã được anh Ken giữ trên Partner Center)
+  - Dùng cho bản test sideload NỘI BỘ và làm nền cho bản nộp Store sau này.
+  - Các chỗ __PLACEHOLDER__ được build-msix.ps1 thay lúc đóng gói.
+  - Khi nộp Store: Identity Name + Publisher phải khớp Partner Center
+    (tên đã reserve: "Pizza Converter", publisher display: NEEFLOW).
+-->
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+         xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+         xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+         IgnorableNamespaces="uap uap5 desktop rescap">
+  <Identity Name="__IDENTITY_NAME__"
+            ProcessorArchitecture="x64"
+            Publisher="__PUBLISHER_CN__"
+            Version="__VERSION_4PART__" />
+  <Properties>
+    <DisplayName>Pizza Converter</DisplayName>
+    <PublisherDisplayName>NEEFLOW</PublisherDisplayName>
+    <Description>Pick a slice, convert in a flick.</Description>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+  <Applications>
+    <Application Id="Pie" Executable="__EXE_REL_PATH__" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="Pizza Converter"
+                          Description="Pick a slice, convert in a flick."
+                          BackgroundColor="transparent"
+                          Square150x150Logo="Assets\Square150x150Logo.png"
+                          Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <!-- Start with Windows -->
+        <desktop:Extension Category="windows.startupTask"
+                           Executable="__EXE_REL_PATH__"
+                           EntryPoint="Windows.FullTrustApplication">
+          <uap5:StartupTask TaskId="PizzaConverterStartup" Enabled="true" DisplayName="Pizza Converter" />
+        </desktop:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <!-- BẮT BUỘC: global hotkey (giữ Shift) + đọc file đang chọn trong Explorer.
+         Restricted capability — khi nộp Store phải ghi lý do, thường được duyệt cho Desktop Bridge.
+         Sideload test nội bộ không cần duyệt. -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

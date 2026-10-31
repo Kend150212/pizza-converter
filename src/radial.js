@@ -28,7 +28,7 @@ const GROUP_BY_EXT = Object.assign(
   { pdf: 'pdftools' },
   Object.fromEntries(['mp3','wav','flac','ogg','oga','m4a','aac','mp4','mkv','webm','mov'].map(e => [e, 'av'])),
 );
-const PRO_INPUT_EXTS = new Set(['gif', 'tif', 'tiff', 'avif']);
+const PRO_INPUT_EXTS = new Set(['tif', 'tiff', 'avif']);
 
 // Typical size ratio vs the original file, for the 8b estimate tooltip.
 const EST_RATIO = {
@@ -396,6 +396,37 @@ function groupIconLarge(gid) {
   return raw.replace('width="16" height="16"', 'width="26" height="26"');
 }
 
+function renderCenterVisual(gid, extStr, thumbUrl, count) {
+  const cleanExt = (extStr || fileExt || '').toUpperCase().slice(0, 5) || 'FILE';
+  const norm = normExt(cleanExt);
+  const fmtCls = 'fmt-' + (norm || 'txt');
+  const multiCls = count > 1 ? 'multi ' : '';
+  const countBadge = count > 1 ? `<span class="center-count-badge">${count}</span>` : '';
+
+  if (thumbUrl) {
+    return `<div class="center-thumb-wrap ${multiCls}${fmtCls}">` +
+      `<img class="center-thumb-img" src="${thumbUrl}" alt=""/>` +
+      `<span class="center-ext-pill">${cleanExt}</span>` +
+      countBadge +
+      `</div>`;
+  }
+
+  let glyph = GROUP_ICONS[gid] || GROUP_ICONS.documents;
+  if (norm === 'pdf') {
+    glyph = SVG_OPEN + '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15.5c1.5-3 3.5-4.5 6-1.5-2.5 1-4.5.5-6 1.5z"/></svg>';
+  } else if (norm === 'json' || norm === 'xml' || norm === 'yaml') {
+    glyph = SVG_OPEN + '<path d="M8 4H6a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h2"/><path d="M16 4h2a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-2"/></svg>';
+  } else if (['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac'].includes(norm)) {
+    glyph = SVG_OPEN + '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
+  }
+
+  return `<div class="center-fmt-logo ${multiCls}${fmtCls}">` +
+    `<div class="fmt-logo-glyph">${glyph}</div>` +
+    `<div class="fmt-logo-tag">${cleanExt}</div>` +
+    countBadge +
+    `</div>`;
+}
+
 async function refreshContext() {
   const nameEl = $('center-name'), metaEl = $('center-meta'), browseBtn = $('browse-btn');
   const iconEl = $('center-file-icon');
@@ -453,7 +484,7 @@ async function refreshContext() {
   if (!gid) gid = 'images';
 
   activeGroup = model.find(g => g.id === gid) || model[0];
-  iconEl.innerHTML = groupIconLarge(gid) || '▤';
+  iconEl.innerHTML = renderCenterVisual(gid, (m && m.ext) || fileExt, m && m.thumbnail, files.length);
   const groupTitle = t('group_' + gid);
   if (files.length > 1) {
     metaEl.textContent = `${groupTitle} · ${files.length} files · ${(m && m.ext) || fileExt.toUpperCase()}`;
