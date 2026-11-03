@@ -109,18 +109,41 @@ fn store_addon_owned() -> Option<bool> {
 }
 
 /// Refresh local license from the Store entitlement.
-/// Called at startup and from Restore Purchase. Never downgrades an existing
-/// unlock and never panics: every failure keeps the current local state.
+/// Called at startup and from Restore Purchase. The Store is the source of
+/// truth on Windows: a definitive answer overrides any local state (including
+/// a hand-edited license.json), except deliberate grandfathered/manual
+/// unlocks. Never panics: every failure keeps the current local state.
 pub fn refresh_license_from_store(app: &tauri::AppHandle) {
-    if store_addon_owned() == Some(true) {
-        let lic = LicenseFile {
-            pro: true,
-            source: Some("microsoft_store".into()),
-        };
-        write_license(app, &lic);
+    match store_addon_owned() {
+        Some(true) => {
+            // User owns the Pro add-on -> unlock.
+            let lic = LicenseFile {
+                pro: true,
+                source: Some("microsoft_store".into()),
+            };
+            write_license(app, &lic);
+        }
+        Some(false) => {
+            // Store positively reports NO entitlement (e.g. never bought, or
+            // refunded): correct any tampered or stale local unlock.
+            let lic = read_license(app);
+            match lic.source.as_deref() {
+                // Early adopters (pre-fix builds) and dev overrides are kept.
+                Some("grandfathered") | Some("manual") => {}
+                _ => {
+                    let free = LicenseFile {
+                        pro: false,
+                        source: None,
+                    };
+                    write_license(app, &free);
+                }
+            }
+        }
+        None => {
+            // Could not reach the Store (offline, not a Store install...):
+            // keep local state untouched so paying users stay Pro offline.
+        }
     }
-    // Some(false) / None -> keep local state (grandfathered Pro stays Pro,
-    // fresh installs stay Free).
 }
 
 #[tauri::command]
