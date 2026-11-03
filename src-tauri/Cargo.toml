@@ -1,6 +1,6 @@
 [package]
 name = "pizza-converter"
-version = "0.1.0"
+version = "1.0.2"
 edition = "2021"
 # The Tauri app binary (src/main.rs). Required because this package also
 # defines the pizza-convert CLI bin — without it `cargo tauri build`
@@ -9,7 +9,7 @@ default-run = "pizza-converter"
 
 [lib]
 name = "convertx_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [[bin]]
 name = "pizza-convert"
@@ -19,7 +19,7 @@ path = "src/bin/pizza-convert.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
+tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-dialog = "2"
@@ -48,4 +48,6 @@ windows = { version = "0.58", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_System_Diagnostics_Debug",
     "Win32_System_Threading",
+    "Services_Store",
+    "Foundation_Collections",
 ] }

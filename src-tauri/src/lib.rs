@@ -1,6 +1,8 @@
 //! Pizza Converter — file converter with a radial menu.
 //! 100% original code; no code/assets from the original app.
 
+pub mod ai_studio;
+pub mod cloud_drop;
 pub mod config;
 pub mod convert_cmd;
 pub mod hotkey;
@@ -16,7 +18,13 @@ use tauri_plugin_autostart::ManagerExt;
 /// Show or restore the Settings window.
 /// If the window was minimized, restores it. If destroyed, recreates it.
 pub fn show_settings_window(app: &tauri::AppHandle) {
+    static DID_INITIAL_WIDESCREEN: std::sync::atomic::AtomicBool =
+        std::sync::atomic::AtomicBool::new(false);
     if let Some(w) = app.get_webview_window("settings") {
+        if !DID_INITIAL_WIDESCREEN.swap(true, std::sync::atomic::Ordering::SeqCst) {
+            let _ = w.set_size(tauri::Size::Logical(tauri::LogicalSize::new(1280.0, 860.0)));
+            let _ = w.center();
+        }
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
@@ -27,8 +35,9 @@ pub fn show_settings_window(app: &tauri::AppHandle) {
             tauri::WebviewUrl::App("settings.html".into()),
         )
         .title("Pizza Converter")
-        .inner_size(780.0, 872.0)
-        .resizable(false)
+        .inner_size(1280.0, 860.0)
+        .min_inner_size(1060.0, 720.0)
+        .resizable(true)
         .decorations(true)
         .center()
         .build()
@@ -49,7 +58,7 @@ fn show_settings(app: tauri::AppHandle) {
 pub fn run() {
     #[cfg(target_os = "macos")]
     let autostart_plugin = tauri_plugin_autostart::init(
-        tauri_plugin_autostart::MacConfig::default(),
+        tauri_plugin_autostart::MacosLauncher::LaunchAgent,
         Some(vec!["--minimized"]),
     );
     #[cfg(not(target_os = "macos"))]
@@ -73,6 +82,9 @@ pub fn run() {
             }
         })
         .setup(|app| {
+            // Refresh Pro entitlement from the Microsoft Store (best-effort,
+            // fails closed; grandfathered local unlocks are never downgraded).
+            licensing::refresh_license_from_store(app.handle());
             // Apply autostart preference from config
             let cfg = config::load(app.handle());
             let autostart_mgr = app.autolaunch();
@@ -106,6 +118,7 @@ pub fn run() {
             convert_cmd::images_to_pdf_cmd,
             convert_cmd::merge_pdfs_cmd,
             convert_cmd::convert_any_cmd,
+            convert_cmd::cancel_task_cmd,
             convert_cmd::file_meta,
             convert_cmd::pick_file,
             config::get_config,
@@ -115,7 +128,25 @@ pub fn run() {
             config::set_output_dir,
             config::set_language,
             config::set_menu_layout,
+            config::set_ai_highlight_config,
+            config::set_cloud_config,
+            config::set_cloud_trigger_key,
+            config::set_design_config,
+            config::set_design_trigger_key,
+            config::save_design_template,
+            config::delete_design_template,
+            config::toggle_pin_design_template,
+            cloud_drop::get_cloud_status,
+            cloud_drop::get_cloud_history,
+            cloud_drop::clear_cloud_history,
+            cloud_drop::copy_text_cmd,
+            cloud_drop::get_qr_svg_cmd,
+            cloud_drop::start_cloud_oauth,
+            cloud_drop::disconnect_cloud_oauth,
+            ai_studio::detect_ai_hardware,
+            ai_studio::prepare_ai_models,
             licensing::is_pro,
+            licensing::get_license_status,
             licensing::set_pro,
             licensing::restore_purchase,
             licensing::redeem_code,
@@ -128,6 +159,7 @@ pub fn run() {
             radial_model::clear_history,
             hotkey::hide_radial_cmd,
             hotkey::hide_hud_cmd,
+            hotkey::set_recording_hotkey,
             hotkey::open_accessibility_settings,
         ])
         .run(tauri::generate_context!())

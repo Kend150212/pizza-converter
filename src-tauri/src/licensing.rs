@@ -1,31 +1,46 @@
-//! Pro gating: local license state + Store receipt verification.
+//! Pro gating: local license state + Microsoft Store entitlement check.
 //!
-//! Free: JPG/WebP/BMP/ICO/GIF/PNG + basic PDF tools.
-//! Pro (one-time purchase via Store IAP): AVIF, TIFF, image->PDF,
-//! audio/video (v2), batch convert.
+//! Free (default for fresh installs): everyday formats + basic PDF tools.
+//! Pro: unlocked by owning the "Pizza Converter Pro" durable add-on
+//! (Store ID 9NQ324ZQGQ5B) purchased through the Microsoft Store.
 //!
-//! Windows Store: digital unlock MUST use Microsoft Store in-product purchase
-//! API (Store policy 10.8.2, 15% fee) — QA checklist 29/10.
-//! macOS DMG: license key validated against our server at purchase time.
+//! Rules:
+//! - Fresh install (no license.json) -> Free tier. Never default to unlocked.
+//! - An existing license.json with pro:true (early adopters from pre-fix
+//!   builds) is grandfathered and never downgraded by this code.
+//! - On Windows, app startup and Restore Purchase query the Store for the
+//!   add-on entitlement. Any failure fails closed: local state is kept.
+//! - Promo codes are redeemed inside the Microsoft Store app, not in-app.
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::Manager;
 
+/// Store ID of the "Pizza Converter Pro" durable add-on.
+const PRO_ADDON_STORE_ID: &str = "9NQ324ZQGQ5B";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct LicenseFile {
     pro: bool,
-    /// "microsoft_store" | "license_key" | "manual" | None
+    /// "microsoft_store" | "license_key" | "manual" | "grandfathered" | None
     source: Option<String>,
 }
 
 impl Default for LicenseFile {
     fn default() -> Self {
+        // Fresh installs start on the Free tier. Never default to unlocked.
         Self {
-            pro: true,
-            source: Some("full_unlock".into()),
+            pro: false,
+            source: None,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LicenseStatus {
+    pub pro: bool,
+    pub source: String,
+    pub masked_key: String,
 }
 
 fn license_path(app: &tauri::AppHandle) -> Option<PathBuf> {
@@ -36,10 +51,20 @@ fn license_path(app: &tauri::AppHandle) -> Option<PathBuf> {
 }
 
 fn read_license(app: &tauri::AppHandle) -> LicenseFile {
-    license_path(app)
+    let file = license_path(app)
         .and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default()
+        .and_then(|s| serde_json::from_str::<LicenseFile>(&s).ok());
+    match file {
+        Some(mut lic) => {
+            // Normalize legacy "full_unlock" markers from pre-fix builds.
+            if lic.pro && lic.source.as_deref() == Some("full_unlock") {
+                lic.source = Some("grandfathered".into());
+            }
+            lic
+        }
+        // No license file (fresh install) -> Free tier.
+        None => LicenseFile::default(),
+    }
 }
 
 fn write_license(app: &tauri::AppHandle, lic: &LicenseFile) -> bool {
@@ -52,9 +77,50 @@ fn write_license(app: &tauri::AppHandle, lic: &LicenseFile) -> bool {
     std::fs::write(path, serde_json::to_string_pretty(lic).unwrap_or_default()).is_ok()
 }
 
-/// Internal helper for convert commands (unlocked for this machine).
-pub fn is_pro_inner(_app: &tauri::AppHandle) -> bool {
-    true
+/// Internal helper for convert commands.
+pub fn is_pro_inner(app: &tauri::AppHandle) -> bool {
+    read_license(app).pro
+}
+
+/// Best-effort Store entitlement check (Windows only).
+/// Some(true)  = user owns the Pro add-on.
+/// Some(false) = Store positively reports no active entitlement.
+/// None        = check could not run (not a Store install, offline, error...).
+#[cfg(windows)]
+fn store_addon_owned() -> Option<bool> {
+    use windows::Services::Store::StoreContext;
+    let result: windows::core::Result<bool> = (|| {
+        let ctx = StoreContext::GetDefault()?;
+        let license = ctx.GetAppLicenseAsync()?.get()?;
+        let addons = license.AddOnLicenses()?;
+        let key = windows::core::HSTRING::from(PRO_ADDON_STORE_ID);
+        if addons.HasKey(&key)? {
+            Ok(addons.Lookup(&key)?.IsActive()?)
+        } else {
+            Ok(false)
+        }
+    })();
+    result.ok()
+}
+
+#[cfg(not(windows))]
+fn store_addon_owned() -> Option<bool> {
+    None
+}
+
+/// Refresh local license from the Store entitlement.
+/// Called at startup and from Restore Purchase. Never downgrades an existing
+/// unlock and never panics: every failure keeps the current local state.
+pub fn refresh_license_from_store(app: &tauri::AppHandle) {
+    if store_addon_owned() == Some(true) {
+        let lic = LicenseFile {
+            pro: true,
+            source: Some("microsoft_store".into()),
+        };
+        write_license(app, &lic);
+    }
+    // Some(false) / None -> keep local state (grandfathered Pro stays Pro,
+    // fresh installs stay Free).
 }
 
 #[tauri::command]
@@ -62,39 +128,44 @@ pub fn is_pro(app: tauri::AppHandle) -> bool {
     is_pro_inner(&app)
 }
 
-/// Manual override — dev/QA builds only.
+#[tauri::command]
+pub fn get_license_status(app: tauri::AppHandle) -> LicenseStatus {
+    let lic = read_license(&app);
+    let src = lic.source.clone().unwrap_or_else(|| "free_tier".into());
+    let masked_key = if !lic.pro {
+        String::new()
+    } else if let Some(code) = src.strip_prefix("redeem:") {
+        code.to_string()
+    } else {
+        "PIZZA-PRO-2026-LIFETIME".to_string()
+    };
+    LicenseStatus {
+        pro: lic.pro,
+        source: src,
+        masked_key,
+    }
+}
+
+/// Manual override — dev/QA builds & status toggle.
 #[tauri::command]
 pub fn set_pro(app: tauri::AppHandle, pro: bool) -> bool {
     let mut lic = read_license(&app);
     lic.pro = pro;
-    lic.source = Some("manual".into());
+    lic.source = Some(if pro { "manual".into() } else { "free_tier".into() });
     write_license(&app, &lic)
 }
 
+/// Re-checks the Microsoft Store for the Pro add-on and reports the result.
+/// Does NOT grant Pro by itself.
 #[tauri::command]
 pub fn restore_purchase(app: tauri::AppHandle) -> Result<bool, String> {
-    set_pro(app, true);
-    Ok(true)
+    refresh_license_from_store(&app);
+    Ok(is_pro_inner(&app))
 }
 
+/// In-app redeem is retired: promo codes are redeemed inside the Microsoft
+/// Store app (Library), which grants the add-on entitlement directly.
 #[tauri::command]
-pub fn redeem_code(app: tauri::AppHandle, code: String) -> Result<bool, String> {
-    let clean = code.trim().to_uppercase();
-    if clean.is_empty() {
-        return Err("Please enter a redeem code".into());
-    }
-    let is_valid = clean.starts_with("PIZZA-")
-        || clean.starts_with("PRO-")
-        || clean == "LIFETIME"
-        || clean.len() >= 8;
-
-    if is_valid {
-        let mut lic = read_license(&app);
-        lic.pro = true;
-        lic.source = Some(format!("redeem:{clean}"));
-        write_license(&app, &lic);
-        Ok(true)
-    } else {
-        Err("Invalid redeem code".into())
-    }
+pub fn redeem_code(_app: tauri::AppHandle, _code: String) -> Result<bool, String> {
+    Err("Please redeem your code in the Microsoft Store app (open Store > Library), then press Restore Purchase here.".into())
 }
