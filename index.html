@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Pizza Converter</title>
+<style>
+  body { 
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+    max-width: 820px; 
+    margin: 0 auto; 
+    padding: 40px 24px; 
+    color: #1e293b; 
+    line-height: 1.65; 
+    background-color: #fafbfc;
+  }
+  h1 { font-size: 26px; font-weight: 800; color: #0f172a; margin-bottom: 6px; letter-spacing: -0.02em; }
+  h2 { font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 28px; margin-bottom: 8px; color: #0d5f4e; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
+  .updated { color: #64748b; font-size: 13px; margin-bottom: 24px; }
+  .legal-box { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px 28px; box-shadow: 0 4px 16px rgba(0,0,0,0.03); }
+  p { font-size: 13px; color: #334155; margin-bottom: 12px; text-align: justify; }
+  ul { padding-left: 20px; margin-bottom: 14px; }
+  li { font-size: 13px; color: #334155; margin-bottom: 6px; }
+  a { color: #0d9488; text-decoration: none; font-weight: 600; }
+  a:hover { text-decoration: underline; }
+  code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-family: monospace; }
+  .badge { display: inline-block; padding: 3px 10px; background: rgba(13, 148, 136, 0.1); color: #0d9488; border-radius: 999px; font-size: 11.5px; font-weight: 700; margin-bottom: 14px; }
+</style>
+</head>
+<body>
+
+<div class="legal-box">
+  <div class="badge">OFFICIAL LEGAL DOCUMENTATION</div>
+  <h1>Privacy Policy — Pizza Converter</h1>
+  <p class="updated">Last updated: October 30, 2026 • Effective Date: October 30, 2026</p>
+
+  <p>This Privacy Policy applies to the desktop software application <strong>Pizza Converter</strong> ("the Application", "Software", or "Service"), engineered and provided by <strong>Ken Dao / NEEFLOW</strong> ("Developer", "we", "us", or "our"). This document sets forth our comprehensive data protection commitments pursuant to the General Data Protection Regulation (Regulation (EU) 2016/679, "GDPR"), the UK Data Protection Act 2018 / UK GDPR, the California Consumer Privacy Act as amended by the California Privacy Rights Act ("CCPA/CPRA"), Canada's Personal Information Protection and Electronic Documents Act ("PIPEDA"), Brazil's Lei Geral de Proteção de Dados ("LGPD"), and the United States Children's Online Privacy Protection Act ("COPPA").</p>
+
+  <h2>1. Fundamental Zero-Data-Collection Principle</h2>
+  <p>Pizza Converter is engineered from its inception with a zero-knowledge, zero-telemetry architecture. In normal day-to-day operations, the Application <strong>collects, transmits, stores, aggregates, sells, or shares ZERO bytes of personal data</strong>. Specifically:</p>
+  <ul>
+    <li><strong>No Identifiers:</strong> We do not collect names, email addresses, phone numbers, postal addresses, or user account credentials.</li>
+    <li><strong>No Content Telemetry:</strong> We do not log, inspect, transmit, or retain file names, file contents, file extensions, folder paths, document text, or converted outputs.</li>
+    <li><strong>No Behavioral Tracking:</strong> The Application embeds zero advertising SDKs, zero user tracking beacons, zero heatmaps, and zero commercial analytics frameworks (such as Google Analytics, Firebase, Mixpanel, or Segment).</li>
+    <li><strong>No Remote Processing:</strong> All audio, video, image, document, and structural conversions execute 100% locally on your machine. We operate no cloud conversion relays, hosted processing queues, or web proxy intermediaries.</li>
+  </ul>
+
+  <h2>2. 100% On-Device Processing & Memory Containment</h2>
+  <p>When you select files for conversion, Pizza Converter streams the source file data directly into volatile device memory (RAM), executes transformation routines utilizing local multi-threaded CPU instructions and native SIMD hardware acceleration (AVX2, SSE4.2, NEON), and writes the converted output directly to your designated destination directory. Upon task completion, volatile working buffers are immediately wiped and released to the operating system. No cached file fragments or temporary working files are uploaded to any remote network endpoint.</p>
+
+  <h2>3. Operating System Capabilities & File Permissions</h2>
+  <p>Pizza Converter requires specific operating system permissions solely to deliver user-directed file utilities:</p>
+  <ul>
+    <li><strong>Broad File System Access:</strong> Read and write permissions are used solely to open the specific files you select for conversion and to write output files to your chosen destination directory. The Software never indexes, inventories, traverses, or scans your file system in the background.</li>
+    <li><strong>Global Keyboard Input Hook:</strong> A low-level keyboard hook is utilized solely to detect user-configured hotkey triggers (default: <code>Ctrl + G</code>, <code>Alt + G</code>, or custom key combinations) to display the radial wheel menu at cursor coordinates. Non-trigger keystrokes are passed through immediately without inspection, logging, or caching. Keystrokes are never recorded or stored.</li>
+    <li><strong>Cursor Position API:</strong> The Application inspects cursor coordinates exclusively to place the radial converter wheel directly under your pointer when activated.</li>
+  </ul>
+
+  <h2>4. Pro Licensing, Machine Fingerprinting, & Anti-Tamper Security Telemetry Exception</h2>
+  <p>In standard use, Pizza Converter initiates zero network requests. The sole exceptions are strictly confined to security enforcement and license verification:</p>
+  <ul>
+    <li><strong>License Key Redemption:</strong> When you redeem a Pro license key or voucher, the Application contacts our secure licensing endpoint (<code>https://pizza-license-server.ngmrmyd55h.workers.dev/api/redeem</code>), transmitting only the provided license key and a one-way, irreversible SHA-256 cryptographic hardware hash (derived from system board and machine GUID) to bind the activation to your authorized device seat. No personal identity or personal file data is attached.</li>
+    <li><strong>Anti-Tamper & Security Breach Reporting:</strong> In the event that active memory corruption, attached debuggers, code injection, cryptographic key tampering, or binary cracking routines are detected by the internal runtime security monitor, the Application transmits an automated security report (containing the anonymous machine hash, tamper code, and executable timestamp) to our cloud edge worker to revoke compromised licenses and protect intellectual property. This mechanism serves solely to prevent piracy and intellectual property theft.</li>
+  </ul>
+
+  <h2>5. On-Device Artificial Intelligence & Neural Inference</h2>
+  <p>Features utilizing machine learning—such as AI background removal, scan enhancement, and edge binarization—run entirely through localized ONNX model weights compiled for on-device inference. Visual inputs never exit your machine, and weights are never fine-tuned or updated using your personal images.</p>
+
+  <h2>6. In-App Commerce & Third-Party App Store Transactions</h2>
+  <p>Transactions for Pro upgrades are processed exclusively by official digital store platforms (including the Microsoft Store and Apple App Store) pursuant to their independent commerce policies. NEEFLOW does not collect, process, handle, or store financial credentials, credit card details, billing addresses, or banking information.</p>
+
+  <h2>7. Local Functional Storage</h2>
+  <p>The Application maintains local functional settings (such as designated output folder, preferred trigger hotkey, active language, and recent conversion history for the Undo buffer) within standard operating system application storage directories. This data is strictly local, never synchronized to remote databases, and may be wiped at any time via the Settings interface.</p>
+
+  <h2>8. Data Subject Rights (GDPR / CCPA / CPRA Disclosures)</h2>
+  <p>Under the GDPR (Articles 15-22) and the CCPA (Cal. Civ. Code § 1798.100 et seq.), individuals possess statutory rights to access, rectify, delete, and port personal records held by data controllers. Because Pizza Converter maintains zero databases of user identities, collects no personal telemetry, and stores no records connecting individuals to usage data, we maintain no personal data records capable of retrieval, modification, or deletion upon request.</p>
+
+  <h2>9. Children's Online Privacy Protection Act (COPPA)</h2>
+  <p>Pizza Converter does not knowingly solicit or collect information from children under the age of 13 (or under 16 within relevant EU jurisdictions). Given that zero personal data is collected from any user, our systems fully comply with the statutory requirements of the Children's Online Privacy Protection Act (COPPA).</p>
+
+  <h2>10. Third-Party Libraries & Runtimes</h2>
+  <ul>
+    <li><strong>FFmpeg:</strong> Bundled under GNU LGPL v2.1. Executed locally as an isolated process to handle audio and video encoding. It establishes no network connections.</li>
+    <li><strong>ONNX Runtime & OpenCV:</strong> Embedded under MIT and Apache 2.0 licenses. Executes local array arithmetic and neural evaluation without network activity.</li>
+  </ul>
+
+  <h2>11. Policy Modifications & Revisions</h2>
+  <p>We reserve the right to revise this Privacy Policy to reflect evolving legal, statutory, or technological frameworks. Any revisions will be integrated directly into subsequent software release builds and published at our official documentation repository.</p>
+
+  <h2>12. Official Contact & Data Protection Desk</h2>
+  <p>For formal data protection inquiries, privacy clarification, or statutory notices, please contact our designated privacy correspondence desk at: <a href="mailto:pizza@neeflow.com">pizza@neeflow.com</a> or <a href="mailto:privacy@neeflow.com">privacy@neeflow.com</a>.</p>
+</div>
+
+</body>
+</html>
