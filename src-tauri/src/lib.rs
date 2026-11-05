@@ -8,6 +8,7 @@ pub mod config;
 pub mod convert_cmd;
 pub mod hotkey;
 pub mod licensing;
+pub mod mcp_hub;
 pub mod radial_model;
 pub mod selection;
 pub mod tray;
@@ -113,6 +114,9 @@ pub fn run() {
             // Start global instant shortcut listener
             hotkey::spawn_shift_hold_listener(app.handle().clone());
 
+            // Start AI Agent & MCP Hub local/remote server if enabled
+            mcp_hub::spawn_mcp_http_server(app.handle().clone());
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -181,6 +185,13 @@ pub fn run() {
             hotkey::sync_hud_bounds_cmd,
             hotkey::set_recording_hotkey,
             hotkey::open_accessibility_settings,
+            mcp_hub::mcp_get_status,
+            mcp_hub::mcp_toggle_enabled,
+            mcp_hub::mcp_toggle_remote,
+            mcp_hub::mcp_regenerate_token,
+            mcp_hub::mcp_install_claude_desktop,
+            mcp_hub::mcp_install_cursor,
+            mcp_hub::mcp_get_config_snippet,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Pizza Converter");

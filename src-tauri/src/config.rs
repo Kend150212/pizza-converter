@@ -318,6 +318,24 @@ pub struct AppConfig {
     /// Feature catalog choices: feature id -> { enabled, provider, options }.
     #[serde(default)]
     pub cloud_ai_features_json: String,
+    /// AI Agent & MCP Hub (v1.0.5) master switch - ON by default for seamless 1-click agent access
+    #[serde(default = "default_true")]
+    pub mcp_enabled: bool,
+    /// MCP Local/Remote HTTP & SSE server port (default 48921)
+    #[serde(default = "default_mcp_port")]
+    pub mcp_port: u16,
+    /// MCP Secret Bearer Token for securing remote agent connections
+    #[serde(default = "default_mcp_token")]
+    pub mcp_token: String,
+    /// Allow remote agents over LAN / WebRTC / Tunnel (true) or restrict to 127.0.0.1 (false)
+    #[serde(default = "default_true")]
+    pub mcp_allow_remote: bool,
+    /// Interactive prompt consent before executing sensitive tools
+    #[serde(default)]
+    pub mcp_consent_prompt: bool,
+    /// Allowed directories whitelist for AI agent file access (empty = user profile default: Pictures, Videos, Downloads, Documents)
+    #[serde(default)]
+    pub mcp_whitelisted_dirs: Vec<String>,
     /// Whether the user has checked "Don't show this again" on the step-by-step interactive onboarding tour
     #[serde(default)]
     pub onboarding_dismissed: bool,
@@ -678,9 +696,25 @@ impl Default for AppConfig {
             cloud_ai_consent_at: String::new(),
             cloud_ai_providers_json: String::new(),
             cloud_ai_features_json: String::new(),
+            mcp_enabled: true,
+            mcp_port: default_mcp_port(),
+            mcp_token: default_mcp_token(),
+            mcp_allow_remote: true,
+            mcp_consent_prompt: false,
+            mcp_whitelisted_dirs: Vec::new(),
             onboarding_dismissed: false,
         }
     }
+}
+
+pub fn default_mcp_port() -> u16 {
+    48921
+}
+
+pub fn default_mcp_token() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis();
+    format!("pz_{:x}{:04x}", now, std::process::id() & 0xffff)
 }
 
 fn default_bc_format() -> String {

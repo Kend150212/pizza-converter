@@ -536,6 +536,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
         <button class="nav-item" data-view="cloudai"><span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 1 4 4v1h1a3 3 0 0 1 3 3v2a3 3 0 0 1-3 3h-1v1a4 4 0 0 1-8 0v-1H7a3 3 0 0 1-3-3v-2a3 3 0 0 1 3-3h1V6a4 4 0 0 1 4-4z"/><circle cx="9.5" cy="10" r="1"/><circle cx="14.5" cy="10" r="1"/><path d="M9.5 14a3.5 3.5 0 0 0 5 0"/></svg></span><span>Cloud AI (API Keys)</span><span class="pro-badge" style="color:#c4b5fd; border-color:rgba(167,139,250,.55); background:rgba(167,139,250,.16);">BYOK</span></button>
         <button class="nav-item" data-view="audiogram"><span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M2 10v4"/><path d="M6 6v12"/><path d="M10 3v18"/><path d="M14 8v8"/><path d="M18 5v14"/><path d="M22 10v4"/></svg></span><span data-i18n="nav_audiogram">Audiogram</span><span class="pro-badge">PRO</span></button>
         <button class="nav-item" data-view="cloud"><span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/><path d="M12 13v6"/><path d="m9.5 15.5 2.5-2.5 2.5 2.5"/></svg></span><span data-i18n="nav_cloud">Cloud Drop</span><span class="pro-badge">PRO</span></button>
+        <button class="nav-item" data-view="mcphub"><span class="nav-ico"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16.01"/><line x1="16" y1="16" x2="16" y2="16.01"/><path d="M9 19h6"/></svg></span><span>AI Agent Hub</span><span class="pro-badge" style="color:#38bdf8; border-color:rgba(56,189,248,.5); background:rgba(56,189,248,.15);">MCP</span></button>
         <button class="nav-item" data-view="aiguide"><span class="nav-ico"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg></span><span data-i18n="nav_ai_guide">AI Features</span></button>
         <button class="nav-item" data-view="guide"><span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span><span data-i18n="nav_guide">Guide</span></button>
         <button class="nav-item" data-view="pro"><span class="nav-ico"><svg viewBox="0 0 24 24"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg></span><span data-i18n="nav_pro">Pizza Converter Pro</span><span class="pro-badge" data-i18n="pro_tag">PRO</span></button>
@@ -2877,6 +2878,177 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
               </div>
               <input type="text" id="inp-cai-cust-sample" class="ag-input" value="Summarize this scene in 2 gripping sentences without using Chapter labels: A lone detective discovers the encrypted hard drive inside the abandoned subway station just as the countdown reaches 30 seconds." style="width:100%;" />
               <div id="cai-cust-test-output" style="font-size:10.8px; color:#e2e8f0; background:rgba(9,13,24,0.75); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:7px 9px; min-height:36px; white-space:pre-wrap; line-height:1.45;">Click "▶ Run Test with Selected Provider" to preview how your API key &amp; custom instructions respond.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════════════ -->
+      <!-- VIEW: AI AGENT HUB (MCP SERVER & P2P 1-CLICK / QR CONNECT)   -->
+      <!-- ══════════════════════════════════════════════════════════════ -->
+      <section id="view-mcphub" class="view hidden">
+        <div class="card" style="border-color: rgba(56, 189, 248, 0.45); background: linear-gradient(155deg, rgba(56, 189, 248, 0.12), rgba(15, 23, 42, 0.55)); padding: 12px 16px; margin-bottom: 12px;">
+          <div class="row" style="padding: 4px 0;">
+            <div style="flex:1;">
+              <div style="font-size:13.5px; font-weight:800; color:#e0f2fe; display:flex; align-items:center; gap:8px;">
+                <span>🤖 AI Agent Hub · Model Context Protocol (MCP) Server</span>
+                <span id="mcp-master-badge" class="cai-status-pill pro">ACTIVE · READY</span>
+              </div>
+              <div style="font-size:11px; color:rgba(224,242,254,.75); margin-top:3px; line-height: 1.45;">
+                Turn your PC or Mac into an ultra-fast local native worker for AI Agents (Claude Desktop, Cursor, Antigravity, Muse, Grok). 
+                Process local media files directly at native hardware speed with 1-click auto-configuration or QR Code.
+              </div>
+            </div>
+            <button class="toggle active" id="tgl-mcp-master" aria-pressed="true" title="Toggle AI Agent MCP Server"><span class="knob"></span></button>
+          </div>
+        </div>
+
+        <!-- 1-Click Local Agents (Claude Desktop, Cursor, Antigravity) -->
+        <div class="card" style="margin-bottom: 12px;">
+          <div class="card-title" style="color:#38bdf8; display:flex; align-items:center; justify-content:space-between;">
+            <span style="display:flex; align-items:center; gap:6px;">
+              <svg style="width:16px; height:16px; stroke:#38bdf8; fill:none;" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              1-Click Local Agent Integration (Zero Configuration)
+            </span>
+            <span style="font-size:10px; padding:2px 8px; border-radius:10px; background:rgba(56,189,248,.15); color:#7dd3fc; border:1px solid rgba(56,189,248,.3);">Native stdio</span>
+          </div>
+          <div style="font-size:11px; color:#94a3b8; margin-bottom:12px;">
+            Click below to automatically write the configuration file into your local AI client. No manual JSON editing required.
+          </div>
+
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:12px;">
+            <!-- Claude Desktop -->
+            <div style="background:rgba(15,23,42,.6); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:12px; display:flex; flex-direction:column; justify-content:space-between;">
+              <div>
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                  <span style="font-weight:700; color:#f8fafc; font-size:12.5px;">Claude Desktop</span>
+                  <span id="mcp-claude-badge" style="font-size:10px; font-weight:700; padding:2px 6px; border-radius:6px; background:rgba(34,197,94,.15); color:#4ade80;">Checking...</span>
+                </div>
+                <div style="font-size:10.5px; color:#64748b; line-height:1.4; margin-bottom:10px;">
+                  Installs <code>pizza-converter</code> directly into your Claude Desktop application configuration.
+                </div>
+              </div>
+              <button class="btn primary" id="btn-mcp-install-claude" style="width:100%; font-size:11px; padding:6px 10px;">
+                ⚡ 1-Click Install to Claude
+              </button>
+            </div>
+
+            <!-- Cursor IDE -->
+            <div style="background:rgba(15,23,42,.6); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:12px; display:flex; flex-direction:column; justify-content:space-between;">
+              <div>
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                  <span style="font-weight:700; color:#f8fafc; font-size:12.5px;">Cursor IDE</span>
+                  <span id="mcp-cursor-badge" style="font-size:10px; font-weight:700; padding:2px 6px; border-radius:6px; background:rgba(34,197,94,.15); color:#4ade80;">Checking...</span>
+                </div>
+                <div style="font-size:10.5px; color:#64748b; line-height:1.4; margin-bottom:10px;">
+                  Writes MCP tool definitions to <code>.cursor/mcp.json</code> for instant composer assistance.
+                </div>
+              </div>
+              <button class="btn secondary" id="btn-mcp-install-cursor" style="width:100%; font-size:11px; padding:6px 10px;">
+                ⚡ 1-Click Install to Cursor
+              </button>
+            </div>
+
+            <!-- Custom / Antigravity -->
+            <div style="background:rgba(15,23,42,.6); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:12px; display:flex; flex-direction:column; justify-content:space-between;">
+              <div>
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                  <span style="font-weight:700; color:#f8fafc; font-size:12.5px;">Antigravity / Generic JSON</span>
+                  <span style="font-size:10px; font-weight:700; padding:2px 6px; border-radius:6px; background:rgba(148,163,184,.15); color:#cbd5e1;">Any Client</span>
+                </div>
+                <div style="font-size:10.5px; color:#64748b; line-height:1.4; margin-bottom:10px;">
+                  Copy raw JSON-RPC 2.0 configuration block to paste into any MCP-compatible tool.
+                </div>
+              </div>
+              <button class="btn secondary" id="btn-mcp-copy-snippet" style="width:100%; font-size:11px; padding:6px 10px;">
+                📋 Copy MCP Config JSON
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Remote & Mobile Agent QR Connect (WebRTC / SSE) -->
+        <div class="card" style="margin-bottom: 12px;">
+          <div class="card-title" style="color:#a78bfa; display:flex; align-items:center; justify-content:space-between;">
+            <span style="display:flex; align-items:center; gap:6px;">
+              <svg style="width:16px; height:16px; stroke:#a78bfa; fill:none;" viewBox="0 0 24 24"><path d="M4 4h6v6H4z"/><path d="M14 4h6v6h-6z"/><path d="M4 14h6v6H4z"/><path d="M14 14h6v6h-6z"/></svg>
+              Cloud &amp; Remote Agent Connection (QR Code &amp; SSE Stream)
+            </span>
+            <span style="font-size:10px; padding:2px 8px; border-radius:10px; background:rgba(167,139,250,.15); color:#c4b5fd; border:1px solid rgba(167,139,250,.3);">P2P / WebRTC / SSE</span>
+          </div>
+
+          <div style="display:flex; gap:16px; align-items:flex-start; margin-top:8px;">
+            <!-- QR Code container -->
+            <div style="flex-shrink:0; background:#fff; padding:10px; border-radius:12px; width:160px; height:160px; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 16px rgba(0,0,0,.35);" id="mcp-qr-box">
+              <span style="color:#0f172a; font-size:11px; font-weight:700; text-align:center;">Generating QR...</span>
+            </div>
+
+            <!-- Connection Details -->
+            <div style="flex:1;">
+              <div style="font-size:11px; color:#94a3b8; margin-bottom:10px; line-height:1.5;">
+                Scan with your phone or paste the connection URL into <b>Muse, Grok, or Cloud Agents</b>. 
+                Protected with your unique machine token.
+              </div>
+
+              <!-- Remote URL Box -->
+              <div style="margin-bottom:8px;">
+                <label style="font-size:10px; font-weight:700; color:#cbd5e1; text-transform:uppercase;">Local / LAN SSE Stream URL:</label>
+                <div style="display:flex; gap:6px; margin-top:3px;">
+                  <input type="text" id="inp-mcp-remote-url" readonly style="flex:1; font-family:monospace; font-size:10.5px; background:rgba(15,23,42,.7); border:1px solid rgba(255,255,255,.1); border-radius:6px; padding:6px 10px; color:#38bdf8;" />
+                  <button class="btn secondary" id="btn-mcp-copy-url" style="font-size:11px; padding:4px 12px;">Copy</button>
+                </div>
+              </div>
+
+              <!-- Secret Token Row -->
+              <div style="margin-bottom:8px;">
+                <label style="font-size:10px; font-weight:700; color:#cbd5e1; text-transform:uppercase;">Bearer Security Token:</label>
+                <div style="display:flex; gap:6px; margin-top:3px;">
+                  <input type="password" id="inp-mcp-token" readonly style="flex:1; font-family:monospace; font-size:10.5px; background:rgba(15,23,42,.7); border:1px solid rgba(255,255,255,.1); border-radius:6px; padding:6px 10px; color:#f8fafc;" />
+                  <button class="btn secondary" id="btn-mcp-toggle-token" style="font-size:11px; padding:4px 10px;">👁️</button>
+                  <button class="btn secondary" id="btn-mcp-regen-token" style="font-size:11px; padding:4px 10px;" title="Regenerate token if compromised">🔄</button>
+                </div>
+              </div>
+
+              <!-- Test Ping Button -->
+              <div style="display:flex; gap:10px; align-items:center; margin-top:12px;">
+                <button class="btn secondary" id="btn-mcp-test-ping" style="font-size:11px; padding:5px 14px;">
+                  🔌 Test MCP Server Ping
+                </button>
+                <span id="mcp-ping-result" style="font-size:11px; font-weight:600; color:#94a3b8;"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Available Tools Preview -->
+        <div class="card">
+          <div class="card-title" style="color:#e2e8f0; font-size:12px;">
+            🛠️ 6 Native AI Tools Provided by Pizza Converter
+          </div>
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:8px; margin-top:8px;">
+            <div style="font-size:11px; background:rgba(15,23,42,.45); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.05);">
+              <b style="color:#38bdf8;">pizza_list_files</b><br/>
+              <span style="color:#64748b; font-size:10px;">Scan PC/Mac directories with extension filtering</span>
+            </div>
+            <div style="font-size:11px; background:rgba(15,23,42,.45); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.05);">
+              <b style="color:#38bdf8;">pizza_convert_media</b><br/>
+              <span style="color:#64748b; font-size:10px;">Hardware-accelerated conversion across 55+ formats</span>
+            </div>
+            <div style="font-size:11px; background:rgba(15,23,42,.45); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.05);">
+              <b style="color:#38bdf8;">pizza_remove_background</b><br/>
+              <span style="color:#64748b; font-size:10px;">Local IS-Net neural AI cutout to transparent PNG</span>
+            </div>
+            <div style="font-size:11px; background:rgba(15,23,42,.45); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.05);">
+              <b style="color:#38bdf8;">pizza_ai_video_review</b><br/>
+              <span style="color:#64748b; font-size:10px;">Proportional recap, voiceover &amp; watermark overlay</span>
+            </div>
+            <div style="font-size:11px; background:rgba(15,23,42,.45); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.05);">
+              <b style="color:#38bdf8;">pizza_get_media_info</b><br/>
+              <span style="color:#64748b; font-size:10px;">Read duration, codec, bitrate, resolution</span>
+            </div>
+            <div style="font-size:11px; background:rgba(15,23,42,.45); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.05);">
+              <b style="color:#38bdf8;">pizza_upload_cloud</b><br/>
+              <span style="color:#64748b; font-size:10px;">Upload output to Google Drive &amp; generate link</span>
             </div>
           </div>
         </div>

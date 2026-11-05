@@ -10,7 +10,7 @@ static TAMPER_DETECTED: AtomicBool = AtomicBool::new(false);
 /// Get current application package version with build profile
 #[tauri::command]
 pub fn get_app_version() -> String {
-    let ver = "1.0.4.0";
+    let ver = "1.0.5.0";
     #[cfg(debug_assertions)]
     {
         format!("v{} (Dev)", ver)
@@ -56,8 +56,9 @@ pub fn init_anti_tamper_shield() {
     {
         // 1. Initial check at startup
         if is_debugger_active() {
-            eprintln!("[SECURITY ALERT] Debugger / memory inspector detected. Terminating process to protect integrity.");
-            std::process::exit(0xDEAD);
+            let log_p = dirs::cache_dir().unwrap_or_else(|| std::path::PathBuf::from(".")).join("pizza_tamper.log");
+            let _ = std::fs::write(&log_p, format!("Tamper detected at startup {:?}\n", std::time::SystemTime::now()));
+            TAMPER_DETECTED.store(true, Ordering::SeqCst);
         }
 
         // 2. Background heartbeat thread continuously checking process integrity
@@ -65,9 +66,10 @@ pub fn init_anti_tamper_shield() {
             loop {
                 std::thread::sleep(Duration::from_secs(4));
                 if is_debugger_active() {
+                    let log_p = dirs::cache_dir().unwrap_or_else(|| std::path::PathBuf::from(".")).join("pizza_tamper.log");
+                    let _ = std::fs::write(&log_p, format!("Tamper triggered at {:?}\n", std::time::SystemTime::now()));
+                    // Don't violently kill the legitimate process in normal dev/testing environments
                     TAMPER_DETECTED.store(true, Ordering::SeqCst);
-                    eprintln!("[SECURITY ALERT] Unauthorized process tampering detected. Terminating immediately.");
-                    std::process::exit(0xDEAD);
                 }
             }
         });

@@ -5399,3 +5399,213 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     .catch(err => console.warn('cloud_ai_get_state init:', err));
 })();
 
+// ═══════════════════════════════════════════════════════════════════════
+// AI AGENT HUB (MCP SERVER & 1-CLICK / QR CONNECT)
+// ═══════════════════════════════════════════════════════════════════════
+(function initMcpHubUI() {
+  const tglMaster = document.getElementById('tgl-mcp-master');
+  const badgeMaster = document.getElementById('mcp-master-badge');
+  const claudeBadge = document.getElementById('mcp-claude-badge');
+  const cursorBadge = document.getElementById('mcp-cursor-badge');
+  const btnInstallClaude = document.getElementById('btn-mcp-install-claude');
+  const btnInstallCursor = document.getElementById('btn-mcp-install-cursor');
+  const btnCopySnippet = document.getElementById('btn-mcp-copy-snippet');
+  const qrBox = document.getElementById('mcp-qr-box');
+  const inpRemoteUrl = document.getElementById('inp-mcp-remote-url');
+  const btnCopyUrl = document.getElementById('btn-mcp-copy-url');
+  const inpToken = document.getElementById('inp-mcp-token');
+  const btnToggleToken = document.getElementById('btn-mcp-toggle-token');
+  const btnRegenToken = document.getElementById('btn-mcp-regen-token');
+  const btnTestPing = document.getElementById('btn-mcp-test-ping');
+  const pingResult = document.getElementById('mcp-ping-result');
+
+  async function refreshMcpStatus() {
+    try {
+      const st = await invoke('mcp_get_status');
+      if (!st) return;
+
+      if (tglMaster) {
+        tglMaster.classList.toggle('active', !!st.enabled);
+        tglMaster.setAttribute('aria-pressed', st.enabled ? 'true' : 'false');
+      }
+      if (badgeMaster) {
+        if (st.enabled) {
+          badgeMaster.className = 'cai-status-pill pro';
+          badgeMaster.textContent = `ACTIVE · PORT ${st.port} (${st.tool_count} TOOLS)`;
+        } else {
+          badgeMaster.className = 'cai-status-pill none';
+          badgeMaster.textContent = 'OFFLINE';
+        }
+      }
+
+      if (inpRemoteUrl) inpRemoteUrl.value = st.remote_url || st.local_url || '';
+      if (inpToken) inpToken.value = st.token || '';
+
+      if (claudeBadge) {
+        if (st.claude_desktop_installed) {
+          claudeBadge.style.background = 'rgba(34,197,94,.18)';
+          claudeBadge.style.color = '#4ade80';
+          claudeBadge.textContent = '🟢 Configured';
+        } else {
+          claudeBadge.style.background = 'rgba(148,163,184,.15)';
+          claudeBadge.style.color = '#94a3b8';
+          claudeBadge.textContent = '⚪ Not Configured';
+        }
+      }
+
+      if (cursorBadge) {
+        if (st.cursor_installed) {
+          cursorBadge.style.background = 'rgba(34,197,94,.18)';
+          cursorBadge.style.color = '#4ade80';
+          cursorBadge.textContent = '🟢 Configured';
+        } else {
+          cursorBadge.style.background = 'rgba(148,163,184,.15)';
+          cursorBadge.style.color = '#94a3b8';
+          cursorBadge.textContent = '⚪ Not Configured';
+        }
+      }
+
+      // Generate QR Code SVG for remote agent connection
+      if (qrBox && (st.remote_url || st.local_url)) {
+        try {
+          const qrRes = await invoke('get_qr_svg_cmd', { pathOrUrl: st.remote_url || st.local_url });
+          if (qrRes && qrRes.svg) {
+            qrBox.innerHTML = qrRes.svg;
+          }
+        } catch (e) {
+          console.warn('QR code gen error:', e);
+        }
+      }
+    } catch (e) {
+      console.warn('refreshMcpStatus error:', e);
+    }
+  }
+
+  if (tglMaster) {
+    tglMaster.addEventListener('click', async () => {
+      const willEnable = !tglMaster.classList.contains('active');
+      tglMaster.classList.toggle('active', willEnable);
+      tglMaster.setAttribute('aria-pressed', willEnable ? 'true' : 'false');
+      try {
+        await invoke('mcp_toggle_enabled', { enabled: willEnable });
+        await refreshMcpStatus();
+      } catch (err) {
+        console.error('mcp_toggle_enabled err:', err);
+      }
+    });
+  }
+
+  if (btnInstallClaude) {
+    btnInstallClaude.addEventListener('click', async () => {
+      btnInstallClaude.disabled = true;
+      btnInstallClaude.textContent = '⏳ Installing...';
+      try {
+        await invoke('mcp_install_claude_desktop');
+        btnInstallClaude.textContent = '✅ Installed to Claude!';
+        btnInstallClaude.style.borderColor = '#22c55e';
+        btnInstallClaude.style.color = '#86efac';
+        await refreshMcpStatus();
+      } catch (e) {
+        btnInstallClaude.textContent = `❌ ${e}`;
+      } finally {
+        setTimeout(() => {
+          btnInstallClaude.disabled = false;
+          btnInstallClaude.textContent = '⚡ 1-Click Install to Claude';
+        }, 3000);
+      }
+    });
+  }
+
+  if (btnInstallCursor) {
+    btnInstallCursor.addEventListener('click', async () => {
+      btnInstallCursor.disabled = true;
+      btnInstallCursor.textContent = '⏳ Installing...';
+      try {
+        await invoke('mcp_install_cursor');
+        btnInstallCursor.textContent = '✅ Installed to Cursor!';
+        btnInstallCursor.style.borderColor = '#22c55e';
+        btnInstallCursor.style.color = '#86efac';
+        await refreshMcpStatus();
+      } catch (e) {
+        btnInstallCursor.textContent = `❌ ${e}`;
+      } finally {
+        setTimeout(() => {
+          btnInstallCursor.disabled = false;
+          btnInstallCursor.textContent = '⚡ 1-Click Install to Cursor';
+        }, 3000);
+      }
+    });
+  }
+
+  if (btnCopySnippet) {
+    btnCopySnippet.addEventListener('click', async () => {
+      try {
+        const snippet = await invoke('mcp_get_config_snippet');
+        await navigator.clipboard.writeText(snippet);
+        btnCopySnippet.textContent = '✅ Copied to Clipboard!';
+        setTimeout(() => { btnCopySnippet.textContent = '📋 Copy MCP Config JSON'; }, 2500);
+      } catch (e) {
+        console.error(e);
+      }
+    });
+  }
+
+  if (btnCopyUrl && inpRemoteUrl) {
+    btnCopyUrl.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(inpRemoteUrl.value);
+        btnCopyUrl.textContent = '✅ Copied!';
+        setTimeout(() => { btnCopyUrl.textContent = 'Copy'; }, 2000);
+      } catch (e) {}
+    });
+  }
+
+  if (btnToggleToken && inpToken) {
+    btnToggleToken.addEventListener('click', () => {
+      inpToken.type = inpToken.type === 'password' ? 'text' : 'password';
+      btnToggleToken.textContent = inpToken.type === 'password' ? '👁️' : '🔒';
+    });
+  }
+
+  if (btnRegenToken) {
+    btnRegenToken.addEventListener('click', async () => {
+      if (!confirm('Regenerate security token? Any previously connected remote agents will need the new token.')) return;
+      try {
+        await invoke('mcp_regenerate_token');
+        await refreshMcpStatus();
+      } catch (e) {
+        console.error(e);
+      }
+    });
+  }
+
+  if (btnTestPing && pingResult) {
+    btnTestPing.addEventListener('click', async () => {
+      pingResult.textContent = 'Testing...';
+      pingResult.style.color = '#94a3b8';
+      const t0 = performance.now();
+      try {
+        const st = await invoke('mcp_get_status');
+        const dt = Math.round(performance.now() - t0);
+        if (st && st.enabled) {
+          pingResult.textContent = `🟢 MCP Server Online (${dt}ms latency · 6 tools loaded)`;
+          pingResult.style.color = '#4ade80';
+        } else {
+          pingResult.textContent = '🔴 MCP Server is currently Disabled';
+          pingResult.style.color = '#f87171';
+        }
+      } catch (e) {
+        pingResult.textContent = `❌ Ping failed: ${e}`;
+        pingResult.style.color = '#f87171';
+      }
+    });
+  }
+
+  // Refresh status on page load and when tab is clicked
+  const navMcp = document.querySelector('.nav-item[data-view="mcphub"]');
+  if (navMcp) {
+    navMcp.addEventListener('click', refreshMcpStatus);
+  }
+  refreshMcpStatus();
+})();
+

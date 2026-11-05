@@ -1,11 +1,11 @@
-# PROMPT CHO MUSE — ĐẨY BẢN UPDATE PIZZA CONVERTER v1.0.4 (1.0.4.0) LÊN STORE
+# PROMPT CHO MUSE — ĐẨY BẢN UPDATE PIZZA CONVERTER v1.0.5 (1.0.5.0) LÊN STORE
 
 ## 1. FILE DÙNG ĐỂ UPLOAD LÊN STORE (DÀNH CHO ANH KEN & MUSE)
 
 ### A. Microsoft Store (Windows — Partner Center)
-- **File gói cài đặt `.msix` bản `1.0.4.0` để upload vào mục Packages:**
-  `C:\Users\Ken Dao\Desktop\Antigravity Project\Pizza-Converter\dist\store_packages\PizzaConverter_1.0.4.0_x64_Store.msix`
-  *(Đã cấu hình sẵn `Identity Name="Neeflow.Pizza-Converter"`, `Publisher="CN=04843FBA-F486-488A-809F-B8B0FCD89E04"`, `PublisherDisplayName="Neeflow"`, `Version="1.0.4.0"`).*
+- **File gói cài đặt `.msix` bản `1.0.5.0` để upload vào mục Packages:**
+  `C:\Users\Ken Dao\Desktop\Antigravity Project\Pizza-Converter\dist\store_packages\PizzaConverter_1.0.5.0_x64_Store.msix`
+  *(Đã cấu hình sẵn `Identity Name="Neeflow.Pizza-Converter"`, `Publisher="CN=04843FBA-F486-488A-809F-B8B0FCD89E04"`, `PublisherDisplayName="Neeflow"`, `Version="1.0.5.0"`).*
 - **Thư mục chứa 10 ảnh Poster/Screenshot nền sáng (`1920×1080`) để upload vào mục Store listings:**
   `C:\Users\Ken Dao\Desktop\Antigravity Project\Pizza-Converter\dist\store_packages\screenshots_v1.0.2_white_full\`
   Gồm 10 file:
@@ -30,24 +30,25 @@
 
 1. Mở **Microsoft Partner Center** (`https://partner.microsoft.com/dashboard/windowsoverview`) → chọn ứng dụng **Pizza - Converter** → mở submission đang cập nhật.
 2. Vào mục **Packages**:
-   - Xóa gói `.msix` cũ (`1.0.1.0` hoặc `1.0.2.0`) trong danh sách package của submission.
-   - Kéo thả / Upload file mới bản `1.0.3.0`:
-     `C:\Users\Ken Dao\Desktop\Antigravity Project\Pizza-Converter\dist\store_packages\PizzaConverter_1.0.3.0_x64_Store.msix`
+   - Xóa gói `.msix` cũ trong danh sách package của submission.
+   - Kéo thả / Upload file mới bản `1.0.5.0`:
+     `C:\Users\Ken Dao\Desktop\Antigravity Project\Pizza-Converter\dist\store_packages\PizzaConverter_1.0.5.0_x64_Store.msix`
    - Chờ báo **Validated** → bấm **Save**.
 3. Vào mục **Store listings** (English - United States):
    - **Product name**: Chọn tên ngắn gọn **`Pizza - Converter`** (hoặc **`Pizza Converter`** nếu đã reserve) — KHÔNG thêm các cụm từ mô tả dài vào Title để tuân thủ mục `10.1.1.1`.
    - **Description**: Dán nội dung tại mục **4. FULL STORE DESCRIPTION** bên dưới.
-   - **What's new in this version (Release notes)**: Dán nội dung tại mục **3. WHAT'S NEW IN VERSION 1.0.3** bên dưới.
+   - **What's new in this version (Release notes)**: Dán nội dung tại mục **3. WHAT'S NEW IN VERSION 1.0.5** bên dưới.
    - **Screenshots (Desktop)**: Upload 10 ảnh nền sáng từ thư mục `C:\Users\Ken Dao\Desktop\Antigravity Project\Pizza-Converter\dist\store_packages\screenshots_v1.0.2_white_full\`.
    - **Privacy policy URL** (trong Properties): Giữ nguyên `https://kend150212.github.io/pizza-converter/privacy.html` (đã được Agy sửa lỗi Base64 sang HTML5 chuẩn, trả về `200 OK`).
    - Bấm **Save**.
 4. Vào mục **Submission options (`Notes for certification`)**:
    ```text
-   What's new in v1.0.4:
-   - Added AI Video Review intelligent duration auto-scaling for comprehensive summaries of long recordings.
-   - Added Brand Logo & Watermark video compositor with 4-corner presets, opacity/scale controls, and canvas drag-and-drop.
-   - Added interactive Real-Time Video Preview stage and duration estimator in Settings.
-   - Performance and hardware rendering optimizations.
+   What's new in v1.0.5:
+   - Added AI Agent Hub: Built-in Model Context Protocol (MCP) server for Claude Desktop, Cursor, Antigravity, and remote AI agents.
+   - 1-Click integration for Claude Desktop & Cursor with automated config generation.
+   - Secure Bearer Token authentication & live QR Code pairing for remote AI agents.
+   - AI Video Review intelligent duration auto-scaling for comprehensive summaries of long recordings.
+   - Brand Logo & Watermark video compositor with 4-corner presets and drag-and-drop.
    Note: You can test all Pro features in Settings -> Pizza Converter Pro tab using test redeem code: PIZZA-TEST-2026 (or LIFETIME).
    Support email: pizza@neeflow.com
    ```
@@ -55,14 +56,23 @@
 
 ---
 
-## 3. WHAT'S NEW IN VERSION 1.0.4 (DÁN VÀO Ô "WHAT'S NEW IN THIS VERSION")
+## 3. WHAT'S NEW IN VERSION 1.0.5 (DÁN VÀO Ô "WHAT'S NEW IN THIS VERSION")
 
 ```text
-🚀 What's New in Pizza Converter v1.0.4 — The AI Video Review Studio & Visual Watermark Compositor Update:
+🚀 What's New in Pizza Converter v1.0.5 — The AI Agent Hub (MCP) & Smart Media Engine Update:
 
-1. 🎬 AI Video Review & Smart Chronological Duration Auto-Scaling
-• Solved duration truncation: Long recordings (e.g. 15–30+ minutes) are no longer cut down to overly short summaries.
-• Dynamic Visual Beat Clustering: Automatically expands chronological narrative clusters to capture key moments naturally (~5–7 minutes sweet spot) while preserving complete story depth.
+1. 🤖 AI Agent Hub (Model Context Protocol - MCP)
+• Connect any AI agent (Claude Desktop, Cursor, Antigravity, Muse, Grok) directly to Pizza Converter.
+• 6 Native Local MCP Tools: Batch file discovery, 55+ format media conversion, neural transparent background removal, AI video review, technical metadata inspection, and instant cloud upload.
+• 1-Click Installer: One button installs Pizza Converter into Claude Desktop and Cursor configurations automatically.
+• Secure Remote / LAN Pairing: Encrypted Bearer Token authentication and real-time QR Code scanning for remote and mobile AI agents over SSE.
+
+2. 🎬 AI Video Review & Smart Chronological Duration Auto-Scaling
+• Dynamic narrative clustering expands summary length up to ~5-7 minutes for long recordings while preserving story depth without disruptive "Chapter" markers.
+
+3. 🏷️ Visual Brand Watermark & Logo Compositor
+• Pin your logo to any of the 4 corners, adjust scale, opacity, and drag-and-drop directly on the live video stage.
+• Built-in real-time preview stage and duration estimator in Settings.
 • Continuous Storytelling: Seamless contextual voiceover narrative without disruptive "Chapter" titles or unnatural cuts.
 
 2. 🛡️ Brand Logo & Watermark Compositor for Video Reviews
