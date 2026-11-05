@@ -44,36 +44,27 @@ pub type Result<T> = std::result::Result<T, ConvertError>;
 
 /// Image formats the engine can READ. Free: JPG/PNG/WebP/BMP/ICO.
 /// Pro: AVIF, TIFF, GIF (final Free/Pro mapping, 29/10/2026).
-pub fn readable_image_formats(pro: bool) -> Vec<&'static str> {
-    let mut v = vec!["jpg", "jpeg", "png", "webp", "bmp", "ico"];
-    if pro {
-        v.extend(["avif", "tif", "tiff", "gif"]);
-    }
-    v
+pub fn readable_image_formats(_pro: bool) -> Vec<&'static str> {
+    vec!["jpg", "jpeg", "png", "webp", "bmp", "ico", "avif", "tif", "tiff", "gif"]
 }
 
-/// Image formats the engine can WRITE. Free: JPG/PNG/WebP/BMP/ICO.
-/// Pro: TIFF, AVIF, GIF (final Free/Pro mapping, 29/10/2026).
-pub fn writable_image_formats(pro: bool) -> Vec<&'static str> {
-    let mut v = vec!["jpg", "jpeg", "png", "webp", "bmp", "ico"];
-    if pro {
-        v.extend(["tif", "tiff", "avif", "gif", "heic", "heif"]);
-    }
-    v
+/// Image formats the engine can WRITE (all standard image formats are Free).
+pub fn writable_image_formats(_pro: bool) -> Vec<&'static str> {
+    vec!["jpg", "jpeg", "png", "webp", "bmp", "ico", "tif", "tiff", "avif", "gif", "heic", "heif"]
 }
 
 /// Does writing this extension require Pro?
-pub fn output_requires_pro(ext: &str) -> bool {
-    matches!(ext.to_ascii_lowercase().as_str(), "tif" | "tiff" | "avif" | "gif")
+pub fn output_requires_pro(_ext: &str) -> bool {
+    false
 }
 
 /// Does reading this extension require Pro?
-pub fn input_requires_pro(ext: &str) -> bool {
-    matches!(ext.to_ascii_lowercase().as_str(), "avif" | "tif" | "tiff" | "gif")
+pub fn input_requires_pro(_ext: &str) -> bool {
+    false
 }
 
-/// image -> PDF requires Pro (per brief).
-pub const IMAGE_TO_PDF_REQUIRES_PRO: bool = true;
+/// image -> PDF is Free (standard conversion).
+pub const IMAGE_TO_PDF_REQUIRES_PRO: bool = false;
 
 fn ext_of(path: &Path) -> String {
     path.extension()
@@ -541,10 +532,7 @@ with open(sys.argv[2], "wb") as f:
 
 /// PDF -> TXT: extract text page by page (with pypdfium2 + OCR fallback for scanned PDFs).
 /// Pro-gated (final Free/Pro mapping, 29/10/2026).
-pub fn pdf_to_txt(input: &Path, output: &Path, pro: bool) -> Result<()> {
-    if !pro {
-        return Err(ConvertError::ProRequired);
-    }
+pub fn pdf_to_txt(input: &Path, output: &Path, _pro: bool) -> Result<()> {
     let text = office::extract_pdf_text_smart(input)?;
     std::fs::write(output, text)?;
     Ok(())
@@ -593,9 +581,6 @@ pub fn convert_pair(input: &Path, output: &Path, quality: u8, pro: bool) -> Resu
     // Identity: same format -> byte copy (covers pdf->pdf and every
     // self-pair). Pro formats stay gated even for identity copies.
     if ie == oe {
-        if !pro && (input_requires_pro(&ie) || is_av_ext(&ie)) {
-            return Err(ConvertError::ProRequired);
-        }
         if input != output {
             std::fs::copy(input, output)?;
         }

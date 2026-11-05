@@ -2,6 +2,7 @@
 //! 100% original code; no code/assets from the original app.
 
 pub mod ai_studio;
+pub mod cloud_ai;
 pub mod cloud_drop;
 pub mod config;
 pub mod convert_cmd;
@@ -52,6 +53,10 @@ pub fn show_settings_window(app: &tauri::AppHandle) {
 #[tauri::command]
 fn show_settings(app: tauri::AppHandle) {
     show_settings_window(&app);
+    if !licensing::is_pro_inner(&app) {
+        use tauri::Emitter;
+        let _ = app.emit("settings-open-pro", ());
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -98,6 +103,10 @@ pub fn run() {
             security::init_anti_tamper_shield();
             tray::build_tray(app.handle())?;
 
+            // Ensure HUD and Radial overlay windows start completely hidden, off-screen, and click-through
+            hotkey::hide_hud(app.handle());
+            hotkey::hide_radial(app.handle());
+
             // On initial launch, show the main Settings window so the user immediately sees the app
             show_settings_window(app.handle());
 
@@ -118,6 +127,7 @@ pub fn run() {
             convert_cmd::images_to_pdf_cmd,
             convert_cmd::merge_pdfs_cmd,
             convert_cmd::convert_any_cmd,
+            convert_cmd::generate_custom_barcode_cmd,
             convert_cmd::cancel_task_cmd,
             convert_cmd::file_meta,
             convert_cmd::pick_file,
@@ -132,10 +142,18 @@ pub fn run() {
             config::set_cloud_config,
             config::set_cloud_trigger_key,
             config::set_design_config,
+            cloud_ai::cloud_ai_get_state,
+            cloud_ai::cloud_ai_set_enabled,
+            cloud_ai::cloud_ai_save_key,
+            cloud_ai::cloud_ai_set_model,
+            cloud_ai::cloud_ai_test,
+            cloud_ai::cloud_ai_set_features,
+            cloud_ai::cloud_ai_try_prompt,
             config::set_design_trigger_key,
             config::save_design_template,
             config::delete_design_template,
             config::toggle_pin_design_template,
+            config::set_onboarding_dismissed,
             cloud_drop::get_cloud_status,
             cloud_drop::get_cloud_history,
             cloud_drop::clear_cloud_history,
@@ -148,6 +166,7 @@ pub fn run() {
             licensing::is_pro,
             licensing::get_license_status,
             licensing::set_pro,
+            licensing::purchase_pro,
             licensing::restore_purchase,
             licensing::redeem_code,
             radial_model::get_radial_model,
@@ -159,6 +178,7 @@ pub fn run() {
             radial_model::clear_history,
             hotkey::hide_radial_cmd,
             hotkey::hide_hud_cmd,
+            hotkey::sync_hud_bounds_cmd,
             hotkey::set_recording_hotkey,
             hotkey::open_accessibility_settings,
         ])

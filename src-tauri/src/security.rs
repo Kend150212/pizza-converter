@@ -1,4 +1,4 @@
-﻿//! Security & Anti-Tamper Subsystem
+//! Security & Anti-Tamper Subsystem
 //! Protects application binary against reverse engineering, attached debuggers,
 //! dynamic process hooks, and unauthorized bot manipulation.
 
@@ -10,7 +10,7 @@ static TAMPER_DETECTED: AtomicBool = AtomicBool::new(false);
 /// Get current application package version with build profile
 #[tauri::command]
 pub fn get_app_version() -> String {
-    let ver = env!("CARGO_PKG_VERSION");
+    let ver = "1.0.4.0";
     #[cfg(debug_assertions)]
     {
         format!("v{} (Dev)", ver)

@@ -36,6 +36,21 @@ pub fn find_ffmpeg() -> Option<PathBuf> {
                     return Some(p);
                 }
             }
+            if let Some(contents) = dir.parent() {
+                let res_ff = contents.join("Resources").join("ffmpeg");
+                if res_ff.is_file() {
+                    return Some(res_ff);
+                }
+            }
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        for p in ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"] {
+            let pb = PathBuf::from(p);
+            if pb.is_file() {
+                return Some(pb);
+            }
         }
     }
     if let Ok( paths ) = std::env::var_os("PATH").ok_or(()) {
@@ -103,10 +118,63 @@ fn h264_pin_for(ext: &str, args: &[&str]) -> bool {
     wants_h264 && !vcodec_pinned
 }
 
-/// Run ffmpeg: `ffmpeg -y -i <input> <args...> <output>`.
-pub fn ffmpeg_convert(input: &Path, output: &Path, args: &[&str]) -> Result<()> {
+/// Parse `Duration: HH:MM:SS.cs` from an ffmpeg stderr line into microseconds.
+fn parse_duration_us(line: &str) -> Option<u64> {
+    let idx = line.find("Duration:")?;
+    let rest = line[idx + "Duration:".len()..].trim_start();
+    let token = rest.split(|c: char| c == ',' || c.is_whitespace()).next()?;
+    let mut parts = token.split(':');
+    let hh: u64 = parts.next()?.parse().ok()?;
+    let mm: u64 = parts.next()?.parse().ok()?;
+    let ss_f: f64 = parts.next()?.parse().ok()?;
+    let total_secs = (hh as f64) * 3600.0 + (mm as f64) * 60.0 + ss_f;
+    if total_secs > 0.05 {
+        Some((total_secs * 1_000_000.0) as u64)
+    } else {
+        None
+    }
+}
+
+/// Fast (<35ms) header probe via `ffmpeg -i <input>` to obtain exact duration before encoding.
+fn probe_duration_us(bin: &Path, input: &Path) -> Option<u64> {
+    let mut pcmd = std::process::Command::new(bin);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        pcmd.creation_flags(0x08000000);
+    }
+    let out = pcmd.arg("-hide_banner").arg("-i").arg(input).output().ok()?;
+    let stderr_str = String::from_utf8_lossy(&out.stderr);
+    for line in stderr_str.lines() {
+        if let Some(d) = parse_duration_us(line) {
+            return Some(d);
+        }
+    }
+    None
+}
+
+/// Run ffmpeg with live progress callback (`8..=99`) and fast multi-core encoding flags.
+pub fn ffmpeg_convert_with_progress<F, P>(
+    input: &Path,
+    output: &Path,
+    args: &[&str],
+    mut on_progress: F,
+    mut on_pid: P,
+) -> Result<()>
+where
+    F: FnMut(usize),
+    P: FnMut(u32),
+{
+    use std::io::{BufRead, BufReader};
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::Arc;
+
     let bin = find_ffmpeg().ok_or_else(ffmpeg_missing)?;
-    let mut cmd = std::process::Command::new(bin);
+    let initial_dur_us = probe_duration_us(&bin, input).unwrap_or(0);
+    let in_bytes = std::fs::metadata(input).map(|m| m.len()).unwrap_or(0);
+    let dur_secs = (initial_dur_us as f64) / 1_000_000.0;
+
+    let mut cmd = std::process::Command::new(&bin);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -115,7 +183,10 @@ pub fn ffmpeg_convert(input: &Path, output: &Path, args: &[&str]) -> Result<()> 
     cmd.arg("-y")
         .arg("-hide_banner")
         .arg("-loglevel")
-        .arg("error")
+        .arg("info")
+        .arg("-progress")
+        .arg("pipe:1")
+        .arg("-nostats")
         .arg("-i")
         .arg(input)
         .args(args);
@@ -124,28 +195,150 @@ pub fn ffmpeg_convert(input: &Path, output: &Path, args: &[&str]) -> Result<()> 
         .and_then(|e| e.to_str())
         .unwrap_or("")
         .to_lowercase();
+    let vcodec_pinned = args.iter().any(|a| *a == "-c:v" || *a == "-vcodec");
     // Strip video tracks when converting to an audio-only container (e.g. MP4 -> M4A/MP3/WAV).
     if matches!(ext.as_str(), "mp3" | "wav" | "flac" | "ogg" | "oga" | "m4a" | "aac")
         && !args.iter().any(|a| *a == "-vn")
     {
         cmd.arg("-vn");
     }
-    // MP4-family outputs need an H.264 encoder; LGPL bundles lack libx264.
-    if h264_pin_for(&ext, args) {
+    // High-speed multi-threaded WebM VP9 encoding with smart size-matched rate control
+    // so output matches the ~35% size estimate shown on the radial wheel!
+    if ext == "webm" && !vcodec_pinned {
+        let (bv_kbps, max_kbps, buf_kbps) = if in_bytes > 0 && dur_secs > 0.5 {
+            // Target ~33% of input size (radial wheel EST_RATIO.webm = 0.35)
+            let target_total_kbps = ((in_bytes as f64) * 0.33 * 8.0 / (dur_secs * 1000.0)) as u64;
+            let v_kbps = target_total_kbps.saturating_sub(128).clamp(350, 3800);
+            // Account for realtime VP9 1-pass quantizer headroom (~22%) so final file stays <= target
+            let nominal = (v_kbps * 78 / 100).max(300);
+            let max_r = (v_kbps * 92 / 100).max(400);
+            (nominal, max_r, max_r * 2)
+        } else {
+            (2500, 3200, 6400)
+        };
+        let bv_str = format!("{bv_kbps}k");
+        let max_str = format!("{max_kbps}k");
+        let buf_str = format!("{buf_kbps}k");
+        cmd.args([
+            "-c:v", "libvpx-vp9",
+            "-deadline", "realtime",
+            "-cpu-used", "6",
+            "-row-mt", "1",
+            "-threads", "0",
+            "-qmin", "28",
+            "-qmax", "54",
+            "-b:v", &bv_str,
+            "-maxrate", &max_str,
+            "-bufsize", &buf_str,
+            "-c:a", "libopus",
+            "-b:a", "128k",
+        ]);
+    } else if h264_pin_for(&ext, args) {
+        // MP4-family outputs need an H.264 encoder; LGPL bundles lack libx264.
         if let Some(enc) = h264_fallback() {
-            cmd.arg("-c:v").arg(enc);
+            cmd.args(["-c:v", enc, "-threads", "0"]);
+        } else if in_bytes > 0 && dur_secs > 0.5 {
+            let ratio = if ext == "mkv" { 0.48 } else { 0.38 };
+            let target_total_kbps = ((in_bytes as f64) * ratio * 8.0 / (dur_secs * 1000.0)) as u64;
+            let max_kbps = target_total_kbps.saturating_sub(128).clamp(500, 5500);
+            let max_str = format!("{max_kbps}k");
+            let buf_str = format!("{}k", max_kbps * 2);
+            cmd.args([
+                "-c:v", "libx264",
+                "-preset", "veryfast",
+                "-crf", "24",
+                "-maxrate", &max_str,
+                "-bufsize", &buf_str,
+                "-threads", "0",
+            ]);
+        } else {
+            cmd.args(["-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-threads", "0"]);
         }
     }
-    let status = cmd
-        .arg(output)
-        .status()
+    cmd.arg(output)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    let mut child = cmd.spawn().map_err(|e| ConvertError::Encode(e.to_string()))?;
+    on_pid(child.id());
+
+    let duration_us = Arc::new(AtomicU64::new(initial_dur_us));
+    let dur_for_err = Arc::clone(&duration_us);
+    let stderr_pipe = child.stderr.take();
+    let stderr_handle = std::thread::spawn(move || -> String {
+        let mut last_err = String::new();
+        if let Some(err_stream) = stderr_pipe {
+            let reader = BufReader::new(err_stream);
+            for line in reader.lines().map_while(|r| r.ok()) {
+                if dur_for_err.load(Ordering::Relaxed) == 0 {
+                    if let Some(d) = parse_duration_us(&line) {
+                        dur_for_err.store(d, Ordering::Relaxed);
+                    }
+                }
+                let trimmed = line.trim();
+                if !trimmed.is_empty()
+                    && !trimmed.starts_with("Input #")
+                    && !trimmed.starts_with("Output #")
+                    && !trimmed.starts_with("Stream #")
+                    && !trimmed.starts_with("Metadata:")
+                    && !trimmed.starts_with("Stream mapping:")
+                    && !trimmed.starts_with("Press [q]")
+                {
+                    last_err = trimmed.to_string();
+                }
+            }
+        }
+        last_err
+    });
+
+    let mut last_pct: usize = 8;
+    if let Some(stdout_pipe) = child.stdout.take() {
+        let reader = BufReader::new(stdout_pipe);
+        for line in reader.lines().map_while(|r| r.ok()) {
+            let trimmed = line.trim();
+            if let Some(val_s) = trimmed
+                .strip_prefix("out_time_us=")
+                .or_else(|| trimmed.strip_prefix("out_time_ms="))
+            {
+                if let Ok(out_us) = val_s.trim().parse::<u64>() {
+                    let total_us = duration_us.load(Ordering::Relaxed);
+                    let pct = if total_us > 0 {
+                        (8 + ((out_us.saturating_mul(91)) / total_us) as usize).clamp(8, 99)
+                    } else {
+                        // Smooth synthetic progress if container has no duration header
+                        let secs = out_us / 1_000_000;
+                        (8 + (secs as usize).min(85)).clamp(8, 95)
+                    };
+                    if pct > last_pct {
+                        last_pct = pct;
+                        on_progress(pct);
+                    }
+                }
+            }
+        }
+    }
+
+    let status = child
+        .wait()
         .map_err(|e| ConvertError::Encode(e.to_string()))?;
+    let err_tail = stderr_handle.join().unwrap_or_default();
     if !status.success() {
-        return Err(ConvertError::Encode(format!(
-            "ffmpeg exited with status {status}"
-        )));
+        if err_tail.is_empty() {
+            return Err(ConvertError::Encode(format!(
+                "ffmpeg exited with status {status}"
+            )));
+        } else {
+            return Err(ConvertError::Encode(format!(
+                "ffmpeg exited with status {status}: {err_tail}"
+            )));
+        }
     }
     Ok(())
+}
+
+/// Run ffmpeg: `ffmpeg -y -i <input> <args...> <output>`.
+pub fn ffmpeg_convert(input: &Path, output: &Path, args: &[&str]) -> Result<()> {
+    ffmpeg_convert_with_progress(input, output, args, |_| {}, |_| {})
 }
 
 /// Extract the first frame to PNG (used by HEIC decode and video thumbnails).

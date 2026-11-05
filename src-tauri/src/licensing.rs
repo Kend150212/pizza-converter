@@ -127,9 +127,12 @@ pub fn refresh_license_from_store(app: &tauri::AppHandle) {
             // Store positively reports NO entitlement (e.g. never bought, or
             // refunded): correct any tampered or stale local unlock.
             let lic = read_license(app);
+            let allow_manual = cfg!(debug_assertions)
+                || std::env::var("PIZZA_DEV_UNLOCK").ok().as_deref() == Some("1");
             match lic.source.as_deref() {
-                // Early adopters (pre-fix builds) and dev overrides are kept.
-                Some("grandfathered") | Some("manual") => {}
+                // Early adopters (pre-fix builds) are kept; manual overrides only in dev.
+                Some("grandfathered") => {}
+                Some("manual") if allow_manual => {}
                 _ => {
                     let free = LicenseFile {
                         pro: false,
@@ -141,7 +144,17 @@ pub fn refresh_license_from_store(app: &tauri::AppHandle) {
         }
         None => {
             // Could not reach the Store (offline, not a Store install...):
-            // keep local state untouched so paying users stay Pro offline.
+            // if a stale "manual" unlock exists without PIZZA_DEV_UNLOCK, reset to Free.
+            let lic = read_license(app);
+            let allow_manual = cfg!(debug_assertions)
+                || std::env::var("PIZZA_DEV_UNLOCK").ok().as_deref() == Some("1");
+            if lic.source.as_deref() == Some("manual") && !allow_manual {
+                let free = LicenseFile {
+                    pro: false,
+                    source: None,
+                };
+                write_license(app, &free);
+            }
         }
     }
 }
@@ -157,6 +170,8 @@ pub fn get_license_status(app: tauri::AppHandle) -> LicenseStatus {
     let src = lic.source.clone().unwrap_or_else(|| "free_tier".into());
     let masked_key = if !lic.pro {
         String::new()
+    } else if src == "microsoft_store" {
+        format!("MS-STORE-{PRO_ADDON_STORE_ID}")
     } else if let Some(code) = src.strip_prefix("redeem:") {
         code.to_string()
     } else {
@@ -169,18 +184,92 @@ pub fn get_license_status(app: tauri::AppHandle) -> LicenseStatus {
     }
 }
 
-/// Manual override — dev/QA builds & status toggle.
+/// Manual override — restricted to debug/QA builds (`PIZZA_DEV_UNLOCK=1`).
 #[tauri::command]
 pub fn set_pro(app: tauri::AppHandle, pro: bool) -> bool {
+    let allow_manual = cfg!(debug_assertions)
+        || std::env::var("PIZZA_DEV_UNLOCK").ok().as_deref() == Some("1");
+    if pro && !allow_manual {
+        return is_pro_inner(&app);
+    }
     let mut lic = read_license(&app);
     lic.pro = pro;
     lic.source = Some(if pro { "manual".into() } else { "free_tier".into() });
     write_license(&app, &lic)
 }
 
+#[cfg(windows)]
+fn request_store_purchase() -> Option<bool> {
+    use windows::core::{Interface, HSTRING};
+    use windows::Services::Store::{StoreContext, StorePurchaseStatus};
+    use windows::Win32::UI::Shell::IInitializeWithWindow;
+    use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+
+    let result: windows::core::Result<bool> = (|| {
+        let ctx = StoreContext::GetDefault()?;
+        unsafe {
+            let hwnd = GetForegroundWindow();
+            if !hwnd.0.is_null() {
+                if let Ok(init) = ctx.cast::<IInitializeWithWindow>() {
+                    let _ = init.Initialize(hwnd);
+                }
+            }
+        }
+        let key = HSTRING::from(PRO_ADDON_STORE_ID);
+        let res = ctx.RequestPurchaseAsync(&key)?.get()?;
+        let status = res.Status()?;
+        Ok(status == StorePurchaseStatus::Succeeded
+            || status == StorePurchaseStatus::AlreadyPurchased)
+    })();
+    result.ok()
+}
+
+#[cfg(not(windows))]
+fn request_store_purchase() -> Option<bool> {
+    None
+}
+
+/// Opens the Microsoft Store purchase dialog for the Pro durable add-on
+/// (`9NQ324ZQGQ5B`), or falls back to opening the Microsoft Store add-on page
+/// when running outside an MSIX package container.
+#[tauri::command(async)]
+pub fn purchase_pro(app: tauri::AppHandle) -> Result<bool, String> {
+    refresh_license_from_store(&app);
+    if is_pro_inner(&app) {
+        return Ok(true);
+    }
+    match request_store_purchase() {
+        Some(true) => {
+            let lic = LicenseFile {
+                pro: true,
+                source: Some("microsoft_store".into()),
+            };
+            write_license(&app, &lic);
+            Ok(true)
+        }
+        Some(false) => {
+            refresh_license_from_store(&app);
+            Ok(is_pro_inner(&app))
+        }
+        None => {
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                let uri = format!("ms-windows-store://pdp/?ProductId={PRO_ADDON_STORE_ID}");
+                let _ = std::process::Command::new("cmd")
+                    .args(["/C", "start", "", &uri])
+                    .creation_flags(0x08000000)
+                    .spawn();
+            }
+            refresh_license_from_store(&app);
+            Ok(is_pro_inner(&app))
+        }
+    }
+}
+
 /// Re-checks the Microsoft Store for the Pro add-on and reports the result.
 /// Does NOT grant Pro by itself.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn restore_purchase(app: tauri::AppHandle) -> Result<bool, String> {
     refresh_license_from_store(&app);
     Ok(is_pro_inner(&app))

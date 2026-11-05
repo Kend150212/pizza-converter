@@ -1,6 +1,6 @@
 //! Radial menu v2 model — the single source of truth for the web UI.
 //!
-//! 5 groups (inner ring) x formats (outer ring). Free/Pro tiers follow the
+//! 6 groups (inner ring) x formats (outer ring). Free/Pro tiers follow the
 //! Dev brief and match engine enforcement; `soon` marks formats the engine
 //! cannot produce yet (shown dimmed). `supported_targets` tells the UI what
 //! is reachable from the current input file so it can dim the rest.
@@ -38,8 +38,7 @@ fn f(id: &'static str, pro: bool, soon: bool) -> FormatItem {
     }
 }
 
-/// Static group/format structure. Order is clockwise from the top,
-/// matching the UX mockup (radial-v2-default@2x.png).
+/// Static group/format structure. Order is clockwise from the top.
 fn build_groups() -> Vec<Group> {
     vec![
         Group {
@@ -48,22 +47,32 @@ fn build_groups() -> Vec<Group> {
                 f("png", false, false),
                 f("jpg", false, false),
                 f("webp", false, false),
-                f("bmp", false, false),
-                f("ico", false, false),
-                f("gif", false, false),
-                f("tiff", false, false),
+                f("pdf", false, false),
+                f("vector_svg", true, false),
+                f("seo_alt", true, false),
+                f("cmp_img_web", true, false),
+                f("ocr_text", true, false),
+                f("clean_privacy", true, false),
+                f("removebg", true, false),
+                f("ai_upscale", true, false),
+                f("design_barcode", true, false),
+                f("scan_doc", true, false),
                 f("avif", false, false),
                 f("heic", false, false),
-                f("removebg", false, false),
-                f("scan_doc", false, false),
+                f("ico", false, false),
+                f("gif", false, false),
+                f("bmp", false, false),
+                f("tiff", false, false),
             ],
         },
         Group {
             id: "documents",
             formats: vec![
-                f("txt", false, false),
-                f("docx", false, false),
                 f("pdf", false, false),
+                f("docx", false, false),
+                f("txt", false, false),
+                f("doc_to_mp3", true, false),
+                f("barcode_pdf", true, false),
                 f("doc", false, false),
                 f("odt", false, false),
                 f("rtf", false, false),
@@ -77,6 +86,7 @@ fn build_groups() -> Vec<Group> {
                 f("json", false, false),
                 f("xml", false, false),
                 f("yaml", false, false),
+                f("barcode_pdf", true, false),
             ],
         },
         Group {
@@ -87,11 +97,13 @@ fn build_groups() -> Vec<Group> {
                 f("to_txt", false, false),
                 f("to_md", false, false),
                 f("to_png", false, false),
-                f("compress", false, false),
-                f("split", false, false),
-                f("merge", false, false),
-                f("protect", false, false),
-                f("unlock", false, false),
+                f("doc_to_mp3", true, false),
+                f("clean_privacy", true, false),
+                f("compress", true, false),
+                f("split", true, false),
+                f("merge", true, false),
+                f("protect", true, false),
+                f("unlock", true, false),
             ],
         },
         Group {
@@ -106,6 +118,18 @@ fn build_groups() -> Vec<Group> {
                 f("mkv", false, false),
                 f("webm", false, false),
                 f("gif", false, false),
+                f("smart_compress", true, false),
+                f("clean_privacy", true, false),
+            ],
+        },
+        Group {
+            id: "subtitles",
+            formats: vec![
+                f("sub_translate", true, false),
+                f("srt", false, false),
+                f("vtt", false, false),
+                f("ass", false, false),
+                f("txt", false, false),
             ],
         },
     ]
@@ -116,7 +140,6 @@ fn build_groups() -> Vec<Group> {
 pub fn get_radial_model(app: tauri::AppHandle) -> Vec<Group> {
     let cfg = crate::config::load(&app);
     let mut groups = build_groups();
-    // Custom layout: hide disabled formats, then reorder per group.
     for g in groups.iter_mut() {
         g.formats
             .retain(|x| !cfg.hidden_formats.iter().any(|h| h == x.id));
@@ -128,8 +151,7 @@ pub fn get_radial_model(app: tauri::AppHandle) -> Vec<Group> {
     groups
 }
 
-/// Full layout model for the edit-mode UI (§9): every format including hidden
-/// ones (marked via `hidden`), in the user's configured order.
+/// Full layout model for the edit-mode UI (§9).
 #[tauri::command]
 pub fn get_layout_model(app: tauri::AppHandle) -> Vec<Group> {
     let cfg = crate::config::load(&app);
@@ -158,35 +180,79 @@ fn ext_of(p: &str) -> String {
 #[tauri::command]
 pub fn supported_targets(input: String) -> Vec<String> {
     let e = ext_of(&input);
-    let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let s = |v: &[&str]| {
+        let mut out: Vec<String> = v.iter().map(|x| x.to_string()).collect();
+        for c in [
+            "cloud_drop",
+            "cloud_gdrive",
+            "cloud_dropbox",
+            "cloud_icloud",
+            "cloud_onedrive",
+            "cloud_quick_link",
+            "cloud_zip_share",
+            "cloud_pc_to_phone",
+            "cloud_phone_drop",
+            "design_rename",
+            "design_barcode",
+            "barcode_pdf",
+            "bc_only_png",
+            "bc_with_photo",
+            "bc_stamp_photo",
+            "bc_sheet_a4",
+            "bc_custom_input",
+            "ai_back",
+        ] {
+            out.push(c.to_string());
+        }
+        out
+    };
     let p = Path::new(&input);
     if convertx_engine::heic::is_heic(p) || convertx_engine::is_image_ext(&e) {
         return s(&[
-            "png", "jpg", "webp", "bmp", "ico", "gif", "tiff", "avif", "heic", "removebg", "scan_doc",
+            "png", "jpg", "webp", "bmp", "ico", "gif", "tiff", "avif", "heic", "pdf", "merge_img_pdf",
+            "vector_svg", "seo_alt", "cmp_img_web", "cmp_img_200kb", "cmp_img_500kb", "cmp_img_1mb", "cmp_img_auto",
+            "ocr_text", "clean_privacy", "removebg", "ai_upscale", "upscale_2x", "upscale_4x", "scan_doc",
+            "design_cutout_png", "design_watermark", "design_iconize", "design_barcode",
+            "tpl_white_ecom", "tpl_nordic_cream", "tpl_dark_podium", "tpl_pastel_glow", "tpl_sale_badge",
+            "ai_back",
         ]);
     }
-    if convertx_engine::office::is_word_doc_ext(&e) {
-        return s(&["txt", "docx", "doc", "odt", "rtf", "pdf"]);
+    if convertx_engine::office::is_word_doc_ext(&e) || e == "md" {
+        return s(&["txt", "docx", "doc", "odt", "rtf", "pdf", "doc_to_mp3", "barcode_pdf"]);
     }
     if convertx_engine::office::is_office_doc(p) {
         return s(&["pdf"]);
     }
     if e == "pdf" {
         return s(&[
-            "to_docx", "to_xlsx", "to_txt", "to_md", "to_png", "compress", "split", "merge",
-            "protect", "unlock",
+            "to_docx", "to_xlsx", "to_txt", "to_md", "to_png", "doc_to_mp3", "clean_privacy",
+            "compress", "split", "merge", "protect", "unlock",
         ]);
     }
-    // Data hub: all 5x5 pairs (csv/json/xml/yaml/xlsx).
     if convertx_engine::is_data_ext(&e) {
-        return s(&["csv", "json", "xml", "yaml", "xlsx"]);
+        return s(&["csv", "json", "xml", "yaml", "xlsx", "barcode_pdf"]);
     }
     if convertx_engine::is_av_ext(&e) {
         return s(&[
             "mp3", "wav", "flac", "ogg", "m4a", "mp4", "mkv", "webm", "gif",
+            "smart_compress", "cmp_10mb", "cmp_25mb", "cmp_50mb", "cmp_half", "clean_privacy",
+            "ai_studio", "ai_shorts", "ai_summary", "ai_compilation", "ai_clean_um",
+            "ai_subtitles", "to_srt", "to_vtt", "to_ass", "to_transcript",
+            "ai_burn_captions", "cap_beasty", "cap_popline", "cap_deep_diver", "cap_one_punch", "cap_glow", "cap_roleplay",
+            "ai_dubbing", "dub_vi", "dub_en", "dub_zh", "dub_ja", "dub_ko", "dub_es", "dub_fr", "dub_custom",
+            "dub_style_default", "dub_style_beasty", "dub_style_popline", "dub_style_deep_diver", "dub_style_one_punch", "dub_style_glow", "dub_style_roleplay", "dub_style_none",
+            "ai_review", "rev_pin_1", "rev_pin_2", "rev_pin_3", "rev_pin_4", "rev_pin_5", "rev_custom",
+            "ai_audiogram", "ag_daily_cafe", "ag_vinyl_vibes", "ag_after_dark", "ag_studio_pulse",
+            "merge_video", "ai_back",
         ]);
     }
-    vec![]
+    if matches!(e.as_str(), "srt" | "vtt" | "ass") {
+        return s(&[
+            "sub_translate", "srt", "vtt", "ass", "txt",
+            "sub_en", "sub_vi", "sub_zh", "sub_ja", "sub_ko", "sub_es", "sub_fr", "sub_custom", "ai_back",
+        ]);
+    }
+    s(&[])
 }
 
 // ---------------------------------------------------------------------------
@@ -220,7 +286,6 @@ fn save_stats(app: &tauri::AppHandle, stats: &UsageStats) {
     }
 }
 
-/// Record a conversion event for the smart-pick frequency counter.
 pub fn track_usage(app: &tauri::AppHandle, input: &str, target: &str) {
     let ext = ext_of(input);
     if ext.is_empty() || target.is_empty() {
@@ -232,7 +297,6 @@ pub fn track_usage(app: &tauri::AppHandle, input: &str, target: &str) {
     save_stats(app, &stats);
 }
 
-/// Default most-likely target for an extension before any usage data exists.
 fn heuristic_default(input_ext: &str) -> Option<&'static str> {
     match input_ext {
         "png" => Some("jpg"),
@@ -249,11 +313,13 @@ fn heuristic_default(input_ext: &str) -> Option<&'static str> {
         "m4a" => Some("mp3"),
         "mp4" => Some("mp3"),
         "mkv" => Some("mp4"),
+        "srt" => Some("sub_translate"),
+        "vtt" => Some("srt"),
+        "ass" => Some("srt"),
         _ => None,
     }
 }
 
-/// Returns the top-frequency target for this input extension, or a sensible heuristic.
 #[tauri::command]
 pub fn smart_pick(app: tauri::AppHandle, input_ext: String) -> Option<String> {
     let e = input_ext.to_ascii_lowercase();
@@ -328,7 +394,7 @@ pub fn record_history(app: &tauri::AppHandle, input: &str, output: &str, target:
     };
     let mut list = load_history(app);
     list.insert(0, entry);
-    list.truncate(15);
+    list.truncate(500);
     save_history(app, &list);
 }
 
@@ -338,17 +404,29 @@ pub fn get_history(app: tauri::AppHandle) -> Vec<HistoryEntry> {
 }
 
 #[tauri::command]
-pub fn undo_history(app: tauri::AppHandle, index: usize) -> Result<(), String> {
+pub fn undo_history(
+    app: tauri::AppHandle,
+    index: Option<usize>,
+    id: Option<String>,
+) -> Result<(), String> {
     let mut list = load_history(&app);
-    if index >= list.len() {
+    let pos = if let Some(ref target_id) = id {
+        list.iter().position(|e| &e.id == target_id).or(index)
+    } else {
+        index
+    };
+    let Some(idx) = pos else {
+        return Err("entry not found".into());
+    };
+    if idx >= list.len() {
         return Err("entry not found".into());
     }
-    let e = &list[index];
+    let e = &list[idx];
     let outp = Path::new(&e.output);
     if outp.is_file() {
         std::fs::remove_file(outp).map_err(|err| err.to_string())?;
     }
-    list.remove(index);
+    list.remove(idx);
     save_history(&app, &list);
     Ok(())
 }

@@ -196,6 +196,7 @@ fn macos_selection() -> Vec<PathBuf> {
     let Ok(output) = Command::new("osascript")
         .arg("-e")
         .arg(script)
+        .output()
     else {
         return Vec::new();
     };

@@ -119,7 +119,7 @@ fn run(args: &[String]) -> Result<(), String> {
         .extension()
         .and_then(|s| s.to_str())
         .ok_or("output lacks extension")?;
-    engine::convert_image(input, &out, opts.quality, opts.pro)
+    engine::convert_pair(input, &out, opts.quality, opts.pro)
         .map_err(|e| e.to_string())?;
     println!("OK {}", out.display());
     Ok(())

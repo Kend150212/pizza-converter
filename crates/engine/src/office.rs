@@ -192,6 +192,26 @@ pub fn find_python() -> Option<PathBuf> {
             }
         }
     }
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(home) = std::env::var("HOME") {
+            let venv_py = PathBuf::from(home).join(".pizza-converter-venv/bin/python3");
+            if venv_py.is_file() {
+                return Some(venv_py);
+            }
+        }
+        for p in [
+            "/opt/homebrew/bin/python3",
+            "/usr/local/bin/python3",
+            "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3",
+            "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3",
+        ] {
+            let pb = PathBuf::from(p);
+            if pb.is_file() {
+                return Some(pb);
+            }
+        }
+    }
     std::env::var_os("PATH").and_then(|paths| {
         std::env::split_paths(&paths).find_map(|dir| {
             let s = dir.to_string_lossy().to_ascii_lowercase();
@@ -206,22 +226,36 @@ pub fn find_python() -> Option<PathBuf> {
     })
 }
 
-/// Run an inline Python script with arguments and `CREATE_NO_WINDOW` on Windows.
+/// Run an inline Python script via a temporary `.py` file (avoids Windows 32,767-char command-line limit `os error 206`)
+/// with `CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY_CLASS` on Windows so background tasks never lag the PC.
 pub fn run_python(script: &str, args: &[&str]) -> Result<()> {
     let py = find_python().ok_or_else(|| ConvertError::Encode("Python runtime not found".into()))?;
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let tmp_py = std::env::temp_dir().join(format!("pizza_py_{}_{}.py", std::process::id(), nanos));
+    std::fs::write(&tmp_py, script).map_err(|e| ConvertError::Encode(e.to_string()))?;
+
     let mut cmd = std::process::Command::new(py);
     cmd.env("PYTHONIOENCODING", "utf-8")
-        .arg("-c")
-        .arg(script)
+        .arg("-u")
+        .arg(&tmp_py)
         .args(args);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x08000000);
+        // 0x08000000 = CREATE_NO_WINDOW, 0x00004000 = BELOW_NORMAL_PRIORITY_CLASS
+        cmd.creation_flags(0x08000000 | 0x00004000);
     }
-    let out = cmd
-        .output()
-        .map_err(|e| ConvertError::Encode(e.to_string()))?;
+    #[cfg(target_os = "macos")]
+    {
+        let cur_path = std::env::var("PATH").unwrap_or_default();
+        cmd.env("PATH", format!("/opt/homebrew/bin:/usr/local/bin:{cur_path}"));
+    }
+    let out = cmd.output();
+    let _ = std::fs::remove_file(&tmp_py);
+    let out = out.map_err(|e| ConvertError::Encode(e.to_string()))?;
     if !out.status.success() {
         let stderr = String::from_utf8_lossy(&out.stderr);
         return Err(ConvertError::Encode(format!(
@@ -291,11 +325,8 @@ pub fn pdf_to_office(
     input: &Path,
     output_dir: &Path,
     out_ext: &str,
-    pro: bool,
+    _pro: bool,
 ) -> Result<PathBuf> {
-    if !pro {
-        return Err(ConvertError::ProRequired);
-    }
     let filter =
         word_filter(out_ext).ok_or_else(|| ConvertError::UnsupportedOutput(out_ext.into()))?;
     std::fs::create_dir_all(output_dir)?;
@@ -368,11 +399,8 @@ doc.save(out_docx)
 pub fn pdf_to_xlsx(
     input: &Path,
     output_dir: &Path,
-    pro: bool,
+    _pro: bool,
 ) -> Result<PathBuf> {
-    if !pro {
-        return Err(ConvertError::ProRequired);
-    }
     std::fs::create_dir_all(output_dir)?;
     let dst = output_dir.join(format!("{}.xlsx", stem_of(input)));
 
@@ -638,10 +666,7 @@ if not unlocked:
 /// PDF -> PNG, one file per page (`<stem>_p<page>.png` inside `output_dir`).
 /// Renders via pypdfium2 (PDFium) first so LibreOffice is not required; falls
 /// back to LibreOffice if needed.
-pub fn pdf_to_pngs(input: &Path, output_dir: &Path, pro: bool) -> Result<Vec<PathBuf>> {
-    if !pro {
-        return Err(ConvertError::ProRequired);
-    }
+pub fn pdf_to_pngs(input: &Path, output_dir: &Path, _pro: bool) -> Result<Vec<PathBuf>> {
     std::fs::create_dir_all(output_dir)?;
     let stem = stem_of(input).to_string();
 
@@ -1212,7 +1237,13 @@ with open(in_txt, "r", encoding="utf-8", errors="replace") as f:
     text = f.read()
 
 font_name = "Helvetica"
-for fp in [r"C:\Windows\Fonts\arial.ttf", r"C:\Windows\Fonts\segoeui.ttf"]:
+for fp in [
+    r"C:\Windows\Fonts\arial.ttf",
+    r"C:\Windows\Fonts\segoeui.ttf",
+    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+    "/System/Library/Fonts/Supplemental/Tahoma.ttf",
+]:
     if os.path.isfile(fp):
         try:
             pdfmetrics.registerFont(TTFont("UniFont", fp))

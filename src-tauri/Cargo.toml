@@ -1,6 +1,6 @@
 [package]
 name = "pizza-converter"
-version = "1.0.2"
+version = "1.0.4"
 edition = "2021"
 # The Tauri app binary (src/main.rs). Required because this package also
 # defines the pizza-convert CLI bin — without it `cargo tauri build`
@@ -48,6 +48,8 @@ windows = { version = "0.58", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_System_Diagnostics_Debug",
     "Win32_System_Threading",
+    "Win32_Security",
+    "Win32_Security_Credentials",
     "Services_Store",
     "Foundation_Collections",
 ] }

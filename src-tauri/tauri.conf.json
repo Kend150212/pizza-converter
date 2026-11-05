@@ -1,17 +1,20 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "app": {
+    "macOSPrivateApi": true,
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: https: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'"
+      "csp": null
     },
     "windows": [
       {
         "label": "settings",
         "title": "Pizza Converter",
         "url": "settings.html",
-        "width": 780,
-        "height": 872,
-        "resizable": false,
+        "width": 1280,
+        "height": 860,
+        "minWidth": 1060,
+        "minHeight": 720,
+        "resizable": true,
         "decorations": true,
         "center": true,
         "visible": true
@@ -34,13 +37,14 @@
         "label": "hud",
         "title": "Pizza Converter HUD",
         "url": "hud.html",
-        "width": 344,
-        "height": 130,
+        "width": 272,
+        "height": 240,
         "transparent": true,
         "decorations": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "visible": false,
+        "focus": false,
         "resizable": false,
         "shadow": false
       }
@@ -65,7 +69,9 @@
     },
     "targets": [
       "msi",
-      "nsis"
+      "nsis",
+      "app",
+      "dmg"
     ],
     "windows": {
       "nsis": {
@@ -78,5 +84,5 @@
   },
   "identifier": "NeelFlow.PizzaConverter",
   "productName": "Pizza Converter",
-  "version": "0.1.0"
+  "version": "1.0.4"
 }

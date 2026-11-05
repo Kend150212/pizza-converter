@@ -25,8 +25,8 @@ async function loadLocale(code) {
     if (res.ok) STR = { ...(await res.json()), ...dict };
     else STR = dict;
   } catch (e) { STR = dict; }
-  applyI18n();
   document.documentElement.lang = code;
+  applyI18n();
 }
 
 function t(key, vars) {
@@ -37,6 +37,7 @@ function t(key, vars) {
 
 function applyI18n() {
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-html]').forEach(el => { el.innerHTML = t(el.dataset.i18nHtml); });
   document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
   document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
 }

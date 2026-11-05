@@ -1,8 +1,8 @@
 param(
-    [string]$IdentityName = "NeelFlow.PizzaConverter",
-    [string]$Publisher = "CN=NeelFlow",
-    [string]$PublisherDisplayName = "Ken Dao / NeelFlow",
-    [string]$Version = "0.1.0.0"
+    [string]$IdentityName = "Neeflow.Pizza-Converter",
+    [string]$Publisher = "CN=04843FBA-F486-488A-809F-B8B0FCD89E04",
+    [string]$PublisherDisplayName = "Neeflow",
+    [string]$Version = "1.0.4.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -60,7 +60,7 @@ $Manifest = @"
     Version="$Version" />
 
   <Properties>
-    <DisplayName>Pizza Converter</DisplayName>
+    <DisplayName>Pizza - Converter</DisplayName>
     <PublisherDisplayName>$PublisherDisplayName</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
     <Description>Ultra-Fast, Offline &amp; Privacy-First Universal Media Converter with Radial Wheel Menu.</Description>
@@ -77,7 +77,7 @@ $Manifest = @"
   <Applications>
     <Application Id="App" Executable="pizza-converter.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="Pizza Converter"
+        DisplayName="Pizza - Converter"
         Description="Fast universal file converter with radial menu"
         BackgroundColor="#090d16"
         Square150x150Logo="Assets\Square150x150Logo.png"
@@ -96,7 +96,7 @@ $Manifest = @"
 [System.IO.File]::WriteAllText((Join-Path (Get-Location) "$StageDir\AppxManifest.xml"), $Manifest, (New-Object System.Text.UTF8Encoding($false)))
 
 # 5. Create MSIX package via MakeAppx WITH full validation (no /nv!)
-$MsixFile = "$OutputDir\PizzaConverter_0.1.0.0_x64.msix"
+$MsixFile = "$OutputDir\PizzaConverter_$($Version)_x64.msix"
 if (Test-Path $MsixFile) { Remove-Item -Force $MsixFile }
 
 & $MakeAppx pack /d $StageDir /p $MsixFile /o

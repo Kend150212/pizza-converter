@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pizza Converter — Feedback & Support</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-height: 100%;
+      background: #161b2e;
+      color: #f4f6fb;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* Custom dark scrollbar matching Pizza Converter */
+    ::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.45);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(94, 234, 212, 0.28);
+      border-radius: 999px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(94, 234, 212, 0.5);
+    }
+
+    #formaloo-wrap {
+      width: 100%;
+      min-height: 715px;
+      position: relative;
+    }
+
+    #loading-indicator {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: rgba(235, 238, 248, 0.72);
+      font-size: 12.5px;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      z-index: 0;
+    }
+
+    .spinner {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: 2.5px solid rgba(94, 234, 212, 0.2);
+      border-top-color: #2dd4bf;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .formaloo--root-container {
+      position: relative;
+      z-index: 1;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="formaloo-wrap">
+    <div id="loading-indicator">
+      <div class="spinner"></div>
+      <div>Loading Feedback &amp; Support Form…</div>
+    </div>
+    <div class="formaloo--root-container" data-form-slug="LBfBtuT0" data-transparent-background="false"
+      data-hide-title="false" data-hide-cover-and-logo="false" data-fill-container-width="true" data-auto-height="false"
+      data-skip-welcome-page="false" style="width:100%;height:715px"></div>
+  </div>
+  <script src="https://embed.formaloo.me/v1/main.js" defer></script>
+  <script>
+    // Hide the loading spinner once Formaloo mounts content inside .formaloo--root-container
+    const rootEl = document.querySelector('.formaloo--root-container');
+    const loader = document.getElementById('loading-indicator');
+    if (rootEl && loader) {
+      const obs = new MutationObserver(() => {
+        if (rootEl.children.length > 0) {
+          loader.style.opacity = '0';
+          setTimeout(() => loader.remove(), 350);
+          obs.disconnect();
+        }
+      });
+      obs.observe(rootEl, { childList: true, subtree: true });
+    }
+  </script>
+</body>
+
+</html>

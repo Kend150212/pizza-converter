@@ -14,57 +14,67 @@ html, body {
   color: #f4f6fb;
   user-select: none;
   -webkit-user-select: none;
+  pointer-events: none;
 }
-#pill {
+#hud-stack {
   position: absolute;
-  right: 12px;
-  bottom: 12px;
-  width: 320px;
-  padding: 10px 14px 11px;
-  border-radius: 14px;
-  background: linear-gradient(155deg, rgba(24, 29, 48, 0.96), rgba(16, 20, 34, 0.98));
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  right: 8px;
+  bottom: 8px;
+  width: 252px;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   gap: 6px;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-#pill.hidden {
-  opacity: 0;
-  transform: translateY(12px);
   pointer-events: none;
+}
+.hud-card {
+  pointer-events: auto;
+  width: 100%;
+  padding: 7px 10px 8px;
+  border-radius: 10px;
+  background: linear-gradient(155deg, rgba(20, 25, 42, 0.96), rgba(13, 17, 30, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: grab;
+  touch-action: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.hud-card:active {
+  cursor: grabbing;
 }
 .top-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
 }
 .left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
   flex: 1;
 }
 .spinner {
-  width: 14px;
-  height: 14px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
-  border: 2px solid rgba(94, 234, 212, 0.25);
+  border: 1.8px solid rgba(94, 234, 212, 0.25);
   border-top-color: #2dd4bf;
   animation: spin 0.75s linear infinite;
   flex-shrink: 0;
 }
 .badge-icon {
-  width: 16px;
-  height: 16px;
+  width: 13px;
+  height: 13px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 8.5px;
   font-weight: 800;
   flex-shrink: 0;
 }
@@ -78,8 +88,13 @@ html, body {
   color: #fb7185;
   border: 1px solid rgba(251, 113, 133, 0.55);
 }
-#title {
-  font-size: 12.5px;
+.badge-icon.stopped {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.55);
+}
+.card-title {
+  font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -88,20 +103,44 @@ html, body {
 .right-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
 }
-#pct {
-  font-size: 12px;
+.card-pct {
+  font-size: 10.5px;
   font-weight: 800;
   color: #5eead4;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
-#btn-close {
+.btn-stop {
+  background: rgba(244, 63, 94, 0.16);
+  border: 1px solid rgba(251, 113, 133, 0.45);
+  color: #fda4af;
+  font-size: 9.2px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 6px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-radius: 5px;
+  transition: all 0.14s ease;
+  flex-shrink: 0;
+}
+.btn-stop:hover {
+  color: #fff;
+  background: rgba(244, 63, 94, 0.35);
+  border-color: rgba(251, 113, 133, 0.75);
+}
+.btn-stop.hidden, .btn-close.hidden {
+  display: none !important;
+}
+.btn-close {
   background: transparent;
   border: none;
   color: rgba(255, 255, 255, 0.45);
-  font-size: 13px;
+  font-size: 11px;
   cursor: pointer;
   padding: 0 2px;
   line-height: 1;
@@ -109,43 +148,46 @@ html, body {
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  transition: all 0.15s ease;
+  transition: all 0.14s ease;
 }
-#btn-close:hover {
+.btn-close:hover {
   color: #fff;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.14);
 }
-#sub {
-  font-size: 11px;
-  color: rgba(235, 238, 248, 0.65);
+.card-sub {
+  font-size: 9.8px;
+  color: rgba(226, 232, 240, 0.68);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .bar-track {
   width: 100%;
-  height: 4px;
+  height: 3px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.12);
   overflow: hidden;
 }
-#bar-fill {
+.bar-fill {
   height: 100%;
   width: 0%;
   border-radius: 999px;
   background: linear-gradient(90deg, #3b82f6, #2dd4bf);
-  transition: width 0.25s ease;
+  transition: width 0.22s ease;
 }
-#bar-fill.err {
+.bar-fill.err {
   background: linear-gradient(90deg, #f43f5e, #fb7185);
 }
-#hud-actions {
+.bar-fill.stopped {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+.hud-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   margin-top: 2px;
 }
-#hud-actions.hidden {
+.hud-actions.hidden {
   display: none !important;
 }
 .hud-btn {
@@ -153,35 +195,88 @@ html, body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 4px 8px;
-  border-radius: 8px;
-  font-size: 11px;
+  gap: 4px;
+  padding: 2.5px 6px;
+  border-radius: 6px;
+  font-size: 9.8px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.16s ease;
-  user-select: none;
-  -webkit-user-select: none;
+  transition: all 0.15s ease;
 }
 .hud-btn.primary {
   background: linear-gradient(135deg, rgba(45, 212, 191, 0.24), rgba(45, 212, 191, 0.12));
-  border: 1px solid rgba(45, 212, 191, 0.55);
+  border: 1px solid rgba(45, 212, 191, 0.5);
   color: #5eead4;
 }
 .hud-btn.primary:hover {
-  background: linear-gradient(135deg, rgba(45, 212, 191, 0.38), rgba(45, 212, 191, 0.22));
-  box-shadow: 0 0 10px rgba(45, 212, 191, 0.35);
-  transform: translateY(-1px);
+  background: linear-gradient(135deg, rgba(45, 212, 191, 0.36), rgba(45, 212, 191, 0.2));
 }
 .hud-btn.secondary {
   background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   color: #f4f6fb;
 }
 .hud-btn.secondary:hover {
   background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.35);
-  transform: translateY(-1px);
+}
+.hud-btn.qr-btn {
+  flex: 0 0 auto;
+  padding: 2.5px 7px;
+  background: rgba(56, 189, 248, 0.14);
+  border: 1px solid rgba(56, 189, 248, 0.42);
+  color: #38bdf8;
+}
+.hud-btn.qr-btn:hover {
+  background: rgba(56, 189, 248, 0.28);
+}
+.qr-drawer {
+  margin-top: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(9, 13, 22, 0.92);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.qr-drawer.hidden {
+  display: none !important;
+}
+.qr-box {
+  width: 78px;
+  height: 78px;
+  flex-shrink: 0;
+  background: #ffffff;
+  padding: 4px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.qr-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.qr-head {
+  font-size: 10px;
+  font-weight: 800;
+  color: #5eead4;
+}
+.qr-sub {
+  font-size: 9px;
+  color: rgba(226, 232, 240, 0.72);
+  line-height: 1.3;
+}
+.qr-url {
+  font-size: 8.5px;
+  font-family: monospace;
+  color: #38bdf8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
@@ -189,175 +284,445 @@ html, body {
 </style>
 </head>
 <body>
-<div id="pill" class="hidden">
-  <div class="top-row">
-    <div class="left">
-      <div id="ico" class="spinner"></div>
-      <div id="title">Converting…</div>
-    </div>
-    <div class="right-meta">
-      <div id="pct">0%</div>
-      <button id="btn-close" title="Close">✕</button>
-    </div>
-  </div>
-  <div id="sub">Preparing files…</div>
-  <div class="bar-track"><div id="bar-fill"></div></div>
-  <div id="hud-actions" class="hidden">
-    <button id="btn-open-file" class="hud-btn primary">
-      <span>↗</span> <span id="lbl-open">Mở file</span>
-    </button>
-    <button id="btn-show-folder" class="hud-btn secondary">
-      <span>📁</span> <span id="lbl-folder">Thư mục</span>
-    </button>
-  </div>
-</div>
+<div id="hud-stack"></div>
 <script src="tauri-bridge.js"></script>
 <script>
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
-const pill = document.getElementById('pill');
-const ico = document.getElementById('ico');
-const titleEl = document.getElementById('title');
-const pctEl = document.getElementById('pct');
-const subEl = document.getElementById('sub');
-const barFill = document.getElementById('bar-fill');
-const actionsEl = document.getElementById('hud-actions');
-const btnOpenFile = document.getElementById('btn-open-file');
-const btnShowFolder = document.getElementById('btn-show-folder');
-const btnClose = document.getElementById('btn-close');
-const lblOpen = document.getElementById('lbl-open');
-const lblFolder = document.getElementById('lbl-folder');
+const stackEl = document.getElementById('hud-stack');
+const tasks = new Map();          // taskId -> { id, target, state, pct, title, sub, outPath, timer, hovered, qrOpen }
+const dismissedTasks = new Set(); // taskIds dismissed while running
 
-let hideTimer = null;
-let lastOutPath = null;
-let isDone = false;
-
-async function syncLocale() {
-  try {
-    const cfg = await invoke('get_config');
-    if (cfg && cfg.language === 'en') {
-      lblOpen.textContent = 'Open file';
-      lblFolder.textContent = 'Folder';
-    } else {
-      lblOpen.textContent = 'Mở file';
-      lblFolder.textContent = 'Thư mục';
-    }
-  } catch (e) {}
+function formatTargetLabel(raw) {
+  if (!raw) return 'FILE';
+  const cloudMap = {
+    cloud_gdrive: 'GOOGLE DRIVE',
+    cloud_dropbox: 'DROPBOX',
+    cloud_icloud: 'ICLOUD DRIVE',
+    cloud_onedrive: 'ONEDRIVE',
+    cloud_quick_link: 'INSTANT LINK',
+    cloud_zip_share: 'ZIP + SHARE',
+    cloud_phone_drop: 'PHONE → PC',
+    cmp_10mb: '< 10MB VIDEO',
+    cmp_25mb: '< 25MB VIDEO',
+    cmp_50mb: '< 50MB VIDEO',
+    cmp_half: '50% COMPRESS',
+    cmp_img_web: 'SMART COMPRESS',
+    cmp_img_200kb: '< 200KB IMAGE',
+    cmp_img_500kb: '< 500KB IMAGE',
+    cmp_img_1mb: '< 1MB IMAGE',
+    cmp_img_auto: 'AUTO -70% IMAGE',
+    ai_upscale: 'AI UPSCALE',
+    upscale_2x: 'AI UPSCALE 2X HD',
+    upscale_4x: 'AI UPSCALE 4X 4K',
+    barcode_pdf: 'BARCODE SHEET PDF',
+    design_barcode: 'BARCODE LABEL TAG',
+    bc_only_png: 'BARCODE ONLY PNG',
+    bc_with_photo: 'PHOTO + BARCODE PNG',
+    bc_stamp_photo: 'STAMP BARCODE PNG',
+    bc_sheet_a4: 'BARCODE SHEET A4 PDF',
+    bc_custom_input: 'CUSTOM BARCODE TAG',
+    ocr_text: 'OCR TEXT',
+    doc_to_mp3: 'AUDIOBOOK MP3',
+    clean_privacy: 'CLEAN EXIF & AI',
+    merge_img_pdf: 'MERGE PDF',
+    rev_pin_1: 'AI REVIEW · PIN 1',
+    rev_pin_2: 'AI REVIEW · PIN 2',
+    rev_pin_3: 'AI REVIEW · PIN 3',
+    rev_pin_4: 'AI REVIEW · PIN 4',
+    rev_pin_5: 'AI REVIEW · PIN 5',
+    rev_custom: 'AI REVIEW · CUSTOM',
+  };
+  if (cloudMap[raw]) return cloudMap[raw];
+  const s = String(raw).replace(/^to_/, '');
+  if (s.includes(':')) {
+    const [base, st] = s.split(':', 2);
+    const bUp = base.toUpperCase();
+    if (!st || st === 'default') return bUp;
+    if (st === 'none') return `${bUp} (NO SUB)`;
+    return `${bUp} · ${st.toUpperCase()}`;
+  }
+  return s.toUpperCase();
 }
-syncLocale();
 
-function scheduleHide(ms) {
-  clearTimeout(hideTimer);
-  hideTimer = setTimeout(() => {
-    pill.classList.add('hidden');
-    setTimeout(() => invoke('hide_hud_cmd').catch(() => {}), 240);
+function resolveTaskId(p) {
+  if (p.task_id) return p.task_id;
+  const tgt = p.target || 'convert';
+  // Always match an existing running task with the same target first so a task never splits into 2 cards!
+  for (const [k, t] of tasks.entries()) {
+    if (t.target === tgt && t.state === 'running') return k;
+  }
+  if (p.state === 'running' && (p.total || 1) === 1 && p.current) {
+    const filePrefix = String(p.current).split(' · ')[0].trim();
+    if (filePrefix) return `${filePrefix}::${tgt}`;
+  }
+  for (const dKey of dismissedTasks) {
+    if (dKey.endsWith(`::${tgt}`)) return dKey;
+  }
+  return `batch::${tgt}`;
+}
+
+function syncHudWindowBounds() {
+  if (tasks.size === 0 || !stackEl || stackEl.children.length === 0) {
+    invoke('sync_hud_bounds_cmd', { height: 0, visible: false }).catch(() => {
+      invoke('hide_hud_cmd').catch(() => {});
+    });
+    return;
+  }
+  const rawH = stackEl.offsetHeight;
+  const fallbackH = Math.min(3, tasks.size) * 82 + 16;
+  const h = Math.max(68, Math.ceil((rawH > 20 ? rawH : fallbackH) + 16));
+  invoke('sync_hud_bounds_cmd', { height: h, visible: true }).catch(() => {});
+}
+
+// Guarantee HUD starts completely hidden & click-through on initial load
+syncHudWindowBounds();
+
+function removeTask(taskId) {
+  const t = tasks.get(taskId);
+  if (t && t.timer) clearTimeout(t.timer);
+  tasks.delete(taskId);
+  const card = stackEl.querySelector(`[data-task-id="${CSS.escape(taskId)}"]`);
+  if (card) card.remove();
+  syncHudWindowBounds();
+}
+
+function scheduleAutoRemove(taskId, ms) {
+  const t = tasks.get(taskId);
+  if (!t) return;
+  if (t.timer) clearTimeout(t.timer);
+  t.timer = setTimeout(() => {
+    const cur = tasks.get(taskId);
+    if (cur && (cur.hovered || cur.qrOpen)) {
+      scheduleAutoRemove(taskId, 2500);
+      return;
+    }
+    removeTask(taskId);
   }, ms);
 }
 
-btnClose.addEventListener('click', (e) => {
-  e.stopPropagation();
-  clearTimeout(hideTimer);
-  pill.classList.add('hidden');
-  setTimeout(() => invoke('hide_hud_cmd').catch(() => {}), 200);
-});
-
-pill.addEventListener('mouseenter', () => {
-  if (isDone) { clearTimeout(hideTimer); hideTimer = null; }
-});
-
-pill.addEventListener('mouseleave', () => {
-  if (isDone) scheduleHide(2500);
-});
-
-btnOpenFile.addEventListener('click', async (e) => {
-  e.stopPropagation();
-  if (lastOutPath) {
-    try { await invoke('open_file', { path: lastOutPath }); } catch (err) {}
-    pill.classList.add('hidden');
-    setTimeout(() => invoke('hide_hud_cmd').catch(() => {}), 200);
-  }
-});
-
-btnShowFolder.addEventListener('click', async (e) => {
-  e.stopPropagation();
-  if (lastOutPath) {
-    try { await invoke('show_in_folder', { path: lastOutPath }); } catch (err) {}
-    pill.classList.add('hidden');
-    setTimeout(() => invoke('hide_hud_cmd').catch(() => {}), 200);
-  }
-});
-
-let simTimer = null;
-function startSmoothProgress(currentPct) {
-  clearInterval(simTimer);
-  let p = currentPct;
-  simTimer = setInterval(() => {
-    if (isDone || p >= 95) {
-      clearInterval(simTimer);
-      return;
+function upsertCardDOM(t) {
+  let card = stackEl.querySelector(`[data-task-id="${CSS.escape(t.id)}"]`);
+  if (!card) {
+    // Keep at most 3 cards visible at once (remove oldest finished card if >3)
+    if (tasks.size > 3) {
+      for (const [oldId, oldT] of tasks.entries()) {
+        if (oldId !== t.id && oldT.state !== 'running') {
+          removeTask(oldId);
+          break;
+        }
+      }
     }
-    p += 1;
-    pctEl.textContent = `${p}%`;
-    barFill.style.width = `${p}%`;
-  }, 400);
+    card = document.createElement('div');
+    card.className = 'hud-card';
+    card.setAttribute('data-task-id', t.id);
+    card.innerHTML = `
+      <div class="top-row">
+        <div class="left">
+          <div class="ico spinner"></div>
+          <div class="card-title"></div>
+        </div>
+        <div class="right-meta">
+          <div class="card-pct">0%</div>
+          <button class="btn-stop" title="Stop & Cancel task">⏹ Stop</button>
+          <button class="btn-close" title="Hide notification (or drag card to hide)">✕</button>
+        </div>
+      </div>
+      <div class="card-sub"></div>
+      <div class="bar-track"><div class="bar-fill"></div></div>
+      <div class="hud-actions hidden">
+        <button class="hud-btn primary btn-open"><span>↗</span> <span>Open file</span></button>
+        <button class="hud-btn secondary btn-folder"><span>📁</span> <span>Folder</span></button>
+        <button class="hud-btn qr-btn btn-qr" title="Scan QR Code with Phone"><span>📱</span> <span>QR</span></button>
+      </div>
+      <div class="qr-drawer hidden">
+        <div class="qr-box">…</div>
+        <div class="qr-meta">
+          <div class="qr-head">📲 Scan with iPhone / Android</div>
+          <div class="qr-sub">🌐 Public HTTPS — works on 4G/5G & any Wi-Fi</div>
+          <div class="qr-url"></div>
+        </div>
+      </div>
+    `;
+    card.addEventListener('mouseenter', () => {
+      const cur = tasks.get(t.id);
+      if (cur) cur.hovered = true;
+    });
+    card.addEventListener('mouseleave', () => {
+      const cur = tasks.get(t.id);
+      if (cur) {
+        cur.hovered = false;
+        if (cur.state !== 'running') scheduleAutoRemove(t.id, 2200);
+      }
+    });
+    const dismissHudCard = () => {
+      const cur = tasks.get(t.id);
+      if (cur && cur.state === 'running') {
+        dismissedTasks.add(t.id);
+      }
+      removeTask(t.id);
+    };
+    // Hold & Drag anywhere on the card (except buttons) -> smoothly slides & auto-hides the HUD!
+    let dragStart = null;
+    card.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('button')) return;
+      dragStart = { x: e.clientX, y: e.clientY, pointerId: e.pointerId };
+      card.style.transition = 'none';
+      try { card.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    card.addEventListener('pointermove', (e) => {
+      if (!dragStart) return;
+      const dx = e.clientX - dragStart.x;
+      const dy = e.clientY - dragStart.y;
+      const dist = Math.hypot(dx, dy);
+      card.style.transform = `translate(${dx}px, ${dy}px)`;
+      card.style.opacity = String(Math.max(0.15, 1 - dist / 90));
+      if (dist > 22) {
+        dragStart = null;
+        card.style.transition = 'opacity 0.15s ease, transform 0.15s ease';
+        card.style.transform = `translate(${dx * 2.2}px, ${dy * 2.2}px)`;
+        card.style.opacity = '0';
+        setTimeout(dismissHudCard, 130);
+      }
+    });
+    const endCardDrag = () => {
+      if (!dragStart) return;
+      dragStart = null;
+      card.style.transition = 'opacity 0.18s ease, transform 0.18s ease';
+      card.style.transform = '';
+      card.style.opacity = '1';
+    };
+    card.addEventListener('pointerup', endCardDrag);
+    card.addEventListener('pointercancel', endCardDrag);
+
+    card.querySelector('.btn-stop').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const cur = tasks.get(t.id);
+      if (cur && cur.state === 'running') {
+        const tgtLabel = formatTargetLabel(cur.target);
+        cur.state = 'stopped';
+        cur.title = `⏹ Stopped · ${tgtLabel}`;
+        cur.sub = 'Task cancelled by user';
+        upsertCardDOM(cur);
+        try { await invoke('cancel_task_cmd', { target: cur.target }); } catch (_) {}
+        scheduleAutoRemove(t.id, 1200);
+        return;
+      }
+      removeTask(t.id);
+    });
+    card.querySelector('.btn-close').addEventListener('click', (e) => {
+      e.stopPropagation();
+      dismissHudCard();
+    });
+    card.querySelector('.btn-open').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const cur = tasks.get(t.id);
+      if (cur && cur.outPath) {
+        const isUrl = cur.outPath.startsWith('http://') || cur.outPath.startsWith('https://');
+        if (isUrl) {
+          try { await invoke('copy_text_cmd', { text: cur.outPath }); } catch (_) {}
+          const btn = e.currentTarget;
+          btn.innerHTML = '<span>✓</span> <span>Copied!</span>';
+          setTimeout(() => removeTask(t.id), 900);
+          return;
+        }
+        try { await invoke('open_file', { path: cur.outPath }); } catch (_) {}
+        removeTask(t.id);
+      }
+    });
+    card.querySelector('.btn-folder').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const cur = tasks.get(t.id);
+      if (cur && cur.outPath) {
+        try { await invoke('show_in_folder', { path: cur.outPath }); } catch (_) {}
+        removeTask(t.id);
+      }
+    });
+    card.querySelector('.btn-qr').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const cur = tasks.get(t.id);
+      if (!cur || !cur.outPath) return;
+      const drawer = card.querySelector('.qr-drawer');
+      const qrBox = card.querySelector('.qr-box');
+      const qrUrlEl = card.querySelector('.qr-url');
+      if (!drawer.classList.contains('hidden')) {
+        drawer.classList.add('hidden');
+        cur.qrOpen = false;
+        syncHudWindowBounds();
+        scheduleAutoRemove(t.id, 3000);
+        return;
+      }
+      cur.qrOpen = true;
+      if (cur.timer) { clearTimeout(cur.timer); cur.timer = null; }
+      drawer.classList.remove('hidden');
+      syncHudWindowBounds();
+      qrBox.innerHTML = '<div class="ico spinner" style="border-top-color:#0ea5e9"></div>';
+      qrUrlEl.textContent = '⏳ Creating Public HTTPS link for iPhone...';
+      try {
+        const res = await invoke('get_qr_svg_cmd', { pathOrUrl: cur.outPath });
+        if (res && res.svg) {
+          qrBox.innerHTML = res.svg;
+          qrUrlEl.textContent = res.url || cur.outPath;
+        }
+      } catch (err) {
+        qrBox.textContent = '!';
+        qrUrlEl.textContent = String(err || 'QR error');
+      }
+      syncHudWindowBounds();
+    });
+    stackEl.appendChild(card);
+  }
+
+  const ico = card.querySelector('.ico');
+  const titleEl = card.querySelector('.card-title');
+  const pctEl = card.querySelector('.card-pct');
+  const subEl = card.querySelector('.card-sub');
+  const barFill = card.querySelector('.bar-fill');
+  const actionsEl = card.querySelector('.hud-actions');
+  const btnStop = card.querySelector('.btn-stop');
+  const btnClose = card.querySelector('.btn-close');
+
+  pctEl.textContent = t.state === 'stopped' ? '' : `${t.pct}%`;
+  barFill.style.width = `${t.pct}%`;
+  barFill.classList.toggle('err', t.state === 'error');
+  barFill.classList.toggle('stopped', t.state === 'stopped');
+  titleEl.textContent = t.title;
+  subEl.textContent = t.sub;
+
+  if (t.state === 'running') {
+    ico.className = 'ico spinner';
+    ico.textContent = '';
+    if (btnStop) btnStop.classList.remove('hidden');
+    if (btnClose) btnClose.classList.remove('hidden');
+    actionsEl.classList.add('hidden');
+  } else if (t.state === 'stopped') {
+    ico.className = 'ico badge-icon stopped';
+    ico.textContent = '■';
+    if (btnStop) btnStop.classList.add('hidden');
+    if (btnClose) btnClose.classList.remove('hidden');
+    actionsEl.classList.add('hidden');
+  } else if (t.state === 'done') {
+    ico.className = 'ico badge-icon done';
+    ico.textContent = '✓';
+    if (btnStop) btnStop.classList.add('hidden');
+    if (btnClose) btnClose.classList.remove('hidden');
+    if (t.outPath) {
+      const isUrl = t.outPath.startsWith('http://') || t.outPath.startsWith('https://');
+      const bOpen = card.querySelector('.btn-open');
+      const bFolder = card.querySelector('.btn-folder');
+      if (bOpen && bFolder) {
+        if (isUrl) {
+          bOpen.innerHTML = '<span>📋</span> <span>Copy Link</span>';
+          bFolder.innerHTML = '<span>↗</span> <span>Open Link</span>';
+        } else {
+          bOpen.innerHTML = '<span>↗</span> <span>Open file</span>';
+          bFolder.innerHTML = '<span>📁</span> <span>Folder</span>';
+        }
+      }
+      actionsEl.classList.remove('hidden');
+    } else {
+      actionsEl.classList.add('hidden');
+    }
+  } else if (t.state === 'error') {
+    ico.className = 'ico badge-icon err';
+    ico.textContent = '!';
+    if (btnStop) btnStop.classList.add('hidden');
+    if (btnClose) btnClose.classList.remove('hidden');
+    actionsEl.classList.add('hidden');
+  }
+  syncHudWindowBounds();
+  setTimeout(syncHudWindowBounds, 40);
 }
 
 listen('convert-progress', (e) => {
   const p = e.payload || {};
-  clearTimeout(hideTimer);
-  pill.classList.remove('hidden');
+  const taskId = resolveTaskId(p);
+
+  const existingTask = tasks.get(taskId);
+  if (existingTask && existingTask.state === 'stopped') {
+    // Ignore late running/error updates for a task the user just stopped unless it's a brand-new run (pct <= 24)
+    if (p.state === 'running' && (p.percent || 0) <= 24) {
+      tasks.delete(taskId);
+    } else {
+      syncHudWindowBounds();
+      return;
+    }
+  }
+
+  // If the user started a brand new run (pct <= 10 and running), clear any stale dismissal for that key
+  if (p.state === 'running' && (p.percent || 0) <= 10 && !tasks.has(taskId)) {
+    dismissedTasks.delete(taskId);
+  }
+
+  // If the user dismissed this task while it was running, keep it hidden during running updates!
+  if (p.state === 'running' && dismissedTasks.has(taskId)) {
+    syncHudWindowBounds();
+    return;
+  }
+
+  // When a task finishes or errors, allow completion card to show unobtrusively
+  if (p.state === 'done' || p.state === 'error' || p.state === 'stopped') {
+    dismissedTasks.delete(taskId);
+  }
 
   const total = p.total || 1;
   const done = p.done || 0;
-  const pct = Math.max(0, Math.min(100, p.percent ?? Math.round((done / total) * 100)));
-  const tgt = (p.target || '').replace(/^to_/, '').toUpperCase();
+  const pct = p.state === 'done'
+    ? 100
+    : Math.max(0, Math.min(100, p.percent ?? Math.round((done / total) * 100)));
+  const tgt = formatTargetLabel(p.target);
 
-  pctEl.textContent = `${pct}%`;
-  barFill.style.width = `${pct}%`;
-  barFill.classList.toggle('err', p.state === 'error');
-
+  let title = '';
+  let sub = '';
+  const isCloud = String(p.target || '').startsWith('cloud_');
   if (p.state === 'running') {
-    isDone = false;
-    actionsEl.classList.add('hidden');
-    ico.className = 'spinner';
-    ico.textContent = '';
     const stepNum = Math.min(done + 1, total);
-    titleEl.textContent = total > 1
-      ? `Converting ${stepNum}/${total} → ${tgt}`
-      : `Converting → ${tgt}`;
-    subEl.textContent = p.current || '';
-    startSmoothProgress(pct);
+    title = isCloud
+      ? `☁️ Uploading → ${tgt}`
+      : (total > 1 ? `Converting ${stepNum}/${total} → ${tgt}` : `Converting → ${tgt}`);
+    sub = p.current || '';
   } else if (p.state === 'done') {
-    isDone = true;
-    clearInterval(simTimer);
-    pctEl.textContent = `100%`;
-    barFill.style.width = `100%`;
-    ico.className = 'badge-icon done';
-    ico.textContent = '✓';
-    titleEl.textContent = total > 1
-      ? `Converted ${done}/${total} files → ${tgt}`
-      : `Converted 1 file → ${tgt}`;
-    subEl.textContent = p.current || 'Saved successfully';
+    title = isCloud
+      ? `☁️ Uploaded → ${tgt}`
+      : (total > 1 ? `Converted ${done}/${total} → ${tgt}` : `Converted → ${tgt}`);
+    sub = p.current || 'Saved successfully';
+  } else if (p.state === 'stopped') {
+    title = `⏹ Stopped · ${tgt}`;
+    sub = p.current || 'Task cancelled by user';
+  } else {
+    title = isCloud ? `Cloud Drop error · ${tgt}` : `Conversion error · ${tgt}`;
+    sub = p.error || 'Failed to convert';
+  }
 
-    if (p.out_path) {
-      lastOutPath = p.out_path;
-      actionsEl.classList.remove('hidden');
-      syncLocale();
-      scheduleHide(5000);
-    } else {
-      actionsEl.classList.add('hidden');
-      scheduleHide(2800);
+  let t = tasks.get(taskId);
+  if (!t) {
+    t = { id: taskId, target: p.target || 'convert', state: p.state, pct, title, sub, outPath: p.out_path || null, timer: null, hovered: false };
+    tasks.set(taskId, t);
+  } else {
+    if (t.timer) { clearTimeout(t.timer); t.timer = null; }
+    t.state = p.state;
+    if (p.state !== 'stopped') t.pct = pct;
+    t.title = title;
+    t.sub = sub;
+    if (p.out_path) t.outPath = p.out_path;
+  }
+
+  upsertCardDOM(t);
+
+  if (p.state === 'done' || p.state === 'error' || p.state === 'stopped') {
+    for (const [otherId, otherT] of Array.from(tasks.entries())) {
+      if (otherId !== taskId && otherT.target === (p.target || 'convert') && otherT.state === 'running') {
+        removeTask(otherId);
+      }
     }
+  }
+  if (p.state === 'done') {
+    scheduleAutoRemove(taskId, p.out_path ? 6500 : 2600);
+  } else if (p.state === 'stopped') {
+    scheduleAutoRemove(taskId, 1500);
   } else if (p.state === 'error') {
-    isDone = false;
-    clearInterval(simTimer);
-    actionsEl.classList.add('hidden');
-    ico.className = 'badge-icon err';
-    ico.textContent = '!';
-    titleEl.textContent = `Conversion error`;
-    subEl.textContent = p.error || 'Failed to convert';
-    scheduleHide(3600);
+    scheduleAutoRemove(taskId, 3500);
   }
 });
 </script>
