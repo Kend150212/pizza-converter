@@ -192,6 +192,7 @@ pub fn run() {
             mcp_hub::mcp_install_claude_desktop,
             mcp_hub::mcp_install_cursor,
             mcp_hub::mcp_get_config_snippet,
+            mcp_hub::mcp_get_agent_prompt,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Pizza Converter");

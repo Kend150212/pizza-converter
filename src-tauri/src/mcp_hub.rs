@@ -1003,3 +1003,58 @@ pub fn mcp_get_config_snippet(_app: tauri::AppHandle) -> String {
     });
     serde_json::to_string_pretty(&snippet).unwrap_or_default()
 }
+
+#[tauri::command]
+pub fn mcp_get_agent_prompt(app: tauri::AppHandle) -> String {
+    let cfg = crate::config::load(&app);
+    let lan_ip = get_lan_ip();
+    let port = cfg.mcp_port;
+    let token = &cfg.mcp_token;
+    let endpoint = if cfg.mcp_allow_remote {
+        format!("http://{}:{}/sse?token={}", lan_ip, port, token)
+    } else {
+        format!("http://127.0.0.1:{}/sse?token={}", port, token)
+    };
+
+    format!(
+r#"# 🤖 Pizza Converter AI Agent Worker Connection
+
+You are connected to Pizza Converter AI Agent Hub running on my local PC.
+Please connect to my local MCP (Model Context Protocol) Server via Server-Sent Events (SSE):
+
+- **SSE Endpoint URL**: `{}`
+- **Authentication**: Bearer Token included in the query param `?token=` or as `Authorization: Bearer {}` header
+- **Protocol Version**: 2024-11-05 (JSON-RPC 2.0)
+- **Service Name**: pizza-converter-mcp
+
+## 🛠️ Available Local Hardware-Accelerated Tools:
+
+1. `pizza_list_files`
+   - **Purpose**: Search & scan local computer folders with extension filtering.
+   - **Parameters**: `folder_path` (string, required), `extensions` (array of strings, optional, e.g. `[".mp4", ".png"]`).
+
+2. `pizza_convert_media`
+   - **Purpose**: Ultra-fast media converter across 55+ formats (MP4, WebP, PNG, PDF, MP3, MOV, HEIC, ProRes, SVG) using local GPU hardware acceleration.
+   - **Parameters**: `input_path` (string, required), `target_format` (string, required), `output_dir` (string, optional), `preset` (string, optional).
+
+3. `pizza_remove_background`
+   - **Purpose**: Studio neural transparent background cutout (IS-Net ONNX) running 100% locally on my machine.
+   - **Parameters**: `image_path` (string, required), `output_dir` (string, optional).
+
+4. `pizza_ai_video_review`
+   - **Purpose**: Creates intelligent video summaries (~5-7m) with chronological story narrative clustering, continuous voiceover (no disruptive 'Chapter' markers), and optional brand watermark logo.
+   - **Parameters**: `video_path` (string, required), `logo_path` (string, optional), `watermark_pos` (string, optional: "top_right", "top_left", "bottom_right", "bottom_left"), `upload_to_drive` (boolean, optional).
+
+5. `pizza_get_media_info`
+   - **Purpose**: Read detailed technical metadata (duration, resolution, audio/video codecs, frame rate, bitrate, file size).
+   - **Parameters**: `file_path` (string, required).
+
+6. `pizza_upload_cloud`
+   - **Purpose**: Uploads any local file to Google Drive or Dropbox Cloud Drop and returns an instant shareable download link.
+   - **Parameters**: `file_path` (string, required), `provider` (string, optional: "gdrive", "dropbox").
+
+---
+**Agent Instruction**: Please initialize connection to this MCP server or use the tools above to help me manage, inspect, convert, or review my files."#,
+        endpoint, token
+    )
+}

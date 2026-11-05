@@ -5418,6 +5418,11 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
   const btnRegenToken = document.getElementById('btn-mcp-regen-token');
   const btnTestPing = document.getElementById('btn-mcp-test-ping');
   const pingResult = document.getElementById('mcp-ping-result');
+  const btnCopyAgentPrompt = document.getElementById('btn-mcp-copy-agent-prompt');
+  const btnTogglePromptPreview = document.getElementById('btn-mcp-toggle-prompt-preview');
+  const promptPreviewContainer = document.getElementById('mcp-prompt-preview-container');
+  const txtAgentPrompt = document.getElementById('txt-mcp-agent-prompt');
+  const promptCopyStatus = document.getElementById('mcp-prompt-copy-status');
 
   async function refreshMcpStatus() {
     try {
@@ -5474,6 +5479,18 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
           }
         } catch (e) {
           console.warn('QR code gen error:', e);
+        }
+      }
+
+      // Auto-update Agent Prompt preview
+      if (txtAgentPrompt) {
+        try {
+          const promptText = await invoke('mcp_get_agent_prompt');
+          if (promptText) {
+            txtAgentPrompt.value = promptText;
+          }
+        } catch (e) {
+          console.warn('mcp_get_agent_prompt err:', e);
         }
       }
     } catch (e) {
@@ -5598,6 +5615,34 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
         pingResult.textContent = `❌ Ping failed: ${e}`;
         pingResult.style.color = '#f87171';
       }
+    });
+  }
+
+  if (btnCopyAgentPrompt) {
+    btnCopyAgentPrompt.addEventListener('click', async () => {
+      try {
+        let textToCopy = txtAgentPrompt ? txtAgentPrompt.value : '';
+        if (!textToCopy) {
+          textToCopy = await invoke('mcp_get_agent_prompt');
+        }
+        await navigator.clipboard.writeText(textToCopy);
+        if (promptCopyStatus) {
+          promptCopyStatus.textContent = '✅ Copied to Clipboard! Ready to paste into AI chat.';
+          setTimeout(() => { promptCopyStatus.textContent = ''; }, 3500);
+        }
+        btnCopyAgentPrompt.textContent = '✅ Copied Agent Prompt!';
+        setTimeout(() => { btnCopyAgentPrompt.textContent = '✨ 1-Click Copy Agent Setup Prompt'; }, 2500);
+      } catch (err) {
+        console.error('Copy prompt err:', err);
+      }
+    });
+  }
+
+  if (btnTogglePromptPreview && promptPreviewContainer) {
+    btnTogglePromptPreview.addEventListener('click', () => {
+      const isHidden = promptPreviewContainer.style.display === 'none';
+      promptPreviewContainer.style.display = isHidden ? 'block' : 'none';
+      btnTogglePromptPreview.textContent = isHidden ? '🙈 Hide Prompt Preview' : '👁️ Show / Hide Prompt Preview';
     });
   }
 
