@@ -1,6 +1,6 @@
 [package]
 name = "pizza-converter"
-version = "1.0.5"
+version = "1.0.6"
 edition = "2021"
 # The Tauri app binary (src/main.rs). Required because this package also
 # defines the pizza-convert CLI bin — without it `cargo tauri build`

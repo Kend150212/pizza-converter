@@ -24,7 +24,7 @@ const AI_OUTER_IDS = new Set([
   'ai_studio', 'ai_review', 'ai_subtitles', 'ai_burn_captions', 'ai_dubbing', 'ai_audiogram',
   'smart_compress', 'merge_video',
   'doc_to_mp3', 'compress', 'split', 'merge', 'protect', 'unlock',
-  'sub_translate', 'cloud_drop'
+  'sub_translate', 'sub_to_voice', 'cloud_drop'
 ]);
 function isAiOuterFmt(fmt) {
   if (!fmt) return false;
@@ -77,6 +77,7 @@ const SLICE_ICONS = {
   ai_review: SVG_OPEN + '<path d="M4 11v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8H4Z"/><path d="m4 11-.88-2.87a2 2 0 0 1 1.33-2.5l11.48-3.5a2 2 0 0 1 2.5 1.32l.87 2.87L4 11.01Z"/><path d="m6.6 4.99 3.38 4.2"/><path d="m11.86 3.38 3.38 4.2"/></svg>',
   ai_subtitles: SVG_OPEN + '<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 12h4M14 12h4M6 15.5h8"/></svg>',
   sub_translate: SVG_OPEN + '<path d="m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1"/><path d="m22 22-5-10-5 10M14 18h6"/></svg>',
+  sub_to_voice: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><path d="M4 6h4M4 10h3"/></svg>',
   ai_burn_captions: SVG_OPEN + '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
   ai_dubbing: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>',
   ai_audiogram: SVG_OPEN + '<path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3"/></svg>',
@@ -143,7 +144,7 @@ const FCOL = {
   mp3: '#ff7ab8', wav: '#3fd2ff', flac: '#ffb020', ogg: '#2fd08c', m4a: '#9a7bff', mp4: '#5b9dff', mkv: '#ff6b8a', webm: '#2dd4bf',
   ai_studio: '#fbbf24', ai_shorts: '#f43f5e', ai_summary: '#38bdf8', ai_compilation: '#a855f7', ai_clean_um: '#10b981', ai_back: '#94a3b8',
   merge_video: '#2dd4bf', ai_subtitles: '#38bdf8', to_srt: '#38bdf8', to_vtt: '#2fd08c', to_ass: '#f43f5e', to_transcript: '#ffb020',
-  srt: '#38bdf8', vtt: '#2fd08c', ass: '#f43f5e', sub_translate: '#a855f7', sub_en: '#5b9dff', sub_vi: '#f43f5e', sub_zh: '#ffb020', sub_ja: '#ff7ab8', sub_ko: '#3fd2ff', sub_es: '#2fd08c', sub_fr: '#9a7bff', sub_custom: '#fbbf24',
+  srt: '#38bdf8', vtt: '#2fd08c', ass: '#f43f5e', sub_translate: '#a855f7', sub_to_voice: '#10b981', sub_en: '#5b9dff', sub_vi: '#f43f5e', sub_zh: '#ffb020', sub_ja: '#ff7ab8', sub_ko: '#3fd2ff', sub_es: '#2fd08c', sub_fr: '#9a7bff', sub_custom: '#fbbf24',
   ai_burn_captions: '#f59e0b', cap_beasty: '#fbbf24', cap_roleplay: '#ef4444', cap_popline: '#a855f7', cap_deep_diver: '#38bdf8', cap_one_punch: '#f43f5e', cap_glow: '#2dd4bf',
   ai_dubbing: '#ec4899', dub_vi: '#f43f5e', dub_en: '#5b9dff', dub_zh: '#ffb020', dub_ja: '#ff7ab8', dub_ko: '#3fd2ff', dub_es: '#2fd08c', dub_fr: '#9a7bff', dub_custom: '#fbbf24',
   ai_review: '#06b6d4', rev_pin_1: '#f43f5e', rev_pin_2: '#3b82f6', rev_pin_3: '#f59e0b', rev_pin_4: '#ec4899', rev_pin_5: '#10b981', rev_custom: '#a855f7',
@@ -342,6 +343,7 @@ function fmtName(fmt) {
   if (id === 'to_ass' || id === 'ass') return 'ASS';
   if (id === 'to_transcript') return 'TXT';
   if (id === 'sub_translate') return t('fmt_sub_translate') || 'Translate';
+  if (id === 'sub_to_voice') return 'SRT to Voice';
   if (id === 'sub_en') return 'English';
   if (id === 'sub_vi') return 'Vietnamese';
   if (id === 'sub_zh') return 'Chinese';
@@ -784,7 +786,7 @@ function showProTooltip(fmt, label) {
   tooltipEl.classList.remove('hidden');
 }
 function showSizeTooltip(fmt, label) {
-  const isOp = (['vector_svg', 'seo_alt', 'design_open_tpl_ring', 'design_cutout_png', 'design_watermark', 'design_iconize', 'design_barcode', 'barcode_pdf', 'bc_only_png', 'bc_with_photo', 'bc_stamp_photo', 'bc_sheet_a4', 'bc_custom_input', 'design_rename', 'ai_upscale', 'upscale_2x', 'upscale_4x', 'compress', 'split', 'merge', 'merge_video', 'merge_img_pdf', 'cmp_img_web', 'cmp_img_200kb', 'cmp_img_500kb', 'cmp_img_1mb', 'cmp_img_auto', 'smart_compress', 'cmp_10mb', 'cmp_25mb', 'cmp_50mb', 'cmp_half', 'ocr_text', 'doc_to_mp3', 'clean_privacy', 'cloud_pc_to_phone', 'cloud_phone_drop', 'ai_studio', 'ai_shorts', 'ai_summary', 'ai_compilation', 'ai_clean_um', 'ai_review', 'rev_pin_1', 'rev_pin_2', 'rev_pin_3', 'rev_pin_4', 'rev_pin_5', 'rev_custom', 'ai_subtitles', 'to_srt', 'to_vtt', 'to_ass', 'to_transcript', 'sub_translate', 'sub_en', 'sub_vi', 'sub_zh', 'sub_ja', 'sub_ko', 'sub_es', 'sub_fr', 'sub_custom', 'ai_burn_captions', 'cap_beasty', 'cap_roleplay', 'cap_popline', 'cap_deep_diver', 'cap_one_punch', 'cap_glow', 'ai_dubbing', 'dub_vi', 'dub_en', 'dub_zh', 'dub_ja', 'dub_ko', 'dub_es', 'dub_fr', 'dub_custom', 'dub_style_default', 'dub_style_beasty', 'dub_style_roleplay', 'dub_style_popline', 'dub_style_deep_diver', 'dub_style_one_punch', 'dub_style_glow', 'dub_style_none', 'ai_audiogram', 'ag_daily_cafe', 'ag_vinyl_vibes', 'ag_after_dark', 'ag_studio_pulse', 'ai_back'].includes(fmt.id) || fmt.id.startsWith('tpl_'));
+  const isOp = (['vector_svg', 'seo_alt', 'design_open_tpl_ring', 'design_cutout_png', 'design_watermark', 'design_iconize', 'design_barcode', 'barcode_pdf', 'bc_only_png', 'bc_with_photo', 'bc_stamp_photo', 'bc_sheet_a4', 'bc_custom_input', 'design_rename', 'ai_upscale', 'upscale_2x', 'upscale_4x', 'compress', 'split', 'merge', 'merge_video', 'merge_img_pdf', 'cmp_img_web', 'cmp_img_200kb', 'cmp_img_500kb', 'cmp_img_1mb', 'cmp_img_auto', 'smart_compress', 'cmp_10mb', 'cmp_25mb', 'cmp_50mb', 'cmp_half', 'ocr_text', 'doc_to_mp3', 'clean_privacy', 'cloud_pc_to_phone', 'cloud_phone_drop', 'ai_studio', 'ai_shorts', 'ai_summary', 'ai_compilation', 'ai_clean_um', 'ai_review', 'rev_pin_1', 'rev_pin_2', 'rev_pin_3', 'rev_pin_4', 'rev_pin_5', 'rev_custom', 'ai_subtitles', 'to_srt', 'to_vtt', 'to_ass', 'to_transcript', 'sub_translate', 'sub_to_voice', 'sub_en', 'sub_vi', 'sub_zh', 'sub_ja', 'sub_ko', 'sub_es', 'sub_fr', 'sub_custom', 'ai_burn_captions', 'cap_beasty', 'cap_roleplay', 'cap_popline', 'cap_deep_diver', 'cap_one_punch', 'cap_glow', 'ai_dubbing', 'dub_vi', 'dub_en', 'dub_zh', 'dub_ja', 'dub_ko', 'dub_es', 'dub_fr', 'dub_custom', 'dub_style_default', 'dub_style_beasty', 'dub_style_roleplay', 'dub_style_popline', 'dub_style_deep_diver', 'dub_style_one_punch', 'dub_style_glow', 'dub_style_none', 'ai_audiogram', 'ag_daily_cafe', 'ag_vinyl_vibes', 'ag_after_dark', 'ag_studio_pulse', 'ai_back'].includes(fmt.id) || fmt.id.startsWith('tpl_'));
   const proTagHtml = needsPro(fmt) ? `<span class="tag pro">PRO</span>` : '';
   tooltipTitle(`<span>${label}</span>${proTagHtml}${isOp ? '' : `<span class="tag">${t('estimate_tag')}</span>`}`);
   const sizeEl = $('tooltip-size'), deltaEl = $('tooltip-delta'), textEl = $('tooltip-text');
@@ -840,6 +842,7 @@ function showSizeTooltip(fmt, label) {
     bc_sheet_a4: '📄 A4 Sticker Sheet (.PDF) · Generate printable 300 DPI A4 barcode sticker sheet (24 / 40 / 12 stickers per page)',
     bc_custom_input: '✏️ Custom Barcode & Brand · Enter custom SKU, Product Title, Price & Brand Header on the fly',
     ocr_text: 'Extract text from image (VN/EN/99+ langs) to .TXT & auto-copy to clipboard',
+    sub_to_voice: '🎙️ Voice Studio · Dub SRT/VTT subtitle cues into high-fidelity AI voiceover audio track',
     doc_to_mp3: 'SpeakMe · Convert PDF / Word / TXT document into a natural Neural MP3 Audiobook',
     clean_privacy: 'Strip 100% hidden GPS, Camera EXIF, C2PA & AI watermarks/fingerprints',
     merge_img_pdf: 'Combine all selected images in order into 1 single multi-page PDF',

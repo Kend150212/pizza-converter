@@ -5654,3 +5654,444 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
   refreshMcpStatus();
 })();
 
+// ═══════════════════════════════════════════════════════════════════════
+// AI VOICE STUDIO & VOICELAB UI CONTROLLER (v1.0.6)
+// ═══════════════════════════════════════════════════════════════════════
+(function initVoiceStudioUI() {
+  const tglMaster = document.getElementById('tgl-vs-master');
+  const tglOverride = document.getElementById('tgl-vs-override-global');
+  const badgeMaster = document.getElementById('vs-master-badge');
+  const voiceList = document.getElementById('vs-voice-list');
+  const countBadge = document.getElementById('vs-voice-count-badge');
+  const btnRecordMic = document.getElementById('btn-vs-record-mic');
+  const btnUploadAudio = document.getElementById('btn-vs-upload-audio');
+  const recordStatusBox = document.getElementById('vs-record-status-box');
+  const recordStatusLabel = document.getElementById('vs-record-status-label');
+  const recordTimer = document.getElementById('vs-record-timer');
+  const recordProgress = document.getElementById('vs-record-progress');
+  const inpCloneName = document.getElementById('inp-vs-clone-name');
+  const btnSubmitClone = document.getElementById('btn-vs-submit-clone');
+
+  const txtScript = document.getElementById('txt-vs-script');
+  const charCount = document.getElementById('vs-char-count');
+  const rngSpeed = document.getElementById('rng-vs-speed');
+  const lblSpeed = document.getElementById('lbl-vs-speed');
+  const rngStability = document.getElementById('rng-vs-stability');
+  const lblStability = document.getElementById('lbl-vs-stability');
+  const btnGenTts = document.getElementById('btn-vs-generate-tts');
+  const btnExportTts = document.getElementById('btn-vs-export-tts');
+  const ttsPlayerBox = document.getElementById('vs-tts-player-box');
+  const ttsAudio = document.getElementById('vs-tts-audio');
+
+  const btnPickSrt = document.getElementById('btn-vs-pick-srt');
+  const chkAutofit = document.getElementById('chk-vs-autofit');
+  const srtFileInfo = document.getElementById('vs-srt-file-info');
+  const srtFilename = document.getElementById('vs-srt-filename');
+  const srtCueCount = document.getElementById('vs-srt-cue-count');
+  const btnDubSrt = document.getElementById('btn-vs-dub-srt');
+  const srtResultBox = document.getElementById('vs-srt-result-box');
+
+  let activeVoiceId = 'cinematic_narrator_male';
+  let recordedAudioBlob = null;
+  let mediaRecorder = null;
+  let recordInterval = null;
+  let selectedSrtPath = '';
+  let uploadedRefAudioPath = '';
+
+  const CURATED_VOICES = [
+    {
+      id: 'cinematic_narrator_male',
+      name: 'Marcus · Movie Narrator',
+      desc: 'Deep, cinematic baritone. Ideal for movie recaps, trailers & drama.',
+      avatar: '🎬',
+      type: 'curated'
+    },
+    {
+      id: 'podcast_host_female',
+      name: 'Elena · Podcast & Story',
+      desc: 'Warm, empathetic & natural conversational tone. Ideal for storytelling.',
+      avatar: '🎙️',
+      type: 'curated'
+    },
+    {
+      id: 'documentary_expert',
+      name: 'David · BBC Documentary',
+      desc: 'Authoritative, calm, crisp articulation. Ideal for tech & science.',
+      avatar: '🌍',
+      type: 'curated'
+    },
+    {
+      id: 'energetic_creator',
+      name: 'Chloe · Viral Shorts',
+      desc: 'Fast, vibrant, punchy delivery. Ideal for TikTok, Reels & marketing.',
+      avatar: '⚡',
+      type: 'curated'
+    }
+  ];
+
+  async function loadVoiceStudioData() {
+    try {
+      const cfg = await invoke('get_config').catch(() => ({}));
+      if (tglMaster) {
+        tglMaster.classList.toggle('active', cfg.vs_enabled !== false);
+        tglMaster.setAttribute('aria-pressed', cfg.vs_enabled !== false ? 'true' : 'false');
+      }
+      if (tglOverride) {
+        tglOverride.classList.toggle('active', cfg.vs_override_global !== false);
+        tglOverride.setAttribute('aria-pressed', cfg.vs_override_global !== false ? 'true' : 'false');
+      }
+      if (cfg.vs_active_voice) {
+        activeVoiceId = cfg.vs_active_voice;
+      }
+      if (badgeMaster) {
+        badgeMaster.textContent = cfg.vs_enabled !== false ? 'OFFLINE · READY' : 'DISABLED';
+        badgeMaster.className = cfg.vs_enabled !== false ? 'cai-status-pill pro' : 'cai-status-pill none';
+      }
+
+      // Parse custom cloned profiles
+      let customProfiles = [];
+      if (cfg.vs_profiles_json) {
+        try {
+          customProfiles = JSON.parse(cfg.vs_profiles_json);
+        } catch (e) {}
+      }
+
+      renderVoiceList(customProfiles);
+    } catch (err) {
+      console.warn('loadVoiceStudioData err:', err);
+    }
+  }
+
+  function renderVoiceList(customProfiles) {
+    if (!voiceList) return;
+    voiceList.innerHTML = '';
+    const allVoices = [...CURATED_VOICES, ...(customProfiles || [])];
+
+    if (countBadge) {
+      countBadge.textContent = `${allVoices.length} Voices (${customProfiles.length} Cloned)`;
+    }
+
+    allVoices.forEach((v) => {
+      const card = document.createElement('div');
+      card.className = `vs-voice-card ${v.id === activeVoiceId ? 'selected' : ''}`;
+      card.innerHTML = `
+        <div class="vs-card-left">
+          <div class="vs-avatar">${v.avatar || '🧬'}</div>
+          <div style="flex:1; min-width:0;">
+            <div class="vs-name">${v.name}</div>
+            <div class="vs-tag">${v.desc || 'Custom Neural Voice Clone'}</div>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span class="vs-badge ${v.type === 'curated' ? 'curated' : 'cloned'}">${v.type === 'curated' ? 'STUDIO' : 'CLONED'}</span>
+          ${v.type !== 'curated' ? `<button class="btn secondary btn-del-clone" data-id="${v.id}" style="padding:2px 6px; font-size:10px; color:#f87171;" title="Delete Clone">🗑️</button>` : ''}
+        </div>
+      `;
+
+      card.addEventListener('click', async (e) => {
+        if (e.target.closest('.btn-del-clone')) return;
+        activeVoiceId = v.id;
+        document.querySelectorAll('.vs-voice-card').forEach((c) => c.classList.remove('selected'));
+        card.classList.add('selected');
+        try {
+          await invoke('voice_studio_set_active_voice', { voiceId: v.id });
+        } catch (err) {
+          console.warn(err);
+        }
+      });
+
+      const delBtn = card.querySelector('.btn-del-clone');
+      if (delBtn) {
+        delBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (!confirm(`Delete cloned voice "${v.name}"?`)) return;
+          try {
+            await invoke('voice_studio_delete_profile', { profileId: v.id });
+            await loadVoiceStudioData();
+          } catch (err) {
+            alert(`Error deleting profile: ${err}`);
+          }
+        });
+      }
+
+      voiceList.appendChild(card);
+    });
+  }
+
+  // Master switches
+  if (tglMaster) {
+    tglMaster.addEventListener('click', async () => {
+      const willEnable = !tglMaster.classList.contains('active');
+      tglMaster.classList.toggle('active', willEnable);
+      tglMaster.setAttribute('aria-pressed', willEnable ? 'true' : 'false');
+      try {
+        await invoke('voice_studio_set_enabled', { enabled: willEnable });
+        if (badgeMaster) {
+          badgeMaster.textContent = willEnable ? 'OFFLINE · READY' : 'DISABLED';
+          badgeMaster.className = willEnable ? 'cai-status-pill pro' : 'cai-status-pill none';
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    });
+  }
+
+  if (tglOverride) {
+    tglOverride.addEventListener('click', async () => {
+      const willOverride = !tglOverride.classList.contains('active');
+      tglOverride.classList.toggle('active', willOverride);
+      tglOverride.setAttribute('aria-pressed', willOverride ? 'true' : 'false');
+      try {
+        await invoke('voice_studio_set_override_global', { overrideGlobal: willOverride });
+      } catch (e) {
+        console.error(e);
+      }
+    });
+  }
+
+  // Sliders & character counter
+  if (txtScript && charCount) {
+    txtScript.addEventListener('input', () => {
+      charCount.textContent = `${txtScript.value.length} characters`;
+    });
+  }
+
+  if (rngSpeed && lblSpeed) {
+    rngSpeed.addEventListener('input', () => {
+      const rate = (rngSpeed.value / 100).toFixed(2);
+      lblSpeed.textContent = `${rate}x`;
+    });
+  }
+
+  if (rngStability && lblStability) {
+    rngStability.addEventListener('input', () => {
+      lblStability.textContent = `${rngStability.value}%`;
+    });
+  }
+
+  // Mic recording
+  if (btnRecordMic) {
+    btnRecordMic.addEventListener('click', async () => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const chunks = [];
+        mediaRecorder = new MediaRecorder(stream);
+        let seconds = 0;
+        const maxSeconds = 8;
+
+        if (recordStatusBox) recordStatusBox.style.display = 'block';
+        if (btnRecordMic) btnRecordMic.textContent = '⏹️ Stop Recording';
+        if (recordProgress) recordProgress.style.width = '0%';
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) chunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          clearInterval(recordInterval);
+          stream.getTracks().forEach((t) => t.stop());
+          recordedAudioBlob = new Blob(chunks, { type: 'audio/wav' });
+          if (btnRecordMic) btnRecordMic.textContent = '🎙️ Record Mic (5-10s)';
+          if (recordStatusLabel) recordStatusLabel.textContent = '✅ Sample recorded successfully!';
+          if (recordStatusLabel) recordStatusLabel.style.color = '#4ade80';
+        };
+
+        mediaRecorder.start();
+        recordInterval = setInterval(() => {
+          seconds++;
+          const pct = Math.min(100, Math.round((seconds / maxSeconds) * 100));
+          if (recordProgress) recordProgress.style.width = `${pct}%`;
+          if (recordTimer) recordTimer.textContent = `0:0${seconds} / 0:0${maxSeconds}`;
+          if (seconds >= maxSeconds) {
+            mediaRecorder.stop();
+          }
+        }, 1000);
+      } catch (err) {
+        alert('Microphone access denied or not available: ' + err);
+      }
+    });
+  }
+
+  // Upload reference audio file
+  if (btnUploadAudio) {
+    btnUploadAudio.addEventListener('click', async () => {
+      try {
+        const path = await invoke('pick_file', {
+          title: 'Select Voice Reference Audio (5-15s WAV/MP3)',
+          filters: [{ name: 'Audio Files', extensions: ['wav', 'mp3', 'm4a', 'flac'] }]
+        });
+        if (path) {
+          uploadedRefAudioPath = path;
+          const fname = path.split(/[\/\\]/).pop();
+          if (recordStatusBox) recordStatusBox.style.display = 'block';
+          if (recordStatusLabel) {
+            recordStatusLabel.textContent = `📁 Selected: ${fname}`;
+            recordStatusLabel.style.color = '#38bdf8';
+          }
+          if (recordProgress) recordProgress.style.width = '100%';
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    });
+  }
+
+  // Submit Clone
+  if (btnSubmitClone) {
+    btnSubmitClone.addEventListener('click', async () => {
+      const name = inpCloneName ? inpCloneName.value.trim() : '';
+      if (!name) {
+        alert('Please enter a name for the cloned voice (e.g. My Voice).');
+        return;
+      }
+
+      btnSubmitClone.disabled = true;
+      btnSubmitClone.textContent = '⏳ Cloning...';
+
+      try {
+        let refPath = uploadedRefAudioPath;
+        if (!refPath && recordedAudioBlob) {
+          // Convert recorded blob to base64
+          const reader = new FileReader();
+          const base64Promise = new Promise((res) => {
+            reader.onloadend = () => res(reader.result.split(',')[1]);
+          });
+          reader.readAsDataURL(recordedAudioBlob);
+          const b64 = await base64Promise;
+          const savedPath = await invoke('voice_studio_save_blob', { base64Data: b64, filename: `${name.toLowerCase().replace(/\s+/g, '_')}_sample.wav` });
+          refPath = savedPath;
+        }
+
+        if (!refPath) {
+          alert('Please record a mic sample or select an audio file first.');
+          btnSubmitClone.disabled = false;
+          btnSubmitClone.textContent = 'Save Voice';
+          return;
+        }
+
+        await invoke('voice_studio_create_clone', {
+          audioPath: refPath,
+          name: name,
+          tag: 'Custom Neural Clone'
+        });
+
+        if (inpCloneName) inpCloneName.value = '';
+        if (recordStatusBox) recordStatusBox.style.display = 'none';
+        recordedAudioBlob = null;
+        uploadedRefAudioPath = '';
+        btnSubmitClone.textContent = '✅ Voice Cloned!';
+        await loadVoiceStudioData();
+      } catch (err) {
+        alert('Voice cloning failed: ' + err);
+      } finally {
+        setTimeout(() => {
+          btnSubmitClone.disabled = false;
+          btnSubmitClone.textContent = 'Save Voice';
+        }, 2000);
+      }
+    });
+  }
+
+  // TTS Generate & Play
+  if (btnGenTts) {
+    btnGenTts.addEventListener('click', async () => {
+      const text = txtScript ? txtScript.value.trim() : '';
+      if (!text) {
+        alert('Please enter a script or text to synthesize.');
+        return;
+      }
+
+      btnGenTts.disabled = true;
+      btnGenTts.textContent = '⏳ Synthesizing...';
+
+      try {
+        const speedVal = rngSpeed ? (rngSpeed.value / 100).toFixed(2) : '1.0';
+        const stabilityVal = rngStability ? parseInt(rngStability.value, 10) : 85;
+
+        const res = await invoke('voice_studio_synthesize_text', {
+          text: text,
+          voiceId: activeVoiceId,
+          speed: speedVal,
+          stability: stabilityVal
+        });
+
+        if (res && res.audio_url && ttsAudio) {
+          ttsAudio.src = res.audio_url;
+          if (ttsPlayerBox) ttsPlayerBox.style.display = 'block';
+          ttsAudio.play();
+        }
+      } catch (err) {
+        alert('Text-to-speech error: ' + err);
+      } finally {
+        btnGenTts.disabled = false;
+        btnGenTts.textContent = '▶️ Generate & Play';
+      }
+    });
+  }
+
+  // Subtitle Dubber
+  if (btnPickSrt) {
+    btnPickSrt.addEventListener('click', async () => {
+      try {
+        const path = await invoke('pick_file', {
+          title: 'Select Subtitle File (.srt or .vtt)',
+          filters: [{ name: 'Subtitles', extensions: ['srt', 'vtt'] }]
+        });
+        if (path) {
+          selectedSrtPath = path;
+          const fname = path.split(/[\/\\]/).pop();
+          if (srtFilename) srtFilename.textContent = fname;
+          if (srtFileInfo) srtFileInfo.style.display = 'flex';
+          if (srtCueCount) srtCueCount.textContent = 'Ready to dub';
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    });
+  }
+
+  if (btnDubSrt) {
+    btnDubSrt.addEventListener('click', async () => {
+      if (!selectedSrtPath) {
+        alert('Please select a .SRT or .VTT file first.');
+        return;
+      }
+
+      btnDubSrt.disabled = true;
+      btnDubSrt.textContent = '⏳ Generating Synchronized Audio...';
+      if (srtResultBox) srtResultBox.style.display = 'none';
+
+      try {
+        const autoFit = chkAutofit ? !!chkAutofit.checked : true;
+        const res = await invoke('voice_studio_dub_subtitles', {
+          srtPath: selectedSrtPath,
+          voiceId: activeVoiceId,
+          autoTimeFit: autoFit
+        });
+
+        if (res && res.output_path && srtResultBox) {
+          srtResultBox.style.display = 'block';
+          srtResultBox.innerHTML = `✅ Synchronized voiceover ready: <b>${res.output_path.split(/[\/\\]/).pop()}</b> <button class="btn secondary" style="padding:2px 8px; font-size:10px; margin-left:6px;" onclick="window.__pizzaShowFolder('${res.output_path.replace(/\\/g, '\\\\')}')">Show in Folder</button>`;
+        }
+      } catch (err) {
+        alert('Subtitle dubbing failed: ' + err);
+      } finally {
+        btnDubSrt.disabled = false;
+        btnDubSrt.textContent = '🎬 Synthesize Full Synchronized Voiceover';
+      }
+    });
+  }
+
+  const navVoiceStudio = document.querySelector('.nav-item[data-view="voicestudio"]');
+  if (navVoiceStudio) {
+    navVoiceStudio.addEventListener('click', loadVoiceStudioData);
+  }
+  loadVoiceStudioData();
+})();
+
+

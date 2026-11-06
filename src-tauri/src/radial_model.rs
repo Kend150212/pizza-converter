@@ -248,7 +248,7 @@ pub fn supported_targets(input: String) -> Vec<String> {
     }
     if matches!(e.as_str(), "srt" | "vtt" | "ass") {
         return s(&[
-            "sub_translate", "srt", "vtt", "ass", "txt",
+            "sub_to_voice", "sub_translate", "srt", "vtt", "ass", "txt",
             "sub_en", "sub_vi", "sub_zh", "sub_ja", "sub_ko", "sub_es", "sub_fr", "sub_custom", "ai_back",
         ]);
     }

@@ -3574,7 +3574,7 @@ pub fn run_ai_review_task(
         .unwrap_or("video");
 
     let base_target = rev_target.split(':').next().unwrap_or(rev_target);
-    let (lang_code, lang_name, voice_id) = if let Some(rest) = base_target.strip_prefix("rev_pin_") {
+    let (lang_code, lang_name, mut voice_id) = if let Some(rest) = base_target.strip_prefix("rev_pin_") {
         let slot_num: u8 = rest.parse().unwrap_or(1);
         if let Some(pin) = cfg.ai_review_pins.iter().find(|p| p.slot == slot_num) {
             (pin.lang_code.clone(), pin.lang_name.clone(), pin.voice.clone())
@@ -3590,6 +3590,10 @@ pub fn run_ai_review_task(
             cfg.ai_review_custom_voice.clone(),
         )
     };
+
+    if cfg.vs_enabled && cfg.vs_override_global && !cfg.vs_active_voice.is_empty() {
+        voice_id = cfg.vs_active_voice.clone();
+    }
 
     let clean_lang_tag: String = lang_code
         .chars()

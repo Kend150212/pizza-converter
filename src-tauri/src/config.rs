@@ -339,6 +339,27 @@ pub struct AppConfig {
     /// Whether the user has checked "Don't show this again" on the step-by-step interactive onboarding tour
     #[serde(default)]
     pub onboarding_dismissed: bool,
+    /// AI Voice Studio (v1.0.6) master switch - ON by default
+    #[serde(default = "default_true")]
+    pub vs_enabled: bool,
+    /// Automatically override global app voices (AI Video Review, Dubbing, Audiogram) with Voice Studio
+    #[serde(default = "default_true")]
+    pub vs_override_global: bool,
+    /// Active selected voice ID (e.g. "cinematic_narrator_male", or custom cloned voice ID)
+    #[serde(default = "default_vs_active_voice")]
+    pub vs_active_voice: String,
+    /// Voice Studio speaking rate / speed ("0.8x", "1.0x", "1.1x", "1.25x")
+    #[serde(default = "default_vs_speed")]
+    pub vs_speed: String,
+    /// Voice Studio stability / emotion factor (0..=100, default: 85)
+    #[serde(default = "default_vs_stability")]
+    pub vs_stability: u8,
+    /// JSON list of custom cloned voice profiles
+    #[serde(default)]
+    pub vs_profiles_json: String,
+    /// Auto-time-fit for SRT subtitle dubbing (dynamically stretches speech to never overflow cue timeline)
+    #[serde(default = "default_true")]
+    pub vs_auto_time_fit: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -483,6 +504,15 @@ fn default_rename_mode() -> String {
 }
 fn default_rename_prefix() -> String {
     "Product".into()
+}
+fn default_vs_active_voice() -> String {
+    "cinematic_narrator_male".into()
+}
+fn default_vs_speed() -> String {
+    "1.0x".into()
+}
+fn default_vs_stability() -> u8 {
+    85
 }
 fn default_review_genre() -> String {
     "auto".into()
@@ -703,6 +733,13 @@ impl Default for AppConfig {
             mcp_consent_prompt: false,
             mcp_whitelisted_dirs: Vec::new(),
             onboarding_dismissed: false,
+            vs_enabled: true,
+            vs_override_global: true,
+            vs_active_voice: default_vs_active_voice(),
+            vs_speed: default_vs_speed(),
+            vs_stability: default_vs_stability(),
+            vs_profiles_json: String::new(),
+            vs_auto_time_fit: true,
         }
     }
 }

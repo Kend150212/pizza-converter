@@ -13,6 +13,7 @@ pub mod radial_model;
 pub mod selection;
 pub mod tray;
 pub mod security;
+pub mod voice_studio;
 
 use tauri::Manager;
 use tauri_plugin_autostart::ManagerExt;
@@ -193,6 +194,16 @@ pub fn run() {
             mcp_hub::mcp_install_cursor,
             mcp_hub::mcp_get_config_snippet,
             mcp_hub::mcp_get_agent_prompt,
+            voice_studio::voice_studio_get_profiles,
+            voice_studio::voice_studio_set_enabled,
+            voice_studio::voice_studio_set_override_global,
+            voice_studio::voice_studio_set_active_voice,
+            voice_studio::voice_studio_save_blob,
+            voice_studio::voice_studio_create_clone,
+            voice_studio::voice_studio_delete_profile,
+            voice_studio::voice_studio_synthesize_text,
+            voice_studio::voice_studio_dub_subtitles,
+            voice_studio::voice_studio_record_sample,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Pizza Converter");

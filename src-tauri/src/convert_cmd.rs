@@ -326,6 +326,7 @@ pub fn convert_any_cmd(
                 | "to_vtt"
                 | "to_ass"
                 | "to_transcript"
+                | "sub_to_voice"
                 | "doc_to_mp3"
                 | "compress"
                 | "split"
@@ -761,6 +762,7 @@ pub fn convert_any_cmd(
                                 }
                 "ai_shorts" | "ai_summary" | "ai_compilation" | "ai_clean_um" => crate::ai_studio::run_ai_video_studio(&app, item_path, target.as_str())?,
                 "to_srt" | "to_vtt" | "to_ass" | "to_transcript" | "srt" | "vtt" | "ass" | "sub_en" | "sub_vi" | "sub_zh" | "sub_ja" | "sub_ko" | "sub_es" | "sub_fr" | "sub_custom" => crate::ai_studio::run_ai_subtitle_task(&app, item_path, target.as_str())?,
+                "sub_to_voice" => crate::voice_studio::run_sub_to_voice_task(&app, item_path)?,
                 "cap_beasty" | "cap_popline" | "cap_deep_diver" | "cap_one_punch" | "cap_glow" | "cap_roleplay" => crate::ai_studio::run_ai_burn_captions(&app, item_path, target.as_str())?,
                 s if s.starts_with("dub_") => crate::ai_studio::run_ai_dubbing_task(&app, item_path, s)?,
                 s if s.starts_with("rev_") => crate::ai_studio::run_ai_review_task(&app, item_path, s)?,
@@ -992,6 +994,7 @@ pub fn convert_any_cmd(
                 }
                 "ai_shorts" | "ai_summary" | "ai_compilation" | "ai_clean_um" => crate::ai_studio::run_ai_video_studio(&app, item_path, target.as_str())?,
                 "to_srt" | "to_vtt" | "to_ass" | "to_transcript" | "srt" | "vtt" | "ass" | "sub_en" | "sub_vi" | "sub_zh" | "sub_ja" | "sub_ko" | "sub_es" | "sub_fr" | "sub_custom" => crate::ai_studio::run_ai_subtitle_task(&app, item_path, target.as_str())?,
+                "sub_to_voice" => crate::voice_studio::run_sub_to_voice_task(&app, item_path)?,
                 "cap_beasty" | "cap_popline" | "cap_deep_diver" | "cap_one_punch" | "cap_glow" | "cap_roleplay" => crate::ai_studio::run_ai_burn_captions(&app, item_path, target.as_str())?,
                 s if s.starts_with("dub_") => crate::ai_studio::run_ai_dubbing_task(&app, item_path, s)?,
                 s if s.starts_with("rev_") => crate::ai_studio::run_ai_review_task(&app, item_path, s)?,
