@@ -639,6 +639,15 @@ listen('convert-progress', (e) => {
   const p = e.payload || {};
   const taskId = resolveTaskId(p);
 
+  // Voice Studio is an interactive tool inside Settings UI - NEVER spawn desktop conversion HUD toasts for it!
+  const tgtLower = String(p.target || '').toLowerCase();
+  if (tgtLower.includes('voice studio') || taskId.startsWith('voicestudio')) {
+    if (tasks.has(taskId)) {
+      removeTask(taskId);
+    }
+    return;
+  }
+
   const existingTask = tasks.get(taskId);
   if (existingTask && existingTask.state === 'stopped') {
     // Ignore late running/error updates for a task the user just stopped unless it's a brand-new run (pct <= 24)
@@ -661,33 +670,50 @@ listen('convert-progress', (e) => {
     return;
   }
 
-  // When a task finishes or errors, allow completion card to show unobtrusively
-  if (p.state === 'done' || p.state === 'error' || p.state === 'stopped') {
-    dismissedTasks.delete(taskId);
-  }
-
   const total = p.total || 1;
   const done = p.done || 0;
-  const pct = p.state === 'done'
+  let pct = p.state === 'done'
     ? 100
     : Math.max(0, Math.min(100, p.percent ?? Math.round((done / total) * 100)));
   const tgt = formatTargetLabel(p.target);
 
+  // Auto-finish tasks that hit 100% or report completion so they never get stuck with a Stop button
+  let state = p.state || 'running';
+  const curMsg = String(p.current || '').toLowerCase();
+  const isFinished100 = (pct >= 100) && (
+    state === 'done' ||
+    curMsg.includes('complete') ||
+    curMsg.includes('ready') ||
+    curMsg.includes('saved') ||
+    curMsg.includes('finished') ||
+    done >= total
+  );
+
+  if (state === 'running' && isFinished100) {
+    state = 'done';
+    pct = 100;
+  }
+
+  // When a task finishes or errors, allow completion card to show unobtrusively
+  if (state === 'done' || state === 'error' || state === 'stopped') {
+    dismissedTasks.delete(taskId);
+  }
+
   let title = '';
   let sub = '';
   const isCloud = String(p.target || '').startsWith('cloud_');
-  if (p.state === 'running') {
+  if (state === 'running') {
     const stepNum = Math.min(done + 1, total);
     title = isCloud
       ? `☁️ Uploading → ${tgt}`
       : (total > 1 ? `Converting ${stepNum}/${total} → ${tgt}` : `Converting → ${tgt}`);
     sub = p.current || '';
-  } else if (p.state === 'done') {
+  } else if (state === 'done') {
     title = isCloud
       ? `☁️ Uploaded → ${tgt}`
       : (total > 1 ? `Converted ${done}/${total} → ${tgt}` : `Converted → ${tgt}`);
-    sub = p.current || 'Saved successfully';
-  } else if (p.state === 'stopped') {
+    sub = p.current || 'Completed successfully';
+  } else if (state === 'stopped') {
     title = `⏹ Stopped · ${tgt}`;
     sub = p.current || 'Task cancelled by user';
   } else {
@@ -697,12 +723,12 @@ listen('convert-progress', (e) => {
 
   let t = tasks.get(taskId);
   if (!t) {
-    t = { id: taskId, target: p.target || 'convert', state: p.state, pct, title, sub, outPath: p.out_path || null, timer: null, hovered: false };
+    t = { id: taskId, target: p.target || 'convert', state, pct, title, sub, outPath: p.out_path || null, timer: null, hovered: false };
     tasks.set(taskId, t);
   } else {
     if (t.timer) { clearTimeout(t.timer); t.timer = null; }
-    t.state = p.state;
-    if (p.state !== 'stopped') t.pct = pct;
+    t.state = state;
+    if (state !== 'stopped') t.pct = pct;
     t.title = title;
     t.sub = sub;
     if (p.out_path) t.outPath = p.out_path;
@@ -710,18 +736,18 @@ listen('convert-progress', (e) => {
 
   upsertCardDOM(t);
 
-  if (p.state === 'done' || p.state === 'error' || p.state === 'stopped') {
+  if (state === 'done' || state === 'error' || state === 'stopped') {
     for (const [otherId, otherT] of Array.from(tasks.entries())) {
       if (otherId !== taskId && otherT.target === (p.target || 'convert') && otherT.state === 'running') {
         removeTask(otherId);
       }
     }
   }
-  if (p.state === 'done') {
-    scheduleAutoRemove(taskId, p.out_path ? 6500 : 2600);
-  } else if (p.state === 'stopped') {
+  if (state === 'done') {
+    scheduleAutoRemove(taskId, p.out_path ? 4500 : 2500);
+  } else if (state === 'stopped') {
     scheduleAutoRemove(taskId, 1500);
-  } else if (p.state === 'error') {
+  } else if (state === 'error') {
     scheduleAutoRemove(taskId, 3500);
   }
 });

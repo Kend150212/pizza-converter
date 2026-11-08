@@ -658,27 +658,14 @@ fn run_voice_worker(
                             format!("{task_label} · {stage_msg}")
                         };
 
-                        // Emit both global convert-progress and dedicated voice-studio-progress
+                        // Emit dedicated voice-studio-progress (Voice Studio is an in-app tool; it does not spawn global conversion HUD toasts)
                         let _ = app.emit(
                             "voice-studio-progress",
                             serde_json::json!({
                                 "task": task_label,
+                                "label": current_label,
                                 "percent": pct,
                                 "stage": stage_msg,
-                            }),
-                        );
-                        let _ = app.emit(
-                            "convert-progress",
-                            serde_json::json!({
-                                "task_id": format!("voicestudio::{task_label}"),
-                                "state": "running",
-                                "done": 0,
-                                "total": 1,
-                                "percent": pct,
-                                "current": current_label,
-                                "target": "Voice Studio",
-                                "error": serde_json::Value::Null,
-                                "out_path": serde_json::Value::Null,
                             }),
                         );
                     }
