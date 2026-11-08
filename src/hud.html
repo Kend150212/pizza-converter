@@ -505,7 +505,7 @@ function upsertCardDOM(t) {
         cur.title = `⏹ Stopped · ${tgtLabel}`;
         cur.sub = 'Task cancelled by user';
         upsertCardDOM(cur);
-        try { await invoke('cancel_task_cmd', { target: cur.target }); } catch (_) {}
+        try { await invoke('cancel_task_cmd', { target: cur.target, taskId: t.id }); } catch (_) {}
         scheduleAutoRemove(t.id, 1200);
         return;
       }

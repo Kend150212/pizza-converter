@@ -141,7 +141,7 @@ fn probe_duration_us(bin: &Path, input: &Path) -> Option<u64> {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        pcmd.creation_flags(0x08000000);
+        pcmd.creation_flags(0x08000000 | 0x00004000);
     }
     let out = pcmd.arg("-hide_banner").arg("-i").arg(input).output().ok()?;
     let stderr_str = String::from_utf8_lossy(&out.stderr);
@@ -178,7 +178,7 @@ where
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x08000000);
+        cmd.creation_flags(0x08000000 | 0x00004000);
     }
     cmd.arg("-y")
         .arg("-hide_banner")

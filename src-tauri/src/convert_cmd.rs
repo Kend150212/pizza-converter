@@ -7,28 +7,78 @@ use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
 
+
+#[derive(Clone, Debug)]
+pub struct ActiveTaskInfo {
+    pub pid: u32,
+    pub target: String,
+    pub task_id: Option<String>,
+}
+
 pub static CANCEL_REQUESTED: AtomicBool = AtomicBool::new(false);
-static ACTIVE_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
+static ACTIVE_TASKS: Mutex<Vec<ActiveTaskInfo>> = Mutex::new(Vec::new());
+static CANCELLED_TASKS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
 pub fn is_cancelled() -> bool {
     CANCEL_REQUESTED.load(Ordering::SeqCst)
 }
 
-pub fn reset_cancel() {
-    CANCEL_REQUESTED.store(false, Ordering::SeqCst);
+pub fn is_task_cancelled(task_id: Option<&str>, target: Option<&str>) -> bool {
+    if CANCEL_REQUESTED.load(Ordering::SeqCst) {
+        return true;
+    }
+    if let Ok(cancelled) = CANCELLED_TASKS.lock() {
+        if let Some(tid) = task_id {
+            if cancelled.iter().any(|k| k == tid) {
+                return true;
+            }
+        }
+        if let Some(tgt) = target {
+            if cancelled.iter().any(|k| k == tgt) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
-pub fn register_child_pid(pid: u32) {
-    if let Ok(mut list) = ACTIVE_PIDS.lock() {
-        if !list.contains(&pid) {
-            list.push(pid);
+pub fn reset_cancel() {
+    CANCEL_REQUESTED.store(false, Ordering::SeqCst);
+    if let Ok(mut cancelled) = CANCELLED_TASKS.lock() {
+        cancelled.clear();
+    }
+}
+
+pub fn reset_task_cancel(task_id: Option<&str>, target: Option<&str>) {
+    if let Ok(mut cancelled) = CANCELLED_TASKS.lock() {
+        if let Some(tid) = task_id {
+            cancelled.retain(|k| k != tid);
+        }
+        if let Some(tgt) = target {
+            cancelled.retain(|k| k != tgt);
         }
     }
 }
 
+pub fn register_task_child_pid(pid: u32, target: &str, task_id: Option<&str>) {
+    if let Ok(mut list) = ACTIVE_TASKS.lock() {
+        if !list.iter().any(|item| item.pid == pid) {
+            list.push(ActiveTaskInfo {
+                pid,
+                target: target.to_string(),
+                task_id: task_id.map(|s| s.to_string()),
+            });
+        }
+    }
+}
+
+pub fn register_child_pid(pid: u32) {
+    register_task_child_pid(pid, "", None);
+}
+
 pub fn unregister_child_pid(pid: u32) {
-    if let Ok(mut list) = ACTIVE_PIDS.lock() {
-        list.retain(|&p| p != pid);
+    if let Ok(mut list) = ACTIVE_TASKS.lock() {
+        list.retain(|t| t.pid != pid);
     }
 }
 
@@ -54,33 +104,55 @@ fn kill_pid_tree(pid: u32) {
 
 /// Stop / Cancel any running conversion or Cloud Drop upload immediately.
 #[tauri::command]
-pub fn cancel_task_cmd(app: tauri::AppHandle, target: Option<String>) -> Result<(), String> {
-    CANCEL_REQUESTED.store(true, Ordering::SeqCst);
-    let pids: Vec<u32> = ACTIVE_PIDS
-        .lock()
-        .map(|mut list| std::mem::take(&mut *list))
-        .unwrap_or_default();
-    for pid in pids {
+pub fn cancel_task_cmd(
+    app: tauri::AppHandle,
+    target: Option<String>,
+    task_id: Option<String>,
+) -> Result<(), String> {
+    let is_global = target.as_deref().map_or(true, |t| t.is_empty() || t == "all")
+        && task_id.as_deref().map_or(true, |t| t.is_empty() || t == "all");
+
+    if is_global {
+        CANCEL_REQUESTED.store(true, Ordering::SeqCst);
+    } else {
+        if let Ok(mut set) = CANCELLED_TASKS.lock() {
+            if let Some(ref t) = target {
+                if !t.is_empty() && !set.contains(t) {
+                    set.push(t.clone());
+                }
+            }
+            if let Some(ref tid) = task_id {
+                if !tid.is_empty() && !set.contains(tid) {
+                    set.push(tid.clone());
+                }
+            }
+        }
+    }
+
+    let mut pids_to_kill = Vec::new();
+    if let Ok(mut list) = ACTIVE_TASKS.lock() {
+        let mut remaining = Vec::new();
+        for item in list.drain(..) {
+            let match_tid = task_id.as_ref().map_or(false, |tid| {
+                !tid.is_empty() && (item.task_id.as_deref() == Some(tid.as_str()) || item.target == *tid)
+            });
+            let match_tgt = target.as_ref().map_or(false, |tgt| {
+                !tgt.is_empty() && (item.target == *tgt || item.task_id.as_deref() == Some(tgt.as_str()))
+            });
+
+            if is_global || match_tid || match_tgt {
+                pids_to_kill.push(item.pid);
+            } else {
+                remaining.push(item);
+            }
+        }
+        *list = remaining;
+    }
+
+    for pid in pids_to_kill {
         kill_pid_tree(pid);
     }
-    let app_pid = std::process::id();
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        let ps_cmd = format!(
-            "Get-CimInstance Win32_Process -Filter \"ParentProcessId = {app_pid}\" | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }}"
-        );
-        let _ = std::process::Command::new("powershell")
-            .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_cmd])
-            .creation_flags(0x08000000)
-            .spawn();
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = std::process::Command::new("pkill")
-            .args(["-KILL", "-P", &app_pid.to_string()])
-            .spawn();
-    }
+
     let tgt = target.unwrap_or_else(|| "convert".to_string());
     append_convert_log(&app, &format!("STOPPED target={tgt} (cancelled by user)"));
     emit_progress(
@@ -3253,7 +3325,7 @@ print("PROGRESS:99:Finalizing MP3 audiobook...", flush=True)
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x08000000);
+        cmd.creation_flags(0x08000000 | 0x00004000);
     }
     #[cfg(target_os = "macos")]
     {

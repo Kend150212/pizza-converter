@@ -31,6 +31,11 @@ pub fn show_settings_window(app: &tauri::AppHandle) {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
+        #[cfg(windows)]
+        {
+            let _ = w.set_always_on_top(true);
+            let _ = w.set_always_on_top(false);
+        }
     } else {
         if let Ok(w) = tauri::WebviewWindowBuilder::new(
             app,
@@ -47,6 +52,11 @@ pub fn show_settings_window(app: &tauri::AppHandle) {
         {
             let _ = w.show();
             let _ = w.set_focus();
+            #[cfg(windows)]
+            {
+                let _ = w.set_always_on_top(true);
+                let _ = w.set_always_on_top(false);
+            }
         }
     }
 }

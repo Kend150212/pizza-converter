@@ -524,7 +524,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
 </head>
 <body>
 <div id="window">
-  <div id="titlebar" data-tauri-drag-region><span id="title-text" data-i18n="settings_title">Settings</span><span id="app-version-badge" style="font-size: 10px; margin-left: 8px; color: #5eead4; background: rgba(45,212,191,0.14); border: 1px solid rgba(45,212,191,0.35); padding: 1.5px 8px; border-radius: 999px; font-weight: 700; letter-spacing: 0.04em;">v1.0.4.0</span><button id="close">✕</button></div>
+  <div id="titlebar" data-tauri-drag-region><span id="title-text" data-i18n="settings_title">Settings</span><span id="app-version-badge" style="font-size: 10px; margin-left: 8px; color: #5eead4; background: rgba(45,212,191,0.14); border: 1px solid rgba(45,212,191,0.35); padding: 1.5px 8px; border-radius: 999px; font-weight: 700; letter-spacing: 0.04em;">v1.0.6.0</span><button id="close">✕</button></div>
   <div id="body">
     <nav id="sidebar">
       <div class="nav-top">
@@ -554,13 +554,59 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
         </button>
         <div id="sidebar-version-badge" style="margin-top: 6px; padding: 5px 10px; font-size: 10px; font-weight: 700; color: #5eead4; background: rgba(45,212,191,.10); border: 1px solid rgba(45,212,191,.28); border-radius: 8px; text-align: center; letter-spacing: 0.05em; display: flex; align-items: center; justify-content: center; gap: 6px;">
           <span style="display:inline-block; width: 5px; height: 5px; border-radius: 50%; background: #2dd4bf; box-shadow: 0 0 6px #2dd4bf;"></span>
-          <span>v1.0.4.0 · AI STUDIO</span>
+          <span id="sidebar-version-badge-text">v1.0.6.0 · VOICE STUDIO</span>
         </div>
+        <button type="button" id="btn-check-updates" style="margin-top: 4px; width: 100%; padding: 5px 8px; font-size: 10px; font-weight: 600; color: #38bdf8; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.22); border-radius: 7px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all .15s ease;">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          <span id="lbl-check-updates-text">Check for Updates</span>
+        </button>
       </div>
     </nav>
     <main>
+      <div id="update-notification-banner" class="hidden" style="margin: 0 0 16px 0; padding: 12px 16px; border-radius: 12px; background: linear-gradient(135deg, rgba(20, 184, 166, 0.15), rgba(59, 130, 246, 0.18)); border: 1px solid rgba(45, 212, 191, 0.4); display: flex; align-items: center; justify-content: space-between; gap: 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.25);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 22px;">🚀</span>
+          <div>
+            <div style="font-size: 13px; font-weight: 700; color: #f0fdf4; display: flex; align-items: center; gap: 8px;">
+              <span>New Version Available</span>
+              <span id="update-banner-tag" style="background: #2dd4bf; color: #042f2e; font-size: 10px; font-weight: 800; padding: 1px 7px; border-radius: 999px;">v1.0.7</span>
+            </div>
+            <div id="update-banner-desc" style="font-size: 11px; color: rgba(226, 232, 240, 0.85); margin-top: 2px;">
+              A new release is available with new features and performance enhancements.
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+          <button id="btn-banner-update-now" style="background: linear-gradient(135deg, #14b8a6, #0ea5e9); color: #fff; font-weight: 700; font-size: 11.5px; border: none; padding: 7px 14px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 10px rgba(20,184,166,0.35);">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Update via Microsoft Store</span>
+          </button>
+          <button id="btn-banner-dismiss" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px;">✕</button>
+        </div>
+      </div>
       <section id="view-general" class="view">
         <div class="section-label" data-i18n="sec_general">GENERAL PREFERENCES</div>
+        <div class="card" id="card-app-updates" style="border-left: 3px solid #38bdf8;">
+          <div class="row">
+            <div>
+              <div class="row-title" style="display: flex; align-items: center; gap: 8px;">
+                <span>Pizza Converter Updates</span>
+                <span id="badge-update-status" style="font-size: 10px; font-weight: 700; background: rgba(56,189,248,0.12); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); padding: 1px 7px; border-radius: 999px;">Up to date</span>
+              </div>
+              <div class="row-sub" id="update-status-desc">Installed: v1.0.6.0 · Distributed via Microsoft Store</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button class="btn-ghost" id="btn-manual-update-check" style="font-size: 11px; padding: 6px 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                <span id="lbl-manual-check">Check for Updates</span>
+              </button>
+              <button class="btn-ghost" id="btn-open-store-updates" style="font-size: 11px; padding: 6px 12px; background: rgba(45,212,191,0.12); border-color: rgba(45,212,191,0.35); color: #5eead4; display: flex; align-items: center; gap: 6px; cursor: pointer;" title="Open Microsoft Store to check for app updates">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Microsoft Store</span>
+              </button>
+            </div>
+          </div>
+        </div>
         <div class="card hidden" id="perm-banner">
           <div class="row">
             <div><div class="row-title" data-i18n="perm_title">Keyboard permission needed</div><div class="row-sub" data-i18n="perm_sub"></div></div>
@@ -858,7 +904,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
         <div class="studio-subtab-pane hidden" id="aitab-pane-dubbing">
           <div class="studio-action-banner">
             <div class="studio-action-steps">
-              <span class="studio-step-pill">STEP 1</span><span>Choose Speaker Context &amp; Voice Gender below</span>
+              <span class="studio-step-pill">STEP 1</span><span>Choose Speaker Context &amp; Voice Gender or Cloned Voice below</span>
               <span class="studio-step-arrow">➔</span>
               <span class="studio-step-pill">STEP 2</span><span>Select any video &amp; press <b>Ctrl + G</b></span>
               <span class="studio-step-arrow">➔</span>
@@ -895,12 +941,19 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
                 <div class="row">
                   <div>
                     <div class="row-title" data-i18n="ai_dub_gender_title">Speaker Gender &amp; Voice Engine</div>
-                    <div class="row-sub" data-i18n="ai_dub_gender_sub">Acoustic F0 pitch tracker separates Male vs Female speakers</div>
+                    <div class="row-sub" data-i18n="ai_dub_gender_sub">Choose acoustic F0 pitch tracker or use your custom Cloned Voice</div>
                   </div>
-                  <div class="segmented-control" id="ai-dub-voice-segmented">
-                    <button class="seg-btn active" data-voice="auto" data-i18n="ai_voice_auto">🚻 Auto M/F</button>
-                    <button class="seg-btn" data-voice="male" data-i18n="ai_voice_male">♂ Male</button>
-                    <button class="seg-btn" data-voice="female" data-i18n="ai_voice_female">♀ Female</button>
+                  <div style="display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+                    <div class="segmented-control" id="ai-dub-voice-segmented">
+                      <button class="seg-btn active" data-voice="auto" data-i18n="ai_voice_auto">🚻 Auto M/F</button>
+                      <button class="seg-btn" data-voice="male" data-i18n="ai_voice_male">♂ Male</button>
+                      <button class="seg-btn" data-voice="female" data-i18n="ai_voice_female">♀ Female</button>
+                    </div>
+                    <select id="sel-ai-dub-voice-override" class="ag-select" style="width:215px; font-size:10.5px;">
+                      <option value="auto">🤖 Auto Pitch Tracking (M/F)</option>
+                      <option value="vs_active">⚡ Use Voice Studio Active Voice</option>
+                      <!-- Cloned voices populated dynamically -->
+                    </select>
                   </div>
                 </div>
                 <div class="row">
@@ -2702,15 +2755,15 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
       <!-- ══════════════════════════════════════════════════════════════ -->
       <section id="view-voicestudio" class="view hidden">
         <!-- Master Banner -->
-        <div class="card" style="border-color: rgba(244, 63, 94, 0.45); background: linear-gradient(155deg, rgba(244, 63, 94, 0.12), rgba(15, 23, 42, 0.6)); padding: 12px 16px; margin-bottom: 12px;">
-          <div class="row" style="padding: 4px 0;">
+        <div class="card" style="border-color: rgba(244, 63, 94, 0.45); background: linear-gradient(135deg, rgba(244, 63, 94, 0.16), rgba(99, 102, 241, 0.08), rgba(15, 23, 42, 0.7)); padding: 12px 18px; margin-bottom: 12px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+          <div class="row" style="padding: 4px 0; border:none;">
             <div style="flex:1;">
-              <div style="font-size:13.5px; font-weight:800; color:#ffe4e6; display:flex; align-items:center; gap:8px;">
-                <span>🎙️ AI Voice Studio &amp; Offline VoiceLab</span>
-                <span id="vs-master-badge" class="cai-status-pill pro">OFFLINE · READY</span>
+              <div style="font-size:14px; font-weight:800; color:#ffe4e6; display:flex; align-items:center; gap:8px;">
+                <span>🎙️ AI Voice Studio &amp; Local Neural VoiceLab</span>
+                <span id="vs-master-badge" class="cai-status-pill pro">STUDIO DSP V2 · OFFLINE READY</span>
               </div>
-              <div style="font-size:11px; color:rgba(254,205,211,.8); margin-top:3px; line-height: 1.45;">
-                Studio-grade Text-to-Speech &amp; Instant Voice Cloning running 100% locally on your machine.
+              <div style="font-size:11px; color:rgba(254,205,211,.85); margin-top:3px; line-height: 1.45;">
+                Studio-grade Text-to-Speech &amp; Instant Zero-Shot Voice Cloning running 100% locally on your hardware.
                 Zero subscription fees, zero API charges, unlimited lifetime voice generation.
               </div>
             </div>
@@ -2719,15 +2772,15 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
         </div>
 
         <!-- Global App Override Switch -->
-        <div class="card" style="margin-bottom: 12px; border-color: rgba(251, 191, 36, 0.35); background: linear-gradient(155deg, rgba(251, 191, 36, 0.08), rgba(15, 23, 42, 0.5));">
-          <div class="row" style="padding: 6px 0;">
+        <div class="card" style="margin-bottom: 12px; border-color: rgba(251, 191, 36, 0.38); background: linear-gradient(155deg, rgba(251, 191, 36, 0.09), rgba(15, 23, 42, 0.55)); border-radius: 10px;">
+          <div class="row" style="padding: 6px 0; border:none;">
             <div style="flex:1;">
               <div style="font-size:12px; font-weight:700; color:#fef08a; display:flex; align-items:center; gap:6px;">
                 <span>⚡ Master App Override: Upgrade All App Voices</span>
-                <span style="font-size:9.5px; padding:1.5px 6px; border-radius:6px; background:rgba(251,191,36,.2); color:#fbbf24; border:1px solid rgba(251,191,36,.35);">RECOMMENDED</span>
+                <span style="font-size:9.5px; padding:1.5px 6px; border-radius:6px; background:rgba(251,191,36,.22); color:#fbbf24; border:1px solid rgba(251,191,36,.4);">RECOMMENDED</span>
               </div>
               <div style="font-size:10.5px; color:#cbd5e1; margin-top:2px;">
-                When active, your selected Voice Studio / Cloned Voice automatically powers <b>AI Video Review, Movie Recaps, AI Dubbing, and Audiograms</b> instead of monotone web voices.
+                When active, your selected Voice Studio profile or custom Cloned Voice automatically powers <b>AI Video Review, Movie Recaps, AI Dubbing, SRT Dubbing, and Audiograms</b> instead of robotic monotone voices.
               </div>
             </div>
             <button class="toggle active" id="tgl-vs-override-global" aria-pressed="true"><span class="knob"></span></button>
@@ -2735,58 +2788,99 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
         </div>
 
         <!-- 2-Column Studio: Left = VoiceLab & Cloner, Right = TTS & SRT Dubber -->
-        <div style="display:grid; grid-template-columns: minmax(320px, 1fr) minmax(340px, 1.15fr); gap:12px; margin-bottom: 12px;">
+        <div style="display:grid; grid-template-columns: minmax(330px, 1fr) minmax(360px, 1.2fr); gap:12px; margin-bottom: 12px;">
           
           <!-- Column 1: VoiceLab (Profiles & Instant Cloner) -->
           <div style="display:flex; flex-direction:column; gap:12px;">
-            <div class="card" style="margin-bottom:0;">
-              <div class="card-title" style="color:#f43f5e; display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                <span style="display:flex; align-items:center; gap:6px;">
-                  <svg style="width:15px; height:15px; stroke:#f43f5e; fill:none;" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+            <div class="card" style="margin-bottom:0; border-radius:10px; background:rgba(15,23,42,0.65); border:1px solid rgba(244,63,94,0.3);">
+              <div class="card-title" style="color:#fb7185; display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+                <span style="display:flex; align-items:center; gap:6px; font-weight:800;">
+                  <svg style="width:16px; height:16px; stroke:#fb7185; fill:none;" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
                   VoiceLab · Curated &amp; Cloned Voices
                 </span>
-                <span style="font-size:10px; color:#94a3b8;" id="vs-voice-count-badge">4 Curated Voices</span>
+                <span style="font-size:10px; color:#5eead4; background:rgba(45,212,191,0.12); padding:2px 8px; border-radius:999px; border:1px solid rgba(45,212,191,0.3);" id="vs-voice-count-badge">330+ Voices (All Catalogs)</span>
+              </div>
+
+              <!-- Filter Toolbar: Language, Gender, Search -->
+              <div style="display:flex; flex-direction:column; gap:7px; margin-bottom:10px;">
+                <div style="display:flex; gap:6px;">
+                  <select id="sel-vs-lang-filter" style="flex:1; font-size:11px; font-weight:700; background:rgba(10,14,26,0.9); border:1px solid rgba(244,63,94,0.45); border-radius:6px; padding:6px 8px; color:#ffe4e6; cursor:pointer;">
+                    <option value="en" selected>🇺🇸 English (US, UK, AU, CA · 30+ Voices)</option>
+                    <option value="vi">🇻🇳 Vietnamese (Tiếng Việt · All 11+ Styles &amp; Narrators)</option>
+                    <option value="all">🌐 All Languages (330+ Neural Voices)</option>
+                    <option value="cloned">🧬 My Cloned Voices (Zero-Shot)</option>
+                    <option value="ja">🇯🇵 Japanese (日本語 · Keita &amp; Nanami)</option>
+                    <option value="ko">🇰🇷 Korean (한국어 · InJoon &amp; SunHi)</option>
+                    <option value="zh">🇨🇳 Chinese (中文 · Mandarin &amp; Cantonese)</option>
+                    <option value="fr">🇫🇷 French (Français · Henri, Denise &amp; Canada)</option>
+                    <option value="de">🇩🇪 German (Deutsch · Conrad &amp; Austria)</option>
+                    <option value="es">🇪🇸 Spanish (Español · Spain, Mexico &amp; LatAm)</option>
+                    <option value="it">🇮🇹 Italian (Italiano)</option>
+                    <option value="ru">🇷🇺 Russian (Русский)</option>
+                    <option value="th">🇹🇭 Thai (ไทย)</option>
+                    <option value="id">🇮🇩 Indonesian (Bahasa Indonesia)</option>
+                    <option value="pt">🇧🇷 Portuguese (Brasil &amp; Portugal)</option>
+                    <option value="hi">🇮🇳 Hindi (हिन्दी)</option>
+                  </select>
+                  <select id="sel-vs-gender-filter" style="width:96px; font-size:11px; background:rgba(10,14,26,0.9); border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:6px; color:#cbd5e1; cursor:pointer;">
+                    <option value="all">All Genders</option>
+                    <option value="male">👨 Male</option>
+                    <option value="female">👩 Female</option>
+                  </select>
+                </div>
+                <div style="position:relative;">
+                  <input type="text" id="inp-vs-search" placeholder="🔍 Search voice name, style, accent (e.g. Andrew, Recap, Anime)..." style="width:100%; font-size:11px; background:rgba(10,14,26,0.85); border:1px solid rgba(255,255,255,0.12); border-radius:6px; padding:6px 8px; color:#f8fafc;" />
+                </div>
               </div>
 
               <!-- Voice Cards Container -->
-              <div id="vs-voice-list" style="display:flex; flex-direction:column; gap:6px; max-height:210px; overflow-y:auto; padding-right:4px;">
+              <div id="vs-voice-list" style="display:flex; flex-direction:column; gap:6px; max-height:240px; overflow-y:auto; padding-right:4px;">
                 <!-- Populated dynamically via JS -->
               </div>
 
-              <!-- Voice Cloner Box -->
-              <div style="margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,.08);">
-                <div style="font-size:11.5px; font-weight:700; color:#fb7185; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
-                  <span>🧬 Instant Voice Cloner (Zero-Shot)</span>
+              <!-- Instant Voice Cloner Box -->
+              <div style="margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.08);">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+                  <div style="font-size:11.8px; font-weight:800; color:#fb7185; display:flex; align-items:center; gap:6px;">
+                    <span>🧬 Instant Voice Cloner (Zero-Shot)</span>
+                  </div>
+                  <span style="font-size:9.5px; color:#5eead4; background:rgba(45,212,191,0.12); border:1px solid rgba(45,212,191,0.3); padding:1px 6px; border-radius:4px;">TIMBRE V2</span>
                 </div>
                 <div style="font-size:10.5px; color:#94a3b8; margin-bottom:8px;">
-                  Record 5–10s of any voice or drop an audio clip to clone its exact timbre.
+                  Record 5–10s of any voice or drop an audio clip to clone its exact acoustic timbre for all features.
                 </div>
 
                 <div style="display:flex; gap:6px; margin-bottom:8px;">
-                  <button class="btn secondary" id="btn-vs-record-mic" style="flex:1; font-size:10.5px; padding:6px 10px;">
-                    🎙️ Record Mic (5-10s)
+                  <button class="btn secondary" id="btn-vs-record-mic" style="flex:1; font-size:10.5px; padding:7px 10px; display:flex; align-items:center; justify-content:center; gap:5px;">
+                    <span>🎙️</span><span>Record Mic (5-10s)</span>
                   </button>
-                  <button class="btn secondary" id="btn-vs-upload-audio" style="flex:1; font-size:10.5px; padding:6px 10px;">
-                    📁 Upload Clip
+                  <button class="btn secondary" id="btn-vs-upload-audio" style="flex:1; font-size:10.5px; padding:7px 10px; display:flex; align-items:center; justify-content:center; gap:5px;">
+                    <span>📁</span><span>Upload Sample</span>
                   </button>
                 </div>
 
                 <!-- Record status / preview area -->
-                <div id="vs-record-status-box" style="display:none; padding:8px 10px; border-radius:8px; background:rgba(0,0,0,.35); border:1px solid rgba(244,63,94,.3); margin-bottom:8px;">
-                  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
-                    <span id="vs-record-status-label" style="font-size:10px; font-weight:700; color:#f43f5e;">Recording... Speak clearly</span>
-                    <span id="vs-record-timer" style="font-size:11px; font-family:monospace; color:#ffe4e6;">0:00 / 0:08</span>
+                <div id="vs-record-status-box" style="display:none; padding:10px; border-radius:8px; background:rgba(0,0,0,0.45); border:1px solid rgba(244,63,94,0.35); margin-bottom:8px;">
+                  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:5px;">
+                    <span id="vs-record-status-label" style="font-size:10.5px; font-weight:700; color:#f43f5e;">Recording... Speak clearly</span>
+                    <span id="vs-record-timer" style="font-size:11px; font-family:monospace; color:#ffe4e6; font-weight:700;">0:00 / 0:08</span>
                   </div>
-                  <div style="height:6px; background:rgba(255,255,255,.1); border-radius:999px; overflow:hidden;">
+                  <div style="height:6px; background:rgba(255,255,255,0.12); border-radius:999px; overflow:hidden;">
                     <div id="vs-record-progress" style="width:0%; height:100%; background:linear-gradient(90deg, #f43f5e, #fb7185); transition:width .1s linear;"></div>
                   </div>
                 </div>
 
-                <div style="display:flex; gap:6px;">
-                  <input type="text" id="inp-vs-clone-name" placeholder="Voice Name (e.g. My Voice, John Trailer)" style="flex:1; font-size:10.5px; background:rgba(15,23,42,.7); border:1px solid rgba(255,255,255,.12); border-radius:6px; padding:5px 8px; color:#f8fafc;" />
-                  <button class="btn primary" id="btn-vs-submit-clone" style="font-size:10.5px; padding:5px 12px; background:#f43f5e; border-color:#fb7185;">
+                <div style="display:flex; gap:6px; margin-bottom:8px;">
+                  <input type="text" id="inp-vs-clone-name" placeholder="Voice Name (e.g. My Studio Voice, John Trailer)" style="flex:1; font-size:11px; background:rgba(15,23,42,0.85); border:1px solid rgba(255,255,255,0.14); border-radius:6px; padding:6px 8px; color:#f8fafc;" />
+                  <button class="btn primary" id="btn-vs-submit-clone" style="font-size:11px; padding:6px 14px; background:linear-gradient(135deg, #e11d48, #f43f5e); border-color:#fb7185; font-weight:700;">
                     Save Voice
                   </button>
+                </div>
+
+                <!-- Custom Cloned Voices Quick Shelf -->
+                <div id="vs-cloned-shelf" style="display:none; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.08);">
+                  <div style="font-size:10px; font-weight:800; color:#a78bfa; margin-bottom:5px; text-transform:uppercase; letter-spacing:0.04em;">My Saved Cloned Voices</div>
+                  <div id="vs-cloned-list-items" style="display:flex; flex-direction:column; gap:4px; max-height:100px; overflow-y:auto;"></div>
                 </div>
               </div>
             </div>
@@ -2796,75 +2890,121 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
           <div style="display:flex; flex-direction:column; gap:12px;">
             
             <!-- TTS Generator -->
-            <div class="card" style="margin-bottom:0;">
+            <div class="card" style="margin-bottom:0; border-radius:10px; background:rgba(15,23,42,0.65); border:1px solid rgba(56,189,248,0.3);">
               <div class="card-title" style="color:#38bdf8; display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                <span style="display:flex; align-items:center; gap:6px;">
-                  <svg style="width:15px; height:15px; stroke:#38bdf8; fill:none;" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                <span style="display:flex; align-items:center; gap:6px; font-weight:800;">
+                  <svg style="width:16px; height:16px; stroke:#38bdf8; fill:none;" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
                   Text-to-Speech Studio
                 </span>
-                <span style="font-size:10px; color:#94a3b8;" id="vs-char-count">0 characters</span>
+                <span id="vs-active-voice-pill" style="font-size:10px; font-weight:700; color:#5eead4; background:rgba(45,212,191,0.14); border:1px solid rgba(45,212,191,0.35); padding:2.5px 8px; border-radius:6px; display:flex; align-items:center; gap:4px;">
+                  🎬 Andrew · Cinematic Multilingual
+                </span>
               </div>
 
-              <textarea id="txt-vs-script" placeholder="Type or paste any script here to generate human studio voiceover..." style="width:100%; height:90px; font-size:11px; background:rgba(10,14,26,.85); border:1px solid rgba(255,255,255,.1); border-radius:8px; padding:8px 10px; color:#f8fafc; resize:vertical; line-height:1.45;"></textarea>
+              <!-- Quick English Sample Script Chips -->
+              <div style="display:flex; align-items:center; gap:5px; flex-wrap:wrap; margin-bottom:8px;">
+                <span style="font-size:9.5px; color:#94a3b8; font-weight:700;">PRESETS:</span>
+                <button type="button" class="btn-ghost vs-script-chip" data-script="In a world pushed to the brink of chaos, one secret changes everything. Nobody saw it coming, and now the entire future hangs in the balance." style="font-size:9.5px; padding:2px 7px; border-radius:5px; border-color:rgba(56,189,248,0.3); color:#7dd3fc;">🎬 Movie Recap</button>
+                <button type="button" class="btn-ghost vs-script-chip" data-script="Welcome back to the studio. Today we are diving deep into the untold story behind one of the greatest innovations of our time." style="font-size:9.5px; padding:2px 7px; border-radius:5px; border-color:rgba(56,189,248,0.3); color:#7dd3fc;">🎙️ Podcast Intro</button>
+                <button type="button" class="btn-ghost vs-script-chip" data-script="The rain drummed quietly against the dark window pane as the clock struck midnight, revealing a message left behind years ago." style="font-size:9.5px; padding:2px 7px; border-radius:5px; border-color:rgba(56,189,248,0.3); color:#7dd3fc;">📚 Story Narration</button>
+                <button type="button" class="btn-ghost vs-script-chip" data-script="Stop scrolling! Here is the number one secret that top creators use to produce viral videos in under five minutes." style="font-size:9.5px; padding:2px 7px; border-radius:5px; border-color:rgba(56,189,248,0.3); color:#7dd3fc;">🔥 Viral Hook</button>
+                <button type="button" id="btn-vs-clear-text" class="btn-ghost" style="font-size:9.5px; padding:2px 7px; border-radius:5px; margin-left:auto; color:#f87171; border-color:rgba(248,113,113,0.3);">✕ Clear</button>
+              </div>
 
-              <div style="display:flex; gap:10px; align-items:center; margin-top:8px;">
-                <div style="flex:1;">
-                  <label style="font-size:9.5px; font-weight:700; color:#94a3b8; text-transform:uppercase;">Speed Rate: <span id="lbl-vs-speed" style="color:#38bdf8;">1.0x</span></label>
-                  <input type="range" id="rng-vs-speed" min="70" max="140" value="100" style="width:100%; accent-color:#38bdf8;" />
+              <!-- Language Auto-Detect Status Bar & Metrics -->
+              <div id="vs-lang-detect-box" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; font-size:10px; color:#94a3b8;">
+                <span id="vs-lang-detect-label" style="display:flex; align-items:center; gap:4px;">
+                  <span>🌐 Text Language:</span>
+                  <b id="vs-lang-detected-tag" style="color:#38bdf8;">🇺🇸 English (Default)</b>
+                </span>
+                <span style="font-size:10px; color:#cbd5e1; font-weight:700;" id="vs-char-count">0 chars · 0 words · ~0s duration</span>
+              </div>
+
+              <textarea id="txt-vs-script" placeholder="Enter or paste your script, narration, or dialogue here to synthesize studio-grade AI speech (English, Multilingual, etc.)..." style="width:100%; height:105px; font-size:11.8px; background:rgba(10,14,26,0.9); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:9px 11px; color:#f8fafc; resize:vertical; line-height:1.5; font-family:inherit;"></textarea>
+
+              <!-- Studio Audio Controls: Speed, Pitch, Stability -->
+              <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-top:10px; background:rgba(0,0,0,0.25); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
+                <div>
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                    <label style="font-size:9.5px; font-weight:700; color:#94a3b8; text-transform:uppercase;">Speed</label>
+                    <span id="lbl-vs-speed" style="font-size:9.5px; font-weight:800; color:#38bdf8;">1.0x</span>
+                  </div>
+                  <input type="range" id="rng-vs-speed" min="60" max="160" value="100" style="width:100%; accent-color:#38bdf8;" />
                 </div>
-                <div style="flex:1;">
-                  <label style="font-size:9.5px; font-weight:700; color:#94a3b8; text-transform:uppercase;">Emotion / Stability: <span id="lbl-vs-stability" style="color:#38bdf8;">85%</span></label>
-                  <input type="range" id="rng-vs-stability" min="20" max="100" value="85" style="width:100%; accent-color:#38bdf8;" />
+                <div>
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                    <label style="font-size:9.5px; font-weight:700; color:#94a3b8; text-transform:uppercase;">Pitch</label>
+                    <span id="lbl-vs-pitch" style="font-size:9.5px; font-weight:800; color:#f43f5e;">0 st (Natural)</span>
+                  </div>
+                  <input type="range" id="rng-vs-pitch" min="-6" max="6" value="0" step="1" style="width:100%; accent-color:#f43f5e;" />
+                </div>
+                <div>
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                    <label style="font-size:9.5px; font-weight:700; color:#94a3b8; text-transform:uppercase;">Stability</label>
+                    <span id="lbl-vs-stability" style="font-size:9.5px; font-weight:800; color:#a855f7;">85%</span>
+                  </div>
+                  <input type="range" id="rng-vs-stability" min="20" max="100" value="85" style="width:100%; accent-color:#a855f7;" />
                 </div>
               </div>
 
+              <!-- Action Bar -->
               <div style="display:flex; gap:8px; margin-top:10px; align-items:center;">
-                <button class="btn primary" id="btn-vs-generate-tts" style="flex:1; font-size:11px; padding:6px 12px; background:linear-gradient(135deg, #0284c7, #0ea5e9);">
-                  ▶️ Generate &amp; Play
+                <button class="btn primary" id="btn-vs-generate-tts" style="flex:1.2; font-size:11.5px; font-weight:800; padding:8px 14px; background:linear-gradient(135deg, #0284c7, #2563eb); border-color:#38bdf8; display:flex; align-items:center; justify-content:center; gap:6px;">
+                  <span>▶️ Synthesize &amp; Play</span>
                 </button>
-                <button class="btn secondary" id="btn-vs-export-tts" style="font-size:11px; padding:6px 12px;">
-                  💾 Export MP3
+                <button class="btn secondary" id="btn-vs-export-tts" style="font-size:11px; padding:8px 12px; display:flex; align-items:center; gap:5px;">
+                  <span>💾</span><span>Export MP3</span>
+                </button>
+                <button class="btn-ghost" id="btn-vs-send-audiogram" title="Send generated audio directly to Audiogram Studio" style="font-size:10.5px; padding:7px 10px; border-color:rgba(168,85,247,0.4); color:#c084fc;">
+                  <span>🎬 Audiogram</span>
                 </button>
               </div>
 
-              <!-- Audio Player Container -->
-              <div id="vs-tts-player-box" style="display:none; margin-top:8px;">
+              <!-- Audio Player Container with Waveform -->
+              <div id="vs-tts-player-box" style="display:none; margin-top:10px; background:rgba(0,0,0,0.35); padding:8px 10px; border-radius:8px; border:1px solid rgba(56,189,248,0.3);">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; font-size:10px; color:#94a3b8;">
+                  <span style="display:flex; align-items:center; gap:6px;">
+                    <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#22c55e;"></span>
+                    <span style="font-weight:700; color:#f8fafc;">Audio Master Ready</span>
+                  </span>
+                  <span id="vs-player-file-path" style="font-family:monospace; color:#38bdf8; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+                </div>
                 <audio id="vs-tts-audio" controls style="width:100%; height:32px; filter:invert(1) hue-rotate(180deg);"></audio>
               </div>
             </div>
 
             <!-- Subtitle-to-Speech (.SRT / .VTT Dubber) -->
-            <div class="card" style="margin-bottom:0; border-color:rgba(168,85,247,.35);">
+            <div class="card" style="margin-bottom:0; border-radius:10px; background:rgba(15,23,42,0.65); border:1px solid rgba(168,85,247,0.35);">
               <div class="card-title" style="color:#c084fc; display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-                <span style="display:flex; align-items:center; gap:6px;">
-                  <svg style="width:15px; height:15px; stroke:#c084fc; fill:none;" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 12h4M14 12h4M6 15.5h8"/></svg>
+                <span style="display:flex; align-items:center; gap:6px; font-weight:800;">
+                  <svg style="width:16px; height:16px; stroke:#c084fc; fill:none;" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 12h4M14 12h4M6 15.5h8"/></svg>
                   Subtitle-to-Speech Studio (SRT Dubber)
                 </span>
-                <span style="font-size:10px; padding:1.5px 6px; border-radius:6px; background:rgba(168,85,247,.18); color:#d8b4fe; border:1px solid rgba(168,85,247,.3);">Timeline Sync</span>
+                <span style="font-size:10px; padding:2px 7px; border-radius:6px; background:rgba(168,85,247,0.18); color:#d8b4fe; border:1px solid rgba(168,85,247,0.3); font-weight:700;">TIMELINE SYNC</span>
               </div>
               <div style="font-size:10.5px; color:#94a3b8; margin-bottom:8px;">
-                Upload a subtitle file (.srt / .vtt) to turn every line into speech, automatically paced to fit the video timestamps.
+                Upload a subtitle file (.srt / .vtt) to turn every line into speech, automatically paced to fit exact video timestamps with zero drift.
               </div>
 
               <div style="display:flex; gap:8px; align-items:center;">
-                <button class="btn secondary" id="btn-vs-pick-srt" style="flex:1; font-size:11px; padding:6px 12px;">
-                  📄 Select .SRT / .VTT File
+                <button class="btn secondary" id="btn-vs-pick-srt" style="flex:1; font-size:11px; padding:7px 12px; display:flex; align-items:center; justify-content:center; gap:6px;">
+                  <span>📄</span><span>Select .SRT / .VTT File</span>
                 </button>
                 <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
-                  <label style="font-size:10px; color:#cbd5e1; cursor:pointer;" for="chk-vs-autofit">Auto Time-Fit</label>
+                  <label style="font-size:10px; color:#cbd5e1; cursor:pointer; font-weight:700;" for="chk-vs-autofit">Auto Time-Fit</label>
                   <input type="checkbox" id="chk-vs-autofit" checked style="accent-color:#c084fc; cursor:pointer;" />
                 </div>
               </div>
 
-              <div id="vs-srt-file-info" style="display:none; margin-top:8px; font-size:10.5px; background:rgba(0,0,0,.3); padding:6px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.08); color:#e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+              <div id="vs-srt-file-info" style="display:none; margin-top:8px; font-size:10.5px; background:rgba(0,0,0,0.35); padding:6px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); color:#e2e8f0; display:flex; justify-content:space-between; align-items:center;">
                 <span id="vs-srt-filename" style="font-family:monospace; color:#c084fc;">subtitles.srt</span>
-                <span id="vs-srt-cue-count" style="color:#94a3b8;">0 cues</span>
+                <span id="vs-srt-cue-count" style="color:#94a3b8; font-weight:700;">0 cues</span>
               </div>
 
-              <button class="btn primary" id="btn-vs-dub-srt" style="width:100%; margin-top:8px; font-size:11px; padding:6px 12px; background:linear-gradient(135deg, #7c3aed, #9333ea); border-color:#a855f7;">
-                🎬 Synthesize Full Synchronized Voiceover
+              <button class="btn primary" id="btn-vs-dub-srt" style="width:100%; margin-top:8px; font-size:11.5px; font-weight:800; padding:8px 14px; background:linear-gradient(135deg, #7c3aed, #9333ea); border-color:#a855f7; display:flex; align-items:center; justify-content:center; gap:6px;">
+                <span>🎬</span><span>Synthesize Full Synchronized Voiceover</span>
               </button>
-              <div id="vs-srt-result-box" style="display:none; margin-top:6px; font-size:10.5px; color:#4ade80;"></div>
+              <div id="vs-srt-result-box" style="display:none; margin-top:6px; font-size:10.5px; color:#4ade80; font-weight:700;"></div>
             </div>
 
           </div>
@@ -3322,6 +3462,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
 </div>
 <script src="i18n.js"></script>
 <script src="tauri-bridge.js"></script>
+<script src="voices_catalog.js"></script>
 <script src="settings.js"></script>
 </body>
 </html>

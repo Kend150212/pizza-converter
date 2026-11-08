@@ -241,7 +241,9 @@ pub fn supported_targets(input: String) -> Vec<String> {
             "ai_burn_captions", "cap_beasty", "cap_popline", "cap_deep_diver", "cap_one_punch", "cap_glow", "cap_roleplay",
             "ai_dubbing", "dub_vi", "dub_en", "dub_zh", "dub_ja", "dub_ko", "dub_es", "dub_fr", "dub_custom",
             "dub_style_default", "dub_style_beasty", "dub_style_popline", "dub_style_deep_diver", "dub_style_one_punch", "dub_style_glow", "dub_style_roleplay", "dub_style_none",
+            "dub_vc_auto", "dub_vc_active", "dub_vc_male", "dub_vc_female", "dub_vc_andrew", "dub_vc_ava", "dub_vc_namminh", "dub_vc_hoaimy", "dub_vc_cloned",
             "ai_review", "rev_pin_1", "rev_pin_2", "rev_pin_3", "rev_pin_4", "rev_pin_5", "rev_custom",
+            "rev_vc_auto", "rev_vc_active", "rev_vc_andrew", "rev_vc_ava", "rev_vc_brian", "rev_vc_emma", "rev_vc_namminh", "rev_vc_hoaimy", "rev_vc_cloned",
             "ai_audiogram", "ag_daily_cafe", "ag_vinyl_vibes", "ag_after_dark", "ag_studio_pulse",
             "merge_video", "ai_back",
         ]);

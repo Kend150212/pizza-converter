@@ -295,93 +295,434 @@ def extract_timbre_features(audio_path, voice_name="Cloned Voice", gender_hint="
     return profile
 
 
+def detect_text_language(text: str) -> str:
+    """Detect language code (vi, ja, ko, zh, en) from raw text."""
+    if not text:
+        return "en"
+    vi_chars = set("àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ"
+                   "ÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ")
+    if any(c in vi_chars for c in text):
+        return "vi"
+    if any('\u3040' <= c <= '\u30ff' for c in text):
+        return "ja"
+    if any('\uac00' <= c <= '\ud7af' for c in text):
+        return "ko"
+    if any('\u4e00' <= c <= '\u9fff' for c in text):
+        return "zh"
+    return "en"
+
+
 # Built-in curated studio voice catalog
 CURATED_VOICE_MAP = {
+    # 🇻🇳 Vietnamese Voices & Creator Personas
+    "vi_nam_minh_recap": {
+        "id": "vi_nam_minh_recap",
+        "name": "Nam Minh · Review Phim / Movie Recap",
+        "voice": "vi-VN-NamMinhNeural",
+        "pitch_shift": -1.5,
+        "bass_gain": 3.5,
+        "treble_gain": 1.0,
+        "default_rate": "+0%",
+        "gender": "male",
+        "lang": "vi",
+        "style": "Movie Recap & Deep Narration"
+    },
+    "vi_nam_minh_news": {
+        "id": "vi_nam_minh_news",
+        "name": "Nam Minh · Tin Tức & Thời Sự",
+        "voice": "vi-VN-NamMinhNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 1.0,
+        "treble_gain": 1.5,
+        "default_rate": "+5%",
+        "gender": "male",
+        "lang": "vi",
+        "style": "News & Formal Broadcast"
+    },
+    "vi_nam_minh_audiobook": {
+        "id": "vi_nam_minh_audiobook",
+        "name": "Nam Minh · Sách Nói & Triết Lý",
+        "voice": "vi-VN-NamMinhNeural",
+        "pitch_shift": -0.8,
+        "bass_gain": 2.0,
+        "treble_gain": 0.5,
+        "default_rate": "-4%",
+        "gender": "male",
+        "lang": "vi",
+        "style": "Storytelling & Audiobook"
+    },
+    "vi_nam_minh_story": {
+        "id": "vi_nam_minh_story",
+        "name": "Nam Minh · Truyện Ma & Kịch Tính",
+        "voice": "vi-VN-NamMinhNeural",
+        "pitch_shift": -3.2,
+        "bass_gain": 4.0,
+        "treble_gain": -1.0,
+        "default_rate": "-2%",
+        "gender": "male",
+        "lang": "vi",
+        "style": "Dramatic Thriller & Mystery"
+    },
+    "vi_nam_minh_shorts": {
+        "id": "vi_nam_minh_shorts",
+        "name": "Nam Minh · Trẻ Trung / TikTok Shorts",
+        "voice": "vi-VN-NamMinhNeural",
+        "pitch_shift": 1.0,
+        "bass_gain": 1.0,
+        "treble_gain": 2.5,
+        "default_rate": "+8%",
+        "gender": "male",
+        "lang": "vi",
+        "style": "Commercial & Viral Shorts"
+    },
+    "vi_nam_minh": {
+        "id": "vi_nam_minh",
+        "name": "Nam Minh · Chuẩn Tự Nhiên",
+        "voice": "vi-VN-NamMinhNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 2.0,
+        "treble_gain": 0.5,
+        "default_rate": "+0%",
+        "gender": "male",
+        "lang": "vi",
+        "style": "Movie Recap & Deep Narration"
+    },
+    "vietnamese_narrator_male": {
+        "id": "vietnamese_narrator_male",
+        "name": "Nam Minh · Chuẩn Tự Nhiên",
+        "voice": "vi-VN-NamMinhNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 2.0,
+        "treble_gain": 0.5,
+        "default_rate": "+0%",
+        "gender": "male",
+        "lang": "vi",
+        "style": "Movie Recap & Deep Narration"
+    },
+    "vi_hoai_my_story": {
+        "id": "vi_hoai_my_story",
+        "name": "Hoài My · Kể Chuyện & Sách Nói",
+        "voice": "vi-VN-HoaiMyNeural",
+        "pitch_shift": -0.5,
+        "bass_gain": 1.2,
+        "treble_gain": 1.0,
+        "default_rate": "-2%",
+        "gender": "female",
+        "lang": "vi",
+        "style": "Storytelling & Audiobook"
+    },
+    "vi_hoai_my_review": {
+        "id": "vi_hoai_my_review",
+        "name": "Hoài My · Review & Đập Hộp KOC",
+        "voice": "vi-VN-HoaiMyNeural",
+        "pitch_shift": 1.2,
+        "bass_gain": 0.8,
+        "treble_gain": 2.2,
+        "default_rate": "+6%",
+        "gender": "female",
+        "lang": "vi",
+        "style": "Commercial & Lifestyle"
+    },
+    "vi_hoai_my_news": {
+        "id": "vi_hoai_my_news",
+        "name": "Hoài My · Bản Tin & Phóng Sự",
+        "voice": "vi-VN-HoaiMyNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 0.5,
+        "treble_gain": 1.5,
+        "default_rate": "+4%",
+        "gender": "female",
+        "lang": "vi",
+        "style": "News & Formal Broadcast"
+    },
+    "vi_hoai_my_lullaby": {
+        "id": "vi_hoai_my_lullaby",
+        "name": "Hoài My · Tâm Sự Đêm Khuya",
+        "voice": "vi-VN-HoaiMyNeural",
+        "pitch_shift": -1.2,
+        "bass_gain": 1.8,
+        "treble_gain": 0.2,
+        "default_rate": "-6%",
+        "gender": "female",
+        "lang": "vi",
+        "style": "Soothing Relaxation & Whisper"
+    },
+    "vi_hoai_my": {
+        "id": "vi_hoai_my",
+        "name": "Hoài My · Chuẩn Tự Nhiên",
+        "voice": "vi-VN-HoaiMyNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 0.5,
+        "treble_gain": 1.0,
+        "default_rate": "+0%",
+        "gender": "female",
+        "lang": "vi",
+        "style": "Storytelling & Audiobook"
+    },
+    "vietnamese_narrator_female": {
+        "id": "vietnamese_narrator_female",
+        "name": "Hoài My · Chuẩn Tự Nhiên",
+        "voice": "vi-VN-HoaiMyNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 0.5,
+        "treble_gain": 1.0,
+        "default_rate": "+0%",
+        "gender": "female",
+        "lang": "vi",
+        "style": "Storytelling & Audiobook"
+    },
+    # 🇺🇸 English Voices
+    "en_andrew": {
+        "id": "en_andrew",
+        "name": "Andrew · Cinematic Multilingual",
+        "voice": "en-US-AndrewMultilingualNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 1.8,
+        "treble_gain": 0.8,
+        "default_rate": "+0%",
+        "gender": "male",
+        "lang": "en",
+        "style": "Movie Recap & Deep Narration"
+    },
+    "en_ava": {
+        "id": "en_ava",
+        "name": "Ava · Expressive Storyteller",
+        "voice": "en-US-AvaMultilingualNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 0.5,
+        "treble_gain": 1.2,
+        "default_rate": "+0%",
+        "gender": "female",
+        "lang": "en",
+        "style": "Storytelling & Conversational"
+    },
+    "en_brian": {
+        "id": "en_brian",
+        "name": "Brian · BBC Documentary",
+        "voice": "en-US-BrianMultilingualNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 1.5,
+        "treble_gain": 1.5,
+        "default_rate": "-2%",
+        "gender": "male",
+        "lang": "en",
+        "style": "News & Formal Broadcast"
+    },
+    "documentary_expert": {
+        "id": "documentary_expert",
+        "name": "Brian · BBC Documentary",
+        "voice": "en-US-BrianMultilingualNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 1.5,
+        "treble_gain": 1.5,
+        "default_rate": "-2%",
+        "gender": "male",
+        "lang": "en",
+        "style": "News & Formal Broadcast"
+    },
+    "en_emma": {
+        "id": "en_emma",
+        "name": "Emma · Energetic & Commercial",
+        "voice": "en-US-EmmaMultilingualNeural",
+        "pitch_shift": 1.0,
+        "bass_gain": 0.0,
+        "treble_gain": 2.0,
+        "default_rate": "+5%",
+        "gender": "female",
+        "lang": "en",
+        "style": "Commercial & Advertising"
+    },
+    "energetic_creator": {
+        "id": "energetic_creator",
+        "name": "Emma · Energetic & Commercial",
+        "voice": "en-US-EmmaMultilingualNeural",
+        "pitch_shift": 1.0,
+        "bass_gain": 0.0,
+        "treble_gain": 2.0,
+        "default_rate": "+5%",
+        "gender": "female",
+        "lang": "en",
+        "style": "Commercial & Advertising"
+    },
     "cinematic_narrator_male": {
-        "name": "Marcus · Movie Narrator",
+        "id": "cinematic_narrator_male",
+        "name": "Marcus · Movie Trailer Baritone",
         "voice": "en-US-ChristopherNeural",
         "pitch_shift": -1.0,
         "bass_gain": 2.5,
         "treble_gain": 0.5,
         "default_rate": "-3%",
-        "gender": "male"
+        "gender": "male",
+        "lang": "en",
+        "style": "Movie Recap & Deep Narration"
     },
     "podcast_host_female": {
+        "id": "podcast_host_female",
         "name": "Elena · Podcast & Story",
         "voice": "en-US-AvaMultilingualNeural",
         "pitch_shift": 0.0,
         "bass_gain": 0.5,
         "treble_gain": 1.0,
         "default_rate": "+0%",
-        "gender": "female"
+        "gender": "female",
+        "lang": "en",
+        "style": "Storytelling & Conversational"
     },
-    "documentary_expert": {
-        "name": "David · BBC Documentary",
-        "voice": "en-US-BrianMultilingualNeural",
+    "en_jenny": {
+        "id": "en_jenny",
+        "name": "Jenny · Friendly & Bright",
+        "voice": "en-US-JennyNeural",
         "pitch_shift": 0.0,
-        "bass_gain": 1.5,
-        "treble_gain": 1.5,
-        "default_rate": "-2%",
-        "gender": "male"
-    },
-    "energetic_creator": {
-        "name": "Chloe · Viral Shorts",
-        "voice": "en-US-EmmaMultilingualNeural",
-        "pitch_shift": 1.0,
-        "bass_gain": 0.0,
-        "treble_gain": 2.0,
-        "default_rate": "+6%",
-        "gender": "female"
-    },
-    "corporate_presenter_male": {
-        "name": "Eric · Executive Presenter",
-        "voice": "en-US-EricNeural",
-        "pitch_shift": 0.0,
-        "bass_gain": 1.0,
-        "treble_gain": 0.5,
-        "default_rate": "+2%",
-        "gender": "male"
-    },
-    "friendly_explainer_female": {
-        "name": "Aria · Educational Explainer",
-        "voice": "en-US-AriaNeural",
-        "pitch_shift": 0.5,
         "bass_gain": 0.0,
         "treble_gain": 1.0,
         "default_rate": "+0%",
-        "gender": "female"
+        "gender": "female",
+        "lang": "en",
+        "style": "Casual & Conversational"
     },
-    "vietnamese_narrator_male": {
-        "name": "Nam Minh · Truyen Cam",
-        "voice": "vi-VN-NamMinhNeural",
+    "en_guy": {
+        "id": "en_guy",
+        "name": "Guy · News Anchor",
+        "voice": "en-US-GuyNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 1.0,
+        "treble_gain": 0.5,
+        "default_rate": "+0%",
+        "gender": "male",
+        "lang": "en",
+        "style": "News & Formal Broadcast"
+    },
+    # 🇯🇵 Japanese Voices
+    "ja_keita": {
+        "id": "ja_keita",
+        "name": "Keita · Anime & Dramatic",
+        "voice": "ja-JP-KeitaNeural",
         "pitch_shift": 0.0,
         "bass_gain": 1.5,
         "treble_gain": 0.5,
         "default_rate": "+0%",
-        "gender": "male"
+        "gender": "male",
+        "lang": "ja",
+        "style": "Movie Recap & Deep Narration"
     },
-    "vietnamese_narrator_female": {
-        "name": "Hoai My · Diu Dang",
-        "voice": "vi-VN-HoaiMyNeural",
+    "ja_nanami": {
+        "id": "ja_nanami",
+        "name": "Nanami · Storyteller",
+        "voice": "ja-JP-NanamiNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 0.0,
+        "treble_gain": 1.2,
+        "default_rate": "+0%",
+        "gender": "female",
+        "lang": "ja",
+        "style": "Storytelling & Audiobook"
+    },
+    # 🇰🇷 Korean Voices
+    "ko_injoon": {
+        "id": "ko_injoon",
+        "name": "InJoon · K-Drama & News",
+        "voice": "ko-KR-InJoonNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 1.2,
+        "treble_gain": 0.5,
+        "default_rate": "+0%",
+        "gender": "male",
+        "lang": "ko",
+        "style": "News & Formal Broadcast"
+    },
+    "ko_sunhi": {
+        "id": "ko_sunhi",
+        "name": "SunHi · Warm Narration",
+        "voice": "ko-KR-SunHiNeural",
         "pitch_shift": 0.0,
         "bass_gain": 0.5,
         "treble_gain": 1.0,
         "default_rate": "+0%",
-        "gender": "female"
+        "gender": "female",
+        "lang": "ko",
+        "style": "Storytelling & Audiobook"
+    },
+    # 🇨🇳 Chinese Voices
+    "zh_yunxi": {
+        "id": "zh_yunxi",
+        "name": "Yunxi · Epic Documentary",
+        "voice": "zh-CN-YunxiNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 1.5,
+        "treble_gain": 0.5,
+        "default_rate": "+0%",
+        "gender": "male",
+        "lang": "zh",
+        "style": "Movie Recap & Deep Narration"
+    },
+    "zh_xiaoxiao": {
+        "id": "zh_xiaoxiao",
+        "name": "Xiaoxiao · Sweet Story",
+        "voice": "zh-CN-XiaoxiaoNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 0.0,
+        "treble_gain": 1.0,
+        "default_rate": "+0%",
+        "gender": "female",
+        "lang": "zh",
+        "style": "Storytelling & Audiobook"
+    },
+    # 🇫🇷 French Voices
+    "fr_henri": {
+        "id": "fr_henri",
+        "name": "Henri · French Cinema",
+        "voice": "fr-FR-HenriNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 1.5,
+        "treble_gain": 0.5,
+        "default_rate": "+0%",
+        "gender": "male",
+        "lang": "fr",
+        "style": "Movie Recap & Deep Narration"
+    },
+    # 🇩🇪 German Voices
+    "de_conrad": {
+        "id": "de_conrad",
+        "name": "Conrad · German Broadcast",
+        "voice": "de-DE-ConradNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 1.2,
+        "treble_gain": 0.5,
+        "default_rate": "+0%",
+        "gender": "male",
+        "lang": "de",
+        "style": "News & Formal Broadcast"
+    },
+    # 🇪🇸 Spanish Voices
+    "es_alvaro": {
+        "id": "es_alvaro",
+        "name": "Alvaro · Spanish Story",
+        "voice": "es-ES-AlvaroNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 1.5,
+        "treble_gain": 0.5,
+        "default_rate": "+0%",
+        "gender": "male",
+        "lang": "es",
+        "style": "Movie Recap & Deep Narration"
     }
 }
 
 
-def resolve_voice_params(voice_id_or_profile):
+def resolve_voice_params(voice_id_or_profile, text_hint=""):
     """
     Resolve voice settings from either a curated voice ID, a profile dict,
     or a path to a custom cloned JSON profile.
+    If text_hint is Vietnamese and an English-only voice was passed, auto-routes to Vietnamese.
     """
+    detected_lang = detect_text_language(text_hint) if text_hint else "en"
+
     # 1. Check if it's already a dict
     if isinstance(voice_id_or_profile, dict):
         p = voice_id_or_profile
+        base_v = p.get("base_neural_voice", "vi-VN-NamMinhNeural" if detected_lang == "vi" else "en-US-AndrewMultilingualNeural")
         return {
-            "voice": p.get("base_neural_voice", "en-US-AndrewMultilingualNeural"),
+            "voice": base_v,
             "pitch_shift": float(p.get("pitch_shift_st", 0.0)),
             "bass_gain": float(p.get("eq_preset", {}).get("bass_gain_db", 0.0)),
             "treble_gain": float(p.get("eq_preset", {}).get("treble_gain_db", 0.0)),
@@ -396,27 +737,40 @@ def resolve_voice_params(voice_id_or_profile):
         try:
             with open(vid, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return resolve_voice_params(data)
+                return resolve_voice_params(data, text_hint=text_hint)
         except Exception:
             pass
 
-    # 3. Check curated dictionary
+    # 3. Smart Vietnamese fallback: if text is Vietnamese and an English-only voice was passed,
+    # preserve any chosen Vietnamese voice/style or multilingual model; otherwise route to Nam Minh or Hoai My
+    if detected_lang == "vi":
+        if vid.startswith("vi_") or vid.startswith("vi-") or "namminh" in vid.lower() or "hoaimy" in vid.lower() or "multilingual" in vid.lower():
+            pass
+        elif vid in ["podcast_host_female", "energetic_creator", "friendly_explainer_female", "en_ava", "en_emma", "en_jenny"]:
+            vid = "vi_hoai_my"
+        elif vid not in CURATED_VOICE_MAP and not ("neural" in vid.lower() and not vid.startswith("en-")):
+            vid = "vi_nam_minh"
+
+    # 4. Check curated dictionary
     if vid in CURATED_VOICE_MAP:
         return CURATED_VOICE_MAP[vid]
 
-    # 4. Check if it's a raw edge-tts voice string (e.g. "en-US-AndrewMultilingualNeural")
+    # 5. Check if it's a raw edge-tts voice string (e.g. "vi-VN-NamMinhNeural" or "en-US-AndrewMultilingualNeural")
     if "neural" in vid.lower():
+        is_female = any(x in vid.lower() for x in ["ava", "jenny", "emma", "aria", "hoaimy", "sunhi", "nanami", "xiaoxiao", "denise"])
         return {
             "voice": vid,
             "pitch_shift": 0.0,
             "bass_gain": 0.0,
             "treble_gain": 0.0,
             "default_rate": "+0%",
-            "gender": "female" if any(x in vid.lower() for x in ["ava", "jenny", "emma", "aria", "hoaimy"]) else "male"
+            "gender": "female" if is_female else "male"
         }
 
-    # 5. Default fallback
-    return CURATED_VOICE_MAP["cinematic_narrator_male"]
+    # 6. Default fallback
+    if detected_lang == "vi":
+        return CURATED_VOICE_MAP["vi_nam_minh"]
+    return CURATED_VOICE_MAP["en_andrew"]
 
 
 def apply_audio_post_processing(raw_audio_path, output_path, pitch_shift_st=0.0,
@@ -504,17 +858,33 @@ def apply_audio_post_processing(raw_audio_path, output_path, pitch_shift_st=0.0,
 
 
 async def synthesize_speech_raw(text, voice_name, output_raw_path, rate_str="+0%"):
-    """Call Edge-TTS async engine to produce pristine 48kHz audio."""
+    """Call Edge-TTS async engine to produce pristine 48kHz audio with resilient fallbacks."""
     import edge_tts
     clean_text = text.strip()
     if not clean_text:
         raise ValueError("Cannot synthesize empty text.")
 
-    communicate = edge_tts.Communicate(clean_text, voice_name, rate=rate_str)
-    await communicate.save(output_raw_path)
+    candidates = [voice_name]
+    if "Multilingual" in voice_name:
+        candidates.append(voice_name.replace("Multilingual", ""))
+    if voice_name.startswith("en-") and "en-US-AndrewNeural" not in candidates:
+        candidates.append("en-US-AndrewNeural")
+
+    last_err = None
+    for cand in candidates:
+        try:
+            communicate = edge_tts.Communicate(clean_text, cand, rate=rate_str)
+            await communicate.save(output_raw_path)
+            if os.path.isfile(output_raw_path) and os.path.getsize(output_raw_path) > 128:
+                return
+        except Exception as e:
+            last_err = e
+
+    if last_err:
+        raise last_err
 
 
-def synthesize_text_to_file(text, voice_id, output_path, speed=1.0, stability=85,
+def synthesize_text_to_file(text, voice_id, output_path, speed=1.0, pitch_st=0.0, stability=85,
                             target_lang="en", ffmpeg_bin=None):
     """
     Full text-to-speech pipeline:
@@ -524,7 +894,7 @@ def synthesize_text_to_file(text, voice_id, output_path, speed=1.0, stability=85
     4. Exports to desired format
     """
     report_progress(20, "Resolving Neural Voice Parameters...")
-    vparams = resolve_voice_params(voice_id)
+    vparams = resolve_voice_params(voice_id, text_hint=text)
 
     # Calculate rate string
     # speed can be float (e.g. 1.0, 1.15) or string
@@ -543,10 +913,11 @@ def synthesize_text_to_file(text, voice_id, output_path, speed=1.0, stability=85
         asyncio.run(synthesize_speech_raw(text, vparams["voice"], temp_raw, rate_str=rate_str))
 
         report_progress(75, "Applying Studio EQ & Timbre Morphing...")
+        effective_pitch = vparams.get("pitch_shift", 0.0) + float(pitch_st or 0.0)
         apply_audio_post_processing(
             temp_raw,
             output_path,
-            pitch_shift_st=vparams["pitch_shift"],
+            pitch_shift_st=effective_pitch,
             bass_gain=vparams["bass_gain"],
             treble_gain=vparams["treble_gain"],
             stability=stability,
@@ -854,6 +1225,7 @@ def main():
     p_tts.add_argument("--voice", required=True, help="Voice ID or profile JSON path")
     p_tts.add_argument("--output", required=True, help="Output audio file path")
     p_tts.add_argument("--speed", default="1.0", help="Speech rate multiplier (e.g. 1.0, 1.15)")
+    p_tts.add_argument("--pitch", type=float, default=0.0, help="Pitch shift in semitones (-10 to +10)")
     p_tts.add_argument("--stability", type=int, default=85, help="Stability factor (0-100)")
     p_tts.add_argument("--lang", default="en", help="Language code")
     p_tts.add_argument("--ffmpeg", default="", help="Optional custom FFmpeg path")
@@ -903,6 +1275,7 @@ def main():
                 voice_id=args.voice,
                 output_path=args.output,
                 speed=args.speed,
+                pitch_st=args.pitch,
                 stability=args.stability,
                 target_lang=args.lang,
                 ffmpeg_bin=args.ffmpeg or None

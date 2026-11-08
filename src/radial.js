@@ -82,6 +82,24 @@ const SLICE_ICONS = {
   ai_dubbing: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>',
   ai_audiogram: SVG_OPEN + '<path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3"/></svg>',
   tpl_default: SVG_OPEN + '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
+  dub_vc_auto: SVG_OPEN + '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M7 12h10"/></svg>',
+  dub_vc_active: SVG_OPEN + '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+  dub_vc_male: SVG_OPEN + '<circle cx="10" cy="14" r="5"/><path d="M19 5l-5.4 5.4M19 5h-4M19 5v4"/></svg>',
+  dub_vc_female: SVG_OPEN + '<circle cx="12" cy="9" r="5"/><path d="M12 14v7M9 18h6"/></svg>',
+  dub_vc_andrew: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
+  dub_vc_ava: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
+  dub_vc_namminh: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
+  dub_vc_hoaimy: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
+  dub_vc_cloned: SVG_OPEN + '<circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M6 9v3a6 6 0 0 0 6 6h3"/></svg>',
+  rev_vc_auto: SVG_OPEN + '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M7 12h10"/></svg>',
+  rev_vc_active: SVG_OPEN + '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+  rev_vc_andrew: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
+  rev_vc_ava: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
+  rev_vc_brian: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
+  rev_vc_emma: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
+  rev_vc_namminh: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
+  rev_vc_hoaimy: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
+  rev_vc_cloned: SVG_OPEN + '<circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M6 9v3a6 6 0 0 0 6 6h3"/></svg>',
 };
 const IMG_ONLY_EXTS = new Set(['png', 'jpg', 'jpeg', 'webp', 'bmp', 'ico', 'gif', 'tif', 'tiff', 'avif', 'heic', 'heif', 'svg']);
 function isNonImageSelected() {
@@ -149,6 +167,8 @@ const FCOL = {
   ai_dubbing: '#ec4899', dub_vi: '#f43f5e', dub_en: '#5b9dff', dub_zh: '#ffb020', dub_ja: '#ff7ab8', dub_ko: '#3fd2ff', dub_es: '#2fd08c', dub_fr: '#9a7bff', dub_custom: '#fbbf24',
   ai_review: '#06b6d4', rev_pin_1: '#f43f5e', rev_pin_2: '#3b82f6', rev_pin_3: '#f59e0b', rev_pin_4: '#ec4899', rev_pin_5: '#10b981', rev_custom: '#a855f7',
   dub_style_default: '#38bdf8', dub_style_beasty: '#fbbf24', dub_style_roleplay: '#ef4444', dub_style_popline: '#a855f7', dub_style_deep_diver: '#06b6d4', dub_style_one_punch: '#f43f5e', dub_style_glow: '#2dd4bf', dub_style_none: '#64748b',
+  dub_vc_auto: '#38bdf8', dub_vc_active: '#f59e0b', dub_vc_male: '#3b82f6', dub_vc_female: '#ec4899', dub_vc_andrew: '#5b9dff', dub_vc_ava: '#f43f5e', dub_vc_namminh: '#ffb020', dub_vc_hoaimy: '#ff7ab8', dub_vc_cloned: '#a855f7',
+  rev_vc_auto: '#38bdf8', rev_vc_active: '#f59e0b', rev_vc_andrew: '#5b9dff', rev_vc_ava: '#f43f5e', rev_vc_brian: '#10b981', rev_vc_emma: '#ffb020', rev_vc_namminh: '#ec4899', rev_vc_hoaimy: '#ff7ab8', rev_vc_cloned: '#a855f7',
   ai_audiogram: '#10b981', ag_daily_cafe: '#f59e0b', ag_vinyl_vibes: '#ef4444', ag_after_dark: '#8b5cf6', ag_studio_pulse: '#2dd4bf',
   cloud_drop: '#38bdf8', cloud_gdrive: '#3b82f6', cloud_dropbox: '#0ea5e9', cloud_icloud: '#38bdf8', cloud_onedrive: '#6366f1', cloud_quick_link: '#10b981', cloud_zip_share: '#f59e0b', cloud_pc_to_phone: '#14b8a6', cloud_phone_drop: '#a855f7',
   cmp_img_web: '#10b981', cmp_img_200kb: '#38bdf8', cmp_img_500kb: '#10b981', cmp_img_1mb: '#f59e0b', cmp_img_auto: '#a855f7',
@@ -253,6 +273,8 @@ function getReviewSlotInfo(id) {
 }
 let ring2Mode = null;
 let pendingDubTarget = null;
+let pendingDubVoice = 'auto';
+let pendingRevTarget = null;
 let radialLaunchMode = 'convert';
 
 function normExt(e) {
@@ -376,6 +398,24 @@ function fmtName(fmt) {
   if (id === 'dub_style_one_punch') return 'One Punch';
   if (id === 'dub_style_glow') return 'Glow';
   if (id === 'dub_style_none') return 'No Subtitles';
+  if (id === 'dub_vc_auto') return 'Auto (F0)';
+  if (id === 'dub_vc_active') return '⚡ Studio Voice';
+  if (id === 'dub_vc_male') return 'Male Voice';
+  if (id === 'dub_vc_female') return 'Female Voice';
+  if (id === 'dub_vc_andrew') return 'Andrew (Cinematic)';
+  if (id === 'dub_vc_ava') return 'Ava (Expressive)';
+  if (id === 'dub_vc_namminh') return 'Nam Minh (VN)';
+  if (id === 'dub_vc_hoaimy') return 'Hoai My (VN)';
+  if (id === 'dub_vc_cloned') return '🧬 Cloned Voice';
+  if (id === 'rev_vc_auto') return 'Preset Voice';
+  if (id === 'rev_vc_active') return '⚡ Studio Voice';
+  if (id === 'rev_vc_andrew') return 'Andrew (Cinematic)';
+  if (id === 'rev_vc_ava') return 'Ava (Expressive)';
+  if (id === 'rev_vc_brian') return 'Brian (Doc)';
+  if (id === 'rev_vc_emma') return 'Emma (Narrator)';
+  if (id === 'rev_vc_namminh') return 'Nam Minh (VN)';
+  if (id === 'rev_vc_hoaimy') return 'Hoai My (VN)';
+  if (id === 'rev_vc_cloned') return '🧬 Cloned Voice';
   if (id === 'ai_review') return tOr('fmt_ai_review', 'AI Review');
   if (id.startsWith('rev_pin_') || id === 'rev_custom') {
     const info = getReviewSlotInfo(id);
@@ -786,7 +826,7 @@ function showProTooltip(fmt, label) {
   tooltipEl.classList.remove('hidden');
 }
 function showSizeTooltip(fmt, label) {
-  const isOp = (['vector_svg', 'seo_alt', 'design_open_tpl_ring', 'design_cutout_png', 'design_watermark', 'design_iconize', 'design_barcode', 'barcode_pdf', 'bc_only_png', 'bc_with_photo', 'bc_stamp_photo', 'bc_sheet_a4', 'bc_custom_input', 'design_rename', 'ai_upscale', 'upscale_2x', 'upscale_4x', 'compress', 'split', 'merge', 'merge_video', 'merge_img_pdf', 'cmp_img_web', 'cmp_img_200kb', 'cmp_img_500kb', 'cmp_img_1mb', 'cmp_img_auto', 'smart_compress', 'cmp_10mb', 'cmp_25mb', 'cmp_50mb', 'cmp_half', 'ocr_text', 'doc_to_mp3', 'clean_privacy', 'cloud_pc_to_phone', 'cloud_phone_drop', 'ai_studio', 'ai_shorts', 'ai_summary', 'ai_compilation', 'ai_clean_um', 'ai_review', 'rev_pin_1', 'rev_pin_2', 'rev_pin_3', 'rev_pin_4', 'rev_pin_5', 'rev_custom', 'ai_subtitles', 'to_srt', 'to_vtt', 'to_ass', 'to_transcript', 'sub_translate', 'sub_to_voice', 'sub_en', 'sub_vi', 'sub_zh', 'sub_ja', 'sub_ko', 'sub_es', 'sub_fr', 'sub_custom', 'ai_burn_captions', 'cap_beasty', 'cap_roleplay', 'cap_popline', 'cap_deep_diver', 'cap_one_punch', 'cap_glow', 'ai_dubbing', 'dub_vi', 'dub_en', 'dub_zh', 'dub_ja', 'dub_ko', 'dub_es', 'dub_fr', 'dub_custom', 'dub_style_default', 'dub_style_beasty', 'dub_style_roleplay', 'dub_style_popline', 'dub_style_deep_diver', 'dub_style_one_punch', 'dub_style_glow', 'dub_style_none', 'ai_audiogram', 'ag_daily_cafe', 'ag_vinyl_vibes', 'ag_after_dark', 'ag_studio_pulse', 'ai_back'].includes(fmt.id) || fmt.id.startsWith('tpl_'));
+  const isOp = (['vector_svg', 'seo_alt', 'design_open_tpl_ring', 'design_cutout_png', 'design_watermark', 'design_iconize', 'design_barcode', 'barcode_pdf', 'bc_only_png', 'bc_with_photo', 'bc_stamp_photo', 'bc_sheet_a4', 'bc_custom_input', 'design_rename', 'ai_upscale', 'upscale_2x', 'upscale_4x', 'compress', 'split', 'merge', 'merge_video', 'merge_img_pdf', 'cmp_img_web', 'cmp_img_200kb', 'cmp_img_500kb', 'cmp_img_1mb', 'cmp_img_auto', 'smart_compress', 'cmp_10mb', 'cmp_25mb', 'cmp_50mb', 'cmp_half', 'ocr_text', 'doc_to_mp3', 'clean_privacy', 'cloud_pc_to_phone', 'cloud_phone_drop', 'ai_studio', 'ai_shorts', 'ai_summary', 'ai_compilation', 'ai_clean_um', 'ai_review', 'rev_pin_1', 'rev_pin_2', 'rev_pin_3', 'rev_pin_4', 'rev_pin_5', 'rev_custom', 'ai_subtitles', 'to_srt', 'to_vtt', 'to_ass', 'to_transcript', 'sub_translate', 'sub_to_voice', 'sub_en', 'sub_vi', 'sub_zh', 'sub_ja', 'sub_ko', 'sub_es', 'sub_fr', 'sub_custom', 'ai_burn_captions', 'cap_beasty', 'cap_roleplay', 'cap_popline', 'cap_deep_diver', 'cap_one_punch', 'cap_glow', 'ai_dubbing', 'dub_vi', 'dub_en', 'dub_zh', 'dub_ja', 'dub_ko', 'dub_es', 'dub_fr', 'dub_custom', 'dub_style_default', 'dub_style_beasty', 'dub_style_roleplay', 'dub_style_popline', 'dub_style_deep_diver', 'dub_style_one_punch', 'dub_style_glow', 'dub_style_none', 'ai_audiogram', 'ag_daily_cafe', 'ag_vinyl_vibes', 'ag_after_dark', 'ag_studio_pulse', 'ai_back'].includes(fmt.id) || fmt.id.startsWith('tpl_') || fmt.id.startsWith('dub_vc_') || fmt.id.startsWith('rev_vc_'));
   const proTagHtml = needsPro(fmt) ? `<span class="tag pro">PRO</span>` : '';
   tooltipTitle(`<span>${label}</span>${proTagHtml}${isOp ? '' : `<span class="tag">${t('estimate_tag')}</span>`}`);
   const sizeEl = $('tooltip-size'), deltaEl = $('tooltip-delta'), textEl = $('tooltip-text');
@@ -859,6 +899,12 @@ function showSizeTooltip(fmt, label) {
   if (!tipDesc && (fmt.id.startsWith('rev_pin_') || fmt.id === 'rev_custom')) {
     const info = getReviewSlotInfo(fmt.id);
     tipDesc = `🎬 AI Review → ${info.lang_name} (${info.voice}) · Auto-narrated recap video + script`;
+  }
+  if (!tipDesc && fmt.id.startsWith('dub_vc_')) {
+    tipDesc = `🎙️ AI Dubbing Voice (${label}) · Select voice or cloned timbre for video dubbing`;
+  }
+  if (!tipDesc && fmt.id.startsWith('rev_vc_')) {
+    tipDesc = `🎙️ AI Review Voice (${label}) · Select voice or cloned timbre for video recap`;
   }
   if (!tipDesc && fmt.id.startsWith('tpl_')) {
     tipDesc = `🎨 Studio Template (${label}) · AI Cutout + ${aiCfg.design_pos_mode === 'keep_orig' ? 'Keep Original Pos' : 'Auto-Center 13%'} + 3D Studio Shadow`;
@@ -1254,6 +1300,30 @@ function renderAiRing2Center() {
       `<button class="ai-pill-btn on" data-ai-toggle="cap_pos"><span>Pos: ${pos}</span><span class="ai-pill-val">⇄</span></button>` +
       `<button class="ai-pill-btn on" data-ai-toggle="cap_lang"><span>Lang: ${lg}</span><span class="ai-pill-val">⇄</span></button>` +
       `<button class="ai-pill-btn ${emOn ? 'on' : ''}" data-ai-toggle="cap_emoji"><span>😊 Emoji Icons</span><span class="ai-pill-val">${emOn ? 'ON' : 'OFF'}</span></button>` +
+      `</div>` +
+      `</div>`;
+    return;
+  }
+  if (ring2Mode === 'ai_dub_voice') {
+    const langLabels = { dub_vi: 'Vietnamese', dub_en: 'English', dub_zh: 'Chinese', dub_ja: 'Japanese', dub_ko: 'Korean', dub_es: 'Spanish', dub_fr: 'French', dub_custom: aiCfg.custom_lang_name || 'Custom' };
+    const lgName = (langLabels[pendingDubTarget] || 'Target').toUpperCase();
+    iconEl.innerHTML =
+      `<div class="ai-center-hub">` +
+      `<div class="ai-center-head"><span>🎙️ DUB VOICE → ${lgName}</span></div>` +
+      `<div class="ai-pill-list">` +
+      `<div style="font-size:10px;color:#94a3b8;padding:2px 6px;text-align:center;">Step 2/3: Pick Voice Timbre</div>` +
+      `</div>` +
+      `</div>`;
+    return;
+  }
+  if (ring2Mode === 'ai_review_voice') {
+    const info = getReviewSlotInfo(pendingRevTarget || 'rev_pin_1');
+    const lgName = (info.lang_name || 'Review').toUpperCase();
+    iconEl.innerHTML =
+      `<div class="ai-center-hub">` +
+      `<div class="ai-center-head"><span>🎙️ VOICE → ${lgName}</span></div>` +
+      `<div class="ai-pill-list">` +
+      `<div style="font-size:10px;color:#94a3b8;padding:2px 6px;text-align:center;">Step 2/2: Pick Recap Narrator</div>` +
       `</div>` +
       `</div>`;
     return;
@@ -1677,6 +1747,54 @@ function openAiRing2(mode = 'ai_studio') {
     activeGroup = {
       id: 'av',
       formats: revFormats,
+    };
+    renderAiRing2Center();
+    buildOuter();
+    updateCenterCancel();
+    return;
+  }
+  if (mode === 'ai_review_voice') {
+    const revVcFormats = [
+      { id: 'rev_vc_auto', pro: true, soon: false, hidden: false },
+      { id: 'rev_vc_active', pro: true, soon: false, hidden: false },
+      { id: 'rev_vc_namminh', pro: true, soon: false, hidden: false },
+      { id: 'rev_vc_hoaimy', pro: true, soon: false, hidden: false },
+      { id: 'rev_vc_andrew', pro: true, soon: false, hidden: false },
+      { id: 'rev_vc_ava', pro: true, soon: false, hidden: false },
+      { id: 'rev_vc_brian', pro: true, soon: false, hidden: false },
+      { id: 'rev_vc_cloned', pro: true, soon: false, hidden: false },
+      { id: 'ai_back', pro: false, soon: false, hidden: false },
+    ];
+    if (reachable) {
+      revVcFormats.forEach(f => reachable.add(f.id));
+    }
+    activeGroup = {
+      id: 'av',
+      formats: revVcFormats,
+    };
+    renderAiRing2Center();
+    buildOuter();
+    updateCenterCancel();
+    return;
+  }
+  if (mode === 'ai_dub_voice') {
+    const dubVcFormats = [
+      { id: 'dub_vc_auto', pro: true, soon: false, hidden: false },
+      { id: 'dub_vc_active', pro: true, soon: false, hidden: false },
+      { id: 'dub_vc_namminh', pro: true, soon: false, hidden: false },
+      { id: 'dub_vc_hoaimy', pro: true, soon: false, hidden: false },
+      { id: 'dub_vc_male', pro: true, soon: false, hidden: false },
+      { id: 'dub_vc_female', pro: true, soon: false, hidden: false },
+      { id: 'dub_vc_andrew', pro: true, soon: false, hidden: false },
+      { id: 'dub_vc_cloned', pro: true, soon: false, hidden: false },
+      { id: 'ai_back', pro: false, soon: false, hidden: false },
+    ];
+    if (reachable) {
+      dubVcFormats.forEach(f => reachable.add(f.id));
+    }
+    activeGroup = {
+      id: 'av',
+      formats: dubVcFormats,
     };
     renderAiRing2Center();
     buildOuter();
@@ -2205,6 +2323,11 @@ async function commit() {
     openAiRing2('ai_review');
     return;
   }
+  if (fmt.id.startsWith('rev_pin_') || fmt.id === 'rev_custom') {
+    pendingRevTarget = fmt.id;
+    openAiRing2('ai_review_voice');
+    return;
+  }
   if (fmt.id === 'ai_subtitles') {
     openAiRing2('ai_subtitles');
     return;
@@ -2223,6 +2346,11 @@ async function commit() {
   }
   if (['dub_vi', 'dub_en', 'dub_zh', 'dub_ja', 'dub_ko', 'dub_es', 'dub_fr', 'dub_custom'].includes(fmt.id)) {
     pendingDubTarget = fmt.id;
+    openAiRing2('ai_dub_voice');
+    return;
+  }
+  if (fmt.id.startsWith('dub_vc_')) {
+    pendingDubVoice = fmt.id.replace('dub_vc_', '');
     openAiRing2('ai_dub_style');
     return;
   }
@@ -2245,7 +2373,15 @@ async function commit() {
   }
   if (fmt.id === 'ai_back') {
     if (ring2Mode === 'ai_dub_style') {
+      openAiRing2('ai_dub_voice');
+      return;
+    }
+    if (ring2Mode === 'ai_dub_voice') {
       openAiRing2('ai_dubbing');
+      return;
+    }
+    if (ring2Mode === 'ai_review_voice') {
+      openAiRing2('ai_review');
       return;
     }
     closeAiRing2();
@@ -2279,7 +2415,10 @@ async function commit() {
   // the top-center HUD pill displays live % progress and final file count.
   const selectedInputs = files.slice();
   let targetId = fmt.id;
-  if (targetId.startsWith('dub_style_')) {
+  if (targetId.startsWith('rev_vc_')) {
+    const vcKey = targetId.replace('rev_vc_', '');
+    targetId = (vcKey === 'auto') ? (pendingRevTarget || 'rev_pin_1') : `${pendingRevTarget || 'rev_pin_1'}:${vcKey}`;
+  } else if (targetId.startsWith('dub_style_')) {
     const styleKey = targetId.replace('dub_style_', '');
     aiCfg.dub_burn_sub = (styleKey !== 'none');
     if (styleKey !== 'none') aiCfg.dub_cap_style = styleKey;
@@ -2287,7 +2426,8 @@ async function commit() {
       dubBurnSub: styleKey !== 'none',
       dubCapStyle: styleKey === 'none' ? (aiCfg.dub_cap_style || 'default') : styleKey,
     }).catch(() => {});
-    targetId = `${pendingDubTarget || 'dub_vi'}:${styleKey}`;
+    const vcKey = pendingDubVoice || 'auto';
+    targetId = `${pendingDubTarget || 'dub_vi'}:${styleKey}:${vcKey}`;
   }
   busy = false;
   clearTimeout(hideTimer);

@@ -725,7 +725,7 @@ print(len(doc))
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x08000000);
+        cmd.creation_flags(0x08000000 | 0x00004000);
     }
     let status = cmd
         .arg(&profile_arg)

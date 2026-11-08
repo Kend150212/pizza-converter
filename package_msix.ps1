@@ -2,7 +2,7 @@ param(
     [string]$IdentityName = "Neeflow.Pizza-Converter",
     [string]$Publisher = "CN=04843FBA-F486-488A-809F-B8B0FCD89E04",
     [string]$PublisherDisplayName = "Neeflow",
-    [string]$Version = "1.0.4.0"
+    [string]$Version = "1.0.6.0"
 )
 
 $ErrorActionPreference = "Stop"

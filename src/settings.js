@@ -226,8 +226,8 @@ async function renderHistory(keepFilters = false) {
 
   if (!keepFilters) {
     let rawHist = [];
-    try { rawHist = await invoke('get_history'); } catch (e) {}
-    try { cachedCloudStatus = await invoke('get_cloud_status'); } catch (e) {}
+    try { rawHist = await invoke('get_history'); } catch (e) { }
+    try { cachedCloudStatus = await invoke('get_cloud_status'); } catch (e) { }
     cachedHistoryEntries = (rawHist || []).map((e, idx) => ({
       ...e,
       _origIdx: idx,
@@ -335,53 +335,53 @@ async function renderHistory(keepFilters = false) {
 
       wrap.innerHTML =
         `<div class="hist-row">` +
-          `<div class="hist-ico">${histFileIcon(e.from_ext, e.target)}</div>` +
-          `<div class="hist-info-col">` +
-            `<span class="hist-name-link" title="${outPath}"></span>` +
-            `<div class="hist-sub">` +
-              `<b style="color:#e2e8f0;">${(e.from_ext || 'FILE').toUpperCase()} → ${histTargetLabel(e.target)}</b> · ` +
-              `${histHumanSize(e.size_before)} → ${histHumanSize(e.size_after)}${savingsBadge} · ` +
-              `🕒 ${e._date.hmStr} (${histTimeAgo(e.t)})` +
-            `</div>` +
-          `</div>` +
-          `<div class="hist-actions">` +
-            `<div class="hist-cloud-mini-group">` +
-              `<button class="btn-hist-ico ${gdOk ? 'conn-ok' : 'conn-warn'}" data-cloud-target="cloud_gdrive" title="${gdTip}">${SVG_GDRIVE_MINI}<span class="conn-dot"></span></button>` +
-              `<button class="btn-hist-ico ${dbOk ? 'conn-ok' : 'conn-warn'}" data-cloud-target="cloud_dropbox" title="${dbTip}">${SVG_DROPBOX_MINI}<span class="conn-dot"></span></button>` +
-              `<button class="btn-hist-ico ${odOk ? 'conn-ok' : 'conn-warn'}" data-cloud-target="cloud_onedrive" title="${odTip}">${SVG_ONEDRIVE_MINI}<span class="conn-dot"></span></button>` +
-              `<button class="btn-hist-ico conn-ok" data-cloud-target="cloud_quick_link" title="${lnkTip}">${SVG_LINK_MINI}</button>` +
-            `</div>` +
-            `<button class="btn-hist-act btn-hist-qr" title="${isVi ? 'Hiển thị mã QR tải file tốc độ cao (PC → Phone)' : 'Show High-Speed QR Code for Phone (PC → Phone)'}">📱 QR</button>` +
-            `<button class="btn-hist-act btn-hist-folder" title="${isVi ? 'Mở thư mục chứa file' : 'Open containing folder'}">${isUrl ? '↗ Link' : (isVi ? '📂 Thư mục' : '📂 Folder')}</button>` +
-            `<button class="btn-undo" style="margin-left:0; padding:4.5px 10px;">${t('undo_btn')}</button>` +
-          `</div>` +
+        `<div class="hist-ico">${histFileIcon(e.from_ext, e.target)}</div>` +
+        `<div class="hist-info-col">` +
+        `<span class="hist-name-link" title="${outPath}"></span>` +
+        `<div class="hist-sub">` +
+        `<b style="color:#e2e8f0;">${(e.from_ext || 'FILE').toUpperCase()} → ${histTargetLabel(e.target)}</b> · ` +
+        `${histHumanSize(e.size_before)} → ${histHumanSize(e.size_after)}${savingsBadge} · ` +
+        `🕒 ${e._date.hmStr} (${histTimeAgo(e.t)})` +
+        `</div>` +
+        `</div>` +
+        `<div class="hist-actions">` +
+        `<div class="hist-cloud-mini-group">` +
+        `<button class="btn-hist-ico ${gdOk ? 'conn-ok' : 'conn-warn'}" data-cloud-target="cloud_gdrive" title="${gdTip}">${SVG_GDRIVE_MINI}<span class="conn-dot"></span></button>` +
+        `<button class="btn-hist-ico ${dbOk ? 'conn-ok' : 'conn-warn'}" data-cloud-target="cloud_dropbox" title="${dbTip}">${SVG_DROPBOX_MINI}<span class="conn-dot"></span></button>` +
+        `<button class="btn-hist-ico ${odOk ? 'conn-ok' : 'conn-warn'}" data-cloud-target="cloud_onedrive" title="${odTip}">${SVG_ONEDRIVE_MINI}<span class="conn-dot"></span></button>` +
+        `<button class="btn-hist-ico conn-ok" data-cloud-target="cloud_quick_link" title="${lnkTip}">${SVG_LINK_MINI}</button>` +
+        `</div>` +
+        `<button class="btn-hist-act btn-hist-qr" title="${isVi ? 'Hiển thị mã QR tải file tốc độ cao (PC → Phone)' : 'Show High-Speed QR Code for Phone (PC → Phone)'}">📱 QR</button>` +
+        `<button class="btn-hist-act btn-hist-folder" title="${isVi ? 'Mở thư mục chứa file' : 'Open containing folder'}">${isUrl ? '↗ Link' : (isVi ? '📂 Thư mục' : '📂 Folder')}</button>` +
+        `<button class="btn-undo" style="margin-left:0; padding:4.5px 10px;">${t('undo_btn')}</button>` +
+        `</div>` +
         `</div>` +
         `<div class="hist-cloud-status-bar hidden"></div>` +
         `<div class="hist-qr-drawer hidden">` +
-          `<div class="hist-qr-box"><span style="font-size:10px; color:#0f172a;">⏳ QR...</span></div>` +
-          `<div class="hist-qr-meta">` +
-            `<div class="hist-qr-title">${isVi ? '📱 Quét Mã QR Bằng iPhone / Android (Trực Tiếp · 0% Quảng Cáo)' : '📱 Scan QR on iPhone / Android (Direct PC Stream · Zero Ads)'}</div>` +
-            `<div class="hist-qr-sub">${isVi ? '⚡ Truyền trực tiếp từ máy của bạn qua Cloudflare HTTPS & Wi-Fi 1 Gbps — Không qua server quảng cáo bên thứ 3!' : '⚡ Streams 100% directly from your PC via Cloudflare HTTPS & 1 Gbps Wi-Fi — Zero third-party ad servers!'}</div>` +
-            `<div class="hist-qr-url-row">` +
-              `<div class="hist-qr-url">...</div>` +
-              `<button class="btn-hist-act btn-hist-copy-qr">📋 Copy</button>` +
-            `</div>` +
-          `</div>` +
+        `<div class="hist-qr-box"><span style="font-size:10px; color:#0f172a;">⏳ QR...</span></div>` +
+        `<div class="hist-qr-meta">` +
+        `<div class="hist-qr-title">${isVi ? '📱 Quét Mã QR Bằng iPhone / Android (Trực Tiếp · 0% Quảng Cáo)' : '📱 Scan QR on iPhone / Android (Direct PC Stream · Zero Ads)'}</div>` +
+        `<div class="hist-qr-sub">${isVi ? '⚡ Truyền trực tiếp từ máy của bạn qua Cloudflare HTTPS & Wi-Fi 1 Gbps — Không qua server quảng cáo bên thứ 3!' : '⚡ Streams 100% directly from your PC via Cloudflare HTTPS & 1 Gbps Wi-Fi — Zero third-party ad servers!'}</div>` +
+        `<div class="hist-qr-url-row">` +
+        `<div class="hist-qr-url">...</div>` +
+        `<button class="btn-hist-act btn-hist-copy-qr">📋 Copy</button>` +
+        `</div>` +
+        `</div>` +
         `</div>`;
 
       const nameEl = wrap.querySelector('.hist-name-link');
       nameEl.textContent = dispName;
       nameEl.addEventListener('click', async () => {
-        await invoke('open_file', { path: outPath }).catch(() => {});
+        await invoke('open_file', { path: outPath }).catch(() => { });
       });
 
       // Open Folder / Link button
       const folderBtn = wrap.querySelector('.btn-hist-folder');
       folderBtn.addEventListener('click', async () => {
         if (isUrl) {
-          await invoke('open_file', { path: outPath }).catch(() => {});
+          await invoke('open_file', { path: outPath }).catch(() => { });
         } else {
-          await invoke('show_in_folder', { path: outPath }).catch(() => {});
+          await invoke('show_in_folder', { path: outPath }).catch(() => { });
         }
       });
 
@@ -427,7 +427,7 @@ async function renderHistory(keepFilters = false) {
       if (qrCopyBtn) {
         qrCopyBtn.addEventListener('click', async () => {
           const textToCopy = qrLoadedUrl || outPath;
-          await invoke('copy_text_cmd', { text: textToCopy }).catch(() => {});
+          await invoke('copy_text_cmd', { text: textToCopy }).catch(() => { });
           qrCopyBtn.textContent = '✓ Copied!';
           setTimeout(() => { qrCopyBtn.textContent = '📋 Copy'; }, 1400);
         });
@@ -443,7 +443,7 @@ async function renderHistory(keepFilters = false) {
           try {
             st = await invoke('get_cloud_status');
             cachedCloudStatus = st;
-          } catch (_) {}
+          } catch (_) { }
 
           const provNames = {
             cloud_gdrive: 'Google Drive',
@@ -502,7 +502,7 @@ async function renderHistory(keepFilters = false) {
             const cpB = statusBar.querySelector('.btn-hist-cp-res');
             if (cpB) {
               cpB.addEventListener('click', async () => {
-                await invoke('copy_text_cmd', { text: resUrl }).catch(() => {});
+                await invoke('copy_text_cmd', { text: resUrl }).catch(() => { });
                 cpB.textContent = '✓ Copied!';
               });
             }
@@ -649,7 +649,7 @@ async function stopRecordingMode() {
   if (recordBtn) recordBtn.classList.remove('recording');
   if (recordCloudBtn) recordCloudBtn.classList.remove('recording');
   if (recordDesignBtn) recordDesignBtn.classList.remove('recording');
-  try { await invoke('set_recording_hotkey', { recording: false }); } catch (_) {}
+  try { await invoke('set_recording_hotkey', { recording: false }); } catch (_) { }
 }
 
 async function applyRecordedCombo(combo) {
@@ -693,7 +693,7 @@ if (recordBtn) {
     if (recordCloudBtn) recordCloudBtn.classList.remove('recording');
     recordBtn.classList.add('recording');
     recordText.textContent = t('recording_hotkey_hint') || 'Press keys...';
-    try { await invoke('set_recording_hotkey', { recording: true }); } catch (_) {}
+    try { await invoke('set_recording_hotkey', { recording: true }); } catch (_) { }
   });
 }
 
@@ -706,7 +706,7 @@ if (recordCloudBtn) {
     if (recordDesignBtn) recordDesignBtn.classList.remove('recording');
     recordCloudBtn.classList.add('recording');
     if (recordCloudText) recordCloudText.textContent = t('recording_hotkey_hint') || 'Press keys...';
-    try { await invoke('set_recording_hotkey', { recording: true }); } catch (_) {}
+    try { await invoke('set_recording_hotkey', { recording: true }); } catch (_) { }
   });
 }
 
@@ -719,7 +719,7 @@ if (recordDesignBtn) {
     if (recordCloudBtn) recordCloudBtn.classList.remove('recording');
     recordDesignBtn.classList.add('recording');
     if (recordDesignText) recordDesignText.textContent = t('recording_hotkey_hint') || 'Press keys...';
-    try { await invoke('set_recording_hotkey', { recording: true }); } catch (_) {}
+    try { await invoke('set_recording_hotkey', { recording: true }); } catch (_) { }
   });
 }
 
@@ -1296,13 +1296,157 @@ async function loadAppVersion() {
     const ver = await invoke('get_app_version');
     const badge = document.getElementById('app-version-badge');
     if (badge) badge.textContent = ver;
+    const sideBadge = document.getElementById('sidebar-version-badge-text');
+    if (sideBadge) sideBadge.textContent = `${ver} · VOICE STUDIO`;
     const aboutLine = document.getElementById('about-line');
     if (aboutLine) aboutLine.textContent = t('about_version', { version: ver }) || `Version ${ver}`;
+    const descEl = document.getElementById('update-status-desc');
+    if (descEl) descEl.textContent = `Installed: ${ver} · Distributed via Microsoft Store`;
   } catch (e) {
     dlog('loadAppVersion failed:', e);
   }
 }
 loadAppVersion();
+
+// Software Auto-Update & Store Release Checker
+const STORE_UPDATE_URI = 'ms-windows-store://downloadsandupdates';
+const STORE_APP_URI = 'ms-windows-store://pdp/?productid=9NQ324ZQGQ5B';
+const GITHUB_RELEASE_MANIFEST = 'https://raw.githubusercontent.com/Kend150212/pizza-converter/master/version.json';
+
+function parseVersionParts(vStr) {
+  if (!vStr) return [0, 0, 0, 0];
+  const cleaned = String(vStr).replace(/^v/i, '').split(/[-+ ]/)[0];
+  return cleaned.split('.').map(n => parseInt(n, 10) || 0);
+}
+
+function isNewerVersion(remoteStr, localStr) {
+  const r = parseVersionParts(remoteStr);
+  const l = parseVersionParts(localStr);
+  const maxLen = Math.max(r.length, l.length, 3);
+  for (let i = 0; i < maxLen; i++) {
+    const rv = r[i] || 0;
+    const lv = l[i] || 0;
+    if (rv > lv) return true;
+    if (rv < lv) return false;
+  }
+  return false;
+}
+
+async function triggerStoreUpdate() {
+  try {
+    await invoke('open_file', { path: STORE_UPDATE_URI });
+  } catch (err) {
+    dlog('Failed to open store URI, falling back to app uri:', err);
+    try {
+      await invoke('open_file', { path: STORE_APP_URI });
+    } catch (e2) {
+      window.open('https://github.com/Kend150212/pizza-converter/releases', '_blank');
+    }
+  }
+}
+
+async function checkForAppUpdates(isManual = false) {
+  const btnSidebar = document.getElementById('btn-check-updates');
+  const lblSidebar = document.getElementById('lbl-check-updates-text');
+  const lblManual = document.getElementById('lbl-manual-check');
+  const badgeStatus = document.getElementById('badge-update-status');
+  const banner = document.getElementById('update-notification-banner');
+  const bannerTag = document.getElementById('update-banner-tag');
+  const bannerDesc = document.getElementById('update-banner-desc');
+  const descEl = document.getElementById('update-status-desc');
+
+  if (isManual) {
+    if (lblSidebar) lblSidebar.textContent = 'Checking...';
+    if (lblManual) lblManual.textContent = 'Checking...';
+  }
+
+  let localVer = '1.0.6.0';
+  const badge = document.getElementById('app-version-badge');
+  if (badge && badge.textContent) {
+    localVer = badge.textContent.replace(/^v/i, '').trim();
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const resp = await fetch(`${GITHUB_RELEASE_MANIFEST}?_t=${Date.now()}`, {
+      cache: 'no-cache',
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    const remoteVer = (data && data.version) || '';
+
+    if (remoteVer && isNewerVersion(remoteVer, localVer)) {
+      if (bannerTag) bannerTag.textContent = `v${remoteVer}`;
+      if (bannerDesc) {
+        bannerDesc.textContent = data.notes || 'A new update is available on Microsoft Store.';
+      }
+      const dismissed = localStorage.getItem('dismissed_update_version');
+      if (banner && (isManual || dismissed !== remoteVer)) {
+        banner.classList.remove('hidden');
+      }
+      if (badgeStatus) {
+        badgeStatus.textContent = `v${remoteVer} Available`;
+        badgeStatus.style.background = 'rgba(56, 189, 248, 0.25)';
+        badgeStatus.style.color = '#38bdf8';
+        badgeStatus.style.borderColor = 'rgba(56, 189, 248, 0.5)';
+      }
+      if (descEl) {
+        descEl.innerHTML = `<span style="color:#38bdf8;font-weight:600;">Update ready!</span> Installed: v${localVer} → Latest: <b>v${remoteVer}</b>`;
+      }
+      if (lblSidebar) lblSidebar.textContent = `Update v${remoteVer} Ready`;
+      if (lblManual) lblManual.textContent = `Update to v${remoteVer}`;
+    } else {
+      if (banner && !isManual) banner.classList.add('hidden');
+      if (badgeStatus) {
+        badgeStatus.textContent = 'Up to date';
+        badgeStatus.style.background = 'rgba(45, 212, 191, 0.12)';
+        badgeStatus.style.color = '#5eead4';
+        badgeStatus.style.borderColor = 'rgba(45, 212, 191, 0.3)';
+      }
+      if (descEl) {
+        descEl.textContent = `Installed: v${localVer} · Distributed via Microsoft Store`;
+      }
+      if (lblSidebar) lblSidebar.textContent = isManual ? 'Up to Date ✓' : 'Check for Updates';
+      if (lblManual) lblManual.textContent = isManual ? 'Up to Date ✓' : 'Check for Updates';
+    }
+  } catch (err) {
+    dlog('checkForAppUpdates notice:', err);
+    if (isManual) {
+      if (lblSidebar) lblSidebar.textContent = 'Offline (Check Later)';
+      if (lblManual) lblManual.textContent = 'Offline (Check Later)';
+    }
+  } finally {
+    if (isManual) {
+      setTimeout(() => {
+        if (lblSidebar && lblSidebar.textContent.includes('✓')) lblSidebar.textContent = 'Check for Updates';
+        if (lblManual && lblManual.textContent.includes('✓')) lblManual.textContent = 'Check for Updates';
+      }, 3000);
+    }
+  }
+}
+
+// Wire up update event listeners
+document.getElementById('btn-check-updates')?.addEventListener('click', () => checkForAppUpdates(true));
+document.getElementById('btn-manual-update-check')?.addEventListener('click', () => checkForAppUpdates(true));
+document.getElementById('btn-open-store-updates')?.addEventListener('click', () => triggerStoreUpdate());
+document.getElementById('btn-banner-update-now')?.addEventListener('click', () => triggerStoreUpdate());
+document.getElementById('btn-banner-dismiss')?.addEventListener('click', () => {
+  const banner = document.getElementById('update-notification-banner');
+  if (banner) banner.classList.add('hidden');
+  const bannerTag = document.getElementById('update-banner-tag');
+  if (bannerTag) {
+    localStorage.setItem('dismissed_update_version', bannerTag.textContent.replace(/^v/i, ''));
+  }
+});
+
+// Auto-check updates in background after 2.5 seconds
+setTimeout(() => {
+  checkForAppUpdates(false);
+}, 2500);
 
 
 // ---- AI Burn Captions, AI Dubbing & Audiogram Studio listeners ----
@@ -1632,15 +1776,15 @@ async function refreshCloudDropView() {
           `</div>`;
         row.querySelector('.btn-copy-cl').addEventListener('click', async (ev) => {
           const b = ev.currentTarget;
-          await invoke('copy_text_cmd', { text: targetVal }).catch(() => {});
+          await invoke('copy_text_cmd', { text: targetVal }).catch(() => { });
           b.textContent = '✓ Copied!';
           setTimeout(() => { b.textContent = isUrl ? '📋 Copy Link' : '📋 Copy Path'; }, 1400);
         });
         row.querySelector('.btn-open-cl').addEventListener('click', async () => {
           if (isUrl) {
-            await invoke('open_file', { path: targetVal }).catch(() => {});
+            await invoke('open_file', { path: targetVal }).catch(() => { });
           } else {
-            await invoke('show_in_folder', { path: targetVal }).catch(() => {});
+            await invoke('show_in_folder', { path: targetVal }).catch(() => { });
           }
         });
         listEl.appendChild(row);
@@ -2467,7 +2611,7 @@ async function refreshDesignStudioView() {
       wmOpacity,
       wmLogoOpacity,
       wmAngle,
-    }).catch(() => {});
+    }).catch(() => { });
   };
 
   const inpWmTxt = document.getElementById('inp-wm-text');
@@ -2571,7 +2715,7 @@ async function refreshDesignStudioView() {
       bcCustomCode,
       bcShowBrand,
       bcShowPrice,
-    }).catch(() => {});
+    }).catch(() => { });
     renderBarcodeLivePreview();
   };
   ['sel-bc-format', 'sel-bc-layout', 'sel-bc-sheet-grid', 'inp-bc-brand', 'inp-bc-price', 'inp-bc-custom-code', 'inp-bc-quick-title'].forEach(id => {
@@ -2646,7 +2790,7 @@ async function refreshDesignStudioView() {
         setTimeout(() => { stEl.textContent = ''; }, 4000);
       }
       if (outPath) {
-        await invoke('open_file', { path: outPath }).catch(() => {});
+        await invoke('open_file', { path: outPath }).catch(() => { });
       }
     } catch (err) {
       if (stEl) stEl.textContent = `⚠️ ${String(err)}`;
@@ -2776,181 +2920,293 @@ async function refreshDesignStudioView() {
       const proNav = document.querySelector('.nav-item[data-view="pro"]');
       if (proNav) proNav.click();
       refreshProStatusUI();
-    }).catch(() => {});
+    }).catch(() => { });
   }
 }
 
 // ---- AI Video Review & Movie Recap Studio (5 Pinned Languages/Voices + 1 Custom World Slot) ----
+let globalClonedVoiceProfiles = [];
 const REVIEW_LANG_VOICE_CATALOG = [
-  { code: 'en', name: 'English', flag: '🇺🇸', voices: [
-    { id: 'en-US-AndrewMultilingualNeural', label: '♂ Andrew (US Movie Recap Narrator)' },
-    { id: 'en-US-AvaMultilingualNeural', label: '♀ Ava (US Studio Female)' },
-    { id: 'en-US-BrianMultilingualNeural', label: '♂ Brian (US Deep Cinema Voice)' },
-    { id: 'en-US-ChristopherNeural', label: '♂ Christopher (US Thriller / Drama)' },
-    { id: 'en-US-EmmaMultilingualNeural', label: '♀ Emma (US Warm Vlog / Story)' },
-    { id: 'en-US-GuyNeural', label: '♂ Guy (US Documentary / Tech)' },
-    { id: 'en-GB-RyanNeural', label: '♂ Ryan (UK British Narrator)' },
-    { id: 'en-GB-SoniaNeural', label: '♀ Sonia (UK British Female)' },
-    { id: 'en-AU-WilliamNeural', label: '♂ William (AU Australian Male)' }
-  ]},
-  { code: 'es', name: 'Spanish', flag: '🇪🇸', voices: [
-    { id: 'es-ES-AlvaroNeural', label: '♂ Alvaro (ES Cinema Male)' },
-    { id: 'es-ES-ElviraNeural', label: '♀ Elvira (ES Story Female)' },
-    { id: 'es-MX-JorgeNeural', label: '♂ Jorge (MX Recap Male)' },
-    { id: 'es-MX-DaliaNeural', label: '♀ Dalia (MX Warm Female)' }
-  ]},
-  { code: 'fr', name: 'French', flag: '🇫🇷', voices: [
-    { id: 'fr-FR-HenriNeural', label: '♂ Henri (FR Cinema Male)' },
-    { id: 'fr-FR-DeniseNeural', label: '♀ Denise (FR Studio Female)' },
-    { id: 'fr-FR-RemyMultilingualNeural', label: '♂ Remy (FR Story Narrator)' }
-  ]},
-  { code: 'ja', name: 'Japanese', flag: '🇯🇵', voices: [
-    { id: 'ja-JP-KeitaNeural', label: '♂ Keita (JA Anime / Movie Male)' },
-    { id: 'ja-JP-NanamiNeural', label: '♀ Nanami (JA Narrator Female)' }
-  ]},
-  { code: 'ko', name: 'Korean', flag: '🇰🇷', voices: [
-    { id: 'ko-KR-InJoonNeural', label: '♂ InJoon (KO K-Drama Recap Male)' },
-    { id: 'ko-KR-SunHiNeural', label: '♀ SunHi (KO Studio Female)' },
-    { id: 'ko-KR-HyunsuNeural', label: '♂ Hyunsu (KO Deep Narrator)' }
-  ]},
-  { code: 'zh-CN', name: 'Chinese', flag: '🇨🇳', voices: [
-    { id: 'zh-CN-YunxiNeural', label: '♂ Yunxi (Movie Recap Male · Viral)' },
-    { id: 'zh-CN-YunjianNeural', label: '♂ Yunjian (Action / Drama Male)' },
-    { id: 'zh-CN-XiaoxiaoNeural', label: '♀ Xiaoxiao (Warm Story Female)' },
-    { id: 'zh-CN-YunyangNeural', label: '♂ Yunyang (Documentary Male)' },
-    { id: 'zh-TW-HsiaoChenNeural', label: '♀ HsiaoChen (TW Mandarin Female)' }
-  ]},
-  { code: 'de', name: 'German', flag: '🇩🇪', voices: [
-    { id: 'de-DE-ConradNeural', label: '♂ Conrad (DE Cinema Male)' },
-    { id: 'de-DE-KillianNeural', label: '♂ Killian (DE Story Male)' },
-    { id: 'de-DE-KatjaNeural', label: '♀ Katja (DE Studio Female)' }
-  ]},
-  { code: 'vi', name: 'Vietnamese', flag: '🇻🇳', voices: [
-    { id: 'vi-VN-NamMinhNeural', label: '♂ NamMinh (VI Review Male · Deep)' },
-    { id: 'vi-VN-HoaiMyNeural', label: '♀ HoaiMy (VI Storyteller Female · Warm)' }
-  ]},
-  { code: 'th', name: 'Thai', flag: '🇹🇭', voices: [
-    { id: 'th-TH-NiwatNeural', label: '♂ Niwat (TH Movie Recap Male)' },
-    { id: 'th-TH-PremwadeeNeural', label: '♀ Premwadee (TH Story Female)' }
-  ]},
-  { code: 'id', name: 'Indonesian', flag: '🇮🇩', voices: [
-    { id: 'id-ID-ArdiNeural', label: '♂ Ardi (ID Recap Male)' },
-    { id: 'id-ID-GadisNeural', label: '♀ Gadis (ID Story Female)' }
-  ]},
-  { code: 'ms', name: 'Malay', flag: '🇲🇾', voices: [
-    { id: 'ms-MY-OsmanNeural', label: '♂ Osman (MY Neural Male)' },
-    { id: 'ms-MY-YasminNeural', label: '♀ Yasmin (MY Neural Female)' }
-  ]},
-  { code: 'tl', name: 'Filipino', flag: '🇵🇭', voices: [
-    { id: 'fil-PH-AngeloNeural', label: '♂ Angelo (PH Neural Male)' },
-    { id: 'fil-PH-BlessicaNeural', label: '♀ Blessica (PH Neural Female)' }
-  ]},
-  { code: 'hi', name: 'Hindi', flag: '🇮🇳', voices: [
-    { id: 'hi-IN-MadhurNeural', label: '♂ Madhur (HI Cinema Male)' },
-    { id: 'hi-IN-SwaraNeural', label: '♀ Swara (HI Story Female)' }
-  ]},
-  { code: 'ar', name: 'Arabic', flag: '🇸🇦', voices: [
-    { id: 'ar-SA-HamedNeural', label: '♂ Hamed (AR Neural Male)' },
-    { id: 'ar-SA-ZariyahNeural', label: '♀ Zariyah (AR Neural Female)' }
-  ]},
-  { code: 'ru', name: 'Russian', flag: '🇷🇺', voices: [
-    { id: 'ru-RU-DmitryNeural', label: '♂ Dmitry (RU Cinema Male)' },
-    { id: 'ru-RU-SvetlanaNeural', label: '♀ Svetlana (RU Story Female)' }
-  ]},
-  { code: 'pt', name: 'Portuguese', flag: '🇧🇷', voices: [
-    { id: 'pt-BR-AntonioNeural', label: '♂ Antonio (BR Recap Male)' },
-    { id: 'pt-BR-FranciscaNeural', label: '♀ Francisca (BR Studio Female)' },
-    { id: 'pt-PT-DuarteNeural', label: '♂ Duarte (PT Neural Male)' }
-  ]},
-  { code: 'it', name: 'Italian', flag: '🇮🇹', voices: [
-    { id: 'it-IT-DiegoNeural', label: '♂ Diego (IT Cinema Male)' },
-    { id: 'it-IT-GiuseppeNeural', label: '♂ Giuseppe (IT Story Narrator)' },
-    { id: 'it-IT-ElsaNeural', label: '♀ Elsa (IT Neural Female)' }
-  ]},
-  { code: 'nl', name: 'Dutch', flag: '🇳🇱', voices: [
-    { id: 'nl-NL-MaartenNeural', label: '♂ Maarten (NL Neural Male)' },
-    { id: 'nl-NL-ColetteNeural', label: '♀ Colette (NL Neural Female)' }
-  ]},
-  { code: 'tr', name: 'Turkish', flag: '🇹🇷', voices: [
-    { id: 'tr-TR-AhmetNeural', label: '♂ Ahmet (TR Neural Male)' },
-    { id: 'tr-TR-EmelNeural', label: '♀ Emel (TR Neural Female)' }
-  ]},
-  { code: 'pl', name: 'Polish', flag: '🇵🇱', voices: [
-    { id: 'pl-PL-MarekNeural', label: '♂ Marek (PL Neural Male)' },
-    { id: 'pl-PL-ZofiaNeural', label: '♀ Zofia (PL Neural Female)' }
-  ]},
-  { code: 'sv', name: 'Swedish', flag: '🇸🇪', voices: [
-    { id: 'sv-SE-MattiasNeural', label: '♂ Mattias (SV Neural Male)' },
-    { id: 'sv-SE-SofieNeural', label: '♀ Sofie (SV Neural Female)' }
-  ]},
-  { code: 'km', name: 'Khmer', flag: '🇰🇭', voices: [
-    { id: 'km-KH-PisethNeural', label: '♂ Piseth (KH Neural Male)' },
-    { id: 'km-KH-SreymomNeural', label: '♀ Sreymom (KH Neural Female)' }
-  ]},
-  { code: 'lo', name: 'Lao', flag: '🇱🇦', voices: [
-    { id: 'lo-LA-ChanthavongNeural', label: '♂ Chanthavong (LA Male)' },
-    { id: 'lo-LA-KeomanyNeural', label: '♀ Keomany (LA Female)' }
-  ]},
-  { code: 'my', name: 'Burmese', flag: '🇲🇲', voices: [
-    { id: 'my-MM-ThihaNeural', label: '♂ Thiha (MM Neural Male)' },
-    { id: 'my-MM-NilarNeural', label: '♀ Nilar (MM Neural Female)' }
-  ]},
-  { code: 'uk', name: 'Ukrainian', flag: '🇺🇦', voices: [
-    { id: 'uk-UA-OstapNeural', label: '♂ Ostap (UA Neural Male)' },
-    { id: 'uk-UA-PolinaNeural', label: '♀ Polina (UA Neural Female)' }
-  ]},
-  { code: 'cs', name: 'Czech', flag: '🇨🇿', voices: [
-    { id: 'cs-CZ-AntoninNeural', label: '♂ Antonin (CZ Neural Male)' },
-    { id: 'cs-CZ-VlastaNeural', label: '♀ Vlasta (CZ Neural Female)' }
-  ]},
-  { code: 'el', name: 'Greek', flag: '🇬🇷', voices: [
-    { id: 'el-GR-NestorasNeural', label: '♂ Nestoras (GR Neural Male)' },
-    { id: 'el-GR-AthinaNeural', label: '♀ Athina (GR Neural Female)' }
-  ]},
-  { code: 'he', name: 'Hebrew', flag: '🇮🇱', voices: [
-    { id: 'he-IL-AvriNeural', label: '♂ Avri (IL Neural Male)' },
-    { id: 'he-IL-HilaNeural', label: '♀ Hila (IL Neural Female)' }
-  ]},
-  { code: 'ro', name: 'Romanian', flag: '🇷🇴', voices: [
-    { id: 'ro-RO-EmilNeural', label: '♂ Emil (RO Neural Male)' },
-    { id: 'ro-RO-AlinaNeural', label: '♀ Alina (RO Neural Female)' }
-  ]},
-  { code: 'hu', name: 'Hungarian', flag: '🇭🇺', voices: [
-    { id: 'hu-HU-TamasNeural', label: '♂ Tamas (HU Neural Male)' },
-    { id: 'hu-HU-NoemiNeural', label: '♀ Noemi (HU Neural Female)' }
-  ]},
-  { code: 'bn', name: 'Bengali', flag: '🇧🇩', voices: [
-    { id: 'bn-BD-PradeepNeural', label: '♂ Pradeep (BN Neural Male)' },
-    { id: 'bn-BD-NabanitaNeural', label: '♀ Nabanita (BN Neural Female)' }
-  ]},
-  { code: 'ta', name: 'Tamil', flag: '🇮🇳', voices: [
-    { id: 'ta-IN-ValluvarNeural', label: '♂ Valluvar (TA Neural Male)' },
-    { id: 'ta-IN-PallaviNeural', label: '♀ Pallavi (TA Neural Female)' }
-  ]},
-  { code: 'ur', name: 'Urdu', flag: '🇵🇰', voices: [
-    { id: 'ur-PK-AsadNeural', label: '♂ Asad (UR Neural Male)' },
-    { id: 'ur-PK-UzmaNeural', label: '♀ Uzma (UR Neural Female)' }
-  ]},
-  { code: 'fa', name: 'Persian', flag: '🇮🇷', voices: [
-    { id: 'fa-IR-FaridNeural', label: '♂ Farid (FA Neural Male)' },
-    { id: 'fa-IR-DilaraNeural', label: '♀ Dilara (FA Neural Female)' }
-  ]},
-  { code: 'sw', name: 'Swahili', flag: '🇰🇪', voices: [
-    { id: 'sw-KE-RafikiNeural', label: '♂ Rafiki (SW Neural Male)' },
-    { id: 'sw-KE-ZuriNeural', label: '♀ Zuri (SW Neural Female)' }
-  ]}
+  {
+    code: 'en', name: 'English', flag: '🇺🇸', voices: [
+      { id: 'en-US-AndrewMultilingualNeural', label: '♂ Andrew (US Movie Recap Narrator)' },
+      { id: 'en-US-AvaMultilingualNeural', label: '♀ Ava (US Studio Female)' },
+      { id: 'en-US-BrianMultilingualNeural', label: '♂ Brian (US Deep Cinema Voice)' },
+      { id: 'en-US-ChristopherNeural', label: '♂ Christopher (US Thriller / Drama)' },
+      { id: 'en-US-EmmaMultilingualNeural', label: '♀ Emma (US Warm Vlog / Story)' },
+      { id: 'en-US-GuyNeural', label: '♂ Guy (US Documentary / Tech)' },
+      { id: 'en-GB-RyanNeural', label: '♂ Ryan (UK British Narrator)' },
+      { id: 'en-GB-SoniaNeural', label: '♀ Sonia (UK British Female)' },
+      { id: 'en-AU-WilliamNeural', label: '♂ William (AU Australian Male)' }
+    ]
+  },
+  {
+    code: 'es', name: 'Spanish', flag: '🇪🇸', voices: [
+      { id: 'es-ES-AlvaroNeural', label: '♂ Alvaro (ES Cinema Male)' },
+      { id: 'es-ES-ElviraNeural', label: '♀ Elvira (ES Story Female)' },
+      { id: 'es-MX-JorgeNeural', label: '♂ Jorge (MX Recap Male)' },
+      { id: 'es-MX-DaliaNeural', label: '♀ Dalia (MX Warm Female)' }
+    ]
+  },
+  {
+    code: 'fr', name: 'French', flag: '🇫🇷', voices: [
+      { id: 'fr-FR-HenriNeural', label: '♂ Henri (FR Cinema Male)' },
+      { id: 'fr-FR-DeniseNeural', label: '♀ Denise (FR Studio Female)' },
+      { id: 'fr-FR-RemyMultilingualNeural', label: '♂ Remy (FR Story Narrator)' }
+    ]
+  },
+  {
+    code: 'ja', name: 'Japanese', flag: '🇯🇵', voices: [
+      { id: 'ja-JP-KeitaNeural', label: '♂ Keita (JA Anime / Movie Male)' },
+      { id: 'ja-JP-NanamiNeural', label: '♀ Nanami (JA Narrator Female)' }
+    ]
+  },
+  {
+    code: 'ko', name: 'Korean', flag: '🇰🇷', voices: [
+      { id: 'ko-KR-InJoonNeural', label: '♂ InJoon (KO K-Drama Recap Male)' },
+      { id: 'ko-KR-SunHiNeural', label: '♀ SunHi (KO Studio Female)' },
+      { id: 'ko-KR-HyunsuNeural', label: '♂ Hyunsu (KO Deep Narrator)' }
+    ]
+  },
+  {
+    code: 'zh-CN', name: 'Chinese', flag: '🇨🇳', voices: [
+      { id: 'zh-CN-YunxiNeural', label: '♂ Yunxi (Movie Recap Male · Viral)' },
+      { id: 'zh-CN-YunjianNeural', label: '♂ Yunjian (Action / Drama Male)' },
+      { id: 'zh-CN-XiaoxiaoNeural', label: '♀ Xiaoxiao (Warm Story Female)' },
+      { id: 'zh-CN-YunyangNeural', label: '♂ Yunyang (Documentary Male)' },
+      { id: 'zh-TW-HsiaoChenNeural', label: '♀ HsiaoChen (TW Mandarin Female)' }
+    ]
+  },
+  {
+    code: 'de', name: 'German', flag: '🇩🇪', voices: [
+      { id: 'de-DE-ConradNeural', label: '♂ Conrad (DE Cinema Male)' },
+      { id: 'de-DE-KillianNeural', label: '♂ Killian (DE Story Male)' },
+      { id: 'de-DE-KatjaNeural', label: '♀ Katja (DE Studio Female)' }
+    ]
+  },
+  {
+    code: 'vi', name: 'Vietnamese', flag: '🇻🇳', voices: [
+      { id: 'vi_nam_minh_recap', label: '♂ Nam Minh (Review Phim / Movie Recap · Bass Dày)' },
+      { id: 'vi_nam_minh_news', label: '♂ Nam Minh (Tin Tức & Thời Sự · Chuẩn MC)' },
+      { id: 'vi_nam_minh_audiobook', label: '♂ Nam Minh (Sách Nói & Triết Lý · Sâu Lắng)' },
+      { id: 'vi_nam_minh_story', label: '♂ Nam Minh (Truyện Ma & Kịch Tính · Trầm Tối)' },
+      { id: 'vi_nam_minh_shorts', label: '♂ Nam Minh (Trẻ Trung / TikTok Shorts · Năng Động)' },
+      { id: 'vi-VN-NamMinhNeural', label: '♂ Nam Minh (Tự Nhiên Chuẩn Mực)' },
+      { id: 'vi_hoai_my_story', label: '♀ Hoài My (Kể Chuyện & Sách Nói · Dịu Dàng)' },
+      { id: 'vi_hoai_my_review', label: '♀ Hoài My (Review & Đập Hộp KOC · Tươi Tắn)' },
+      { id: 'vi_hoai_my_news', label: '♀ Hoài My (Bản Tin & Phóng Sự · Nghiêm Túc)' },
+      { id: 'vi_hoai_my_lullaby', label: '♀ Hoài My (Tâm Sự Đêm Khuya · Thủ Thỉ)' },
+      { id: 'vi-VN-HoaiMyNeural', label: '♀ Hoài My (Tự Nhiên Chuẩn Mực)' },
+      { id: 'en-US-AndrewMultilingualNeural', label: '♂ Andrew Multilingual (US Accent in VN)' },
+      { id: 'en-US-AvaMultilingualNeural', label: '♀ Ava Multilingual (US Accent in VN)' }
+    ]
+  },
+  {
+    code: 'th', name: 'Thai', flag: '🇹🇭', voices: [
+      { id: 'th-TH-NiwatNeural', label: '♂ Niwat (TH Movie Recap Male)' },
+      { id: 'th-TH-PremwadeeNeural', label: '♀ Premwadee (TH Story Female)' }
+    ]
+  },
+  {
+    code: 'id', name: 'Indonesian', flag: '🇮🇩', voices: [
+      { id: 'id-ID-ArdiNeural', label: '♂ Ardi (ID Recap Male)' },
+      { id: 'id-ID-GadisNeural', label: '♀ Gadis (ID Story Female)' }
+    ]
+  },
+  {
+    code: 'ms', name: 'Malay', flag: '🇲🇾', voices: [
+      { id: 'ms-MY-OsmanNeural', label: '♂ Osman (MY Neural Male)' },
+      { id: 'ms-MY-YasminNeural', label: '♀ Yasmin (MY Neural Female)' }
+    ]
+  },
+  {
+    code: 'tl', name: 'Filipino', flag: '🇵🇭', voices: [
+      { id: 'fil-PH-AngeloNeural', label: '♂ Angelo (PH Neural Male)' },
+      { id: 'fil-PH-BlessicaNeural', label: '♀ Blessica (PH Neural Female)' }
+    ]
+  },
+  {
+    code: 'hi', name: 'Hindi', flag: '🇮🇳', voices: [
+      { id: 'hi-IN-MadhurNeural', label: '♂ Madhur (HI Cinema Male)' },
+      { id: 'hi-IN-SwaraNeural', label: '♀ Swara (HI Story Female)' }
+    ]
+  },
+  {
+    code: 'ar', name: 'Arabic', flag: '🇸🇦', voices: [
+      { id: 'ar-SA-HamedNeural', label: '♂ Hamed (AR Neural Male)' },
+      { id: 'ar-SA-ZariyahNeural', label: '♀ Zariyah (AR Neural Female)' }
+    ]
+  },
+  {
+    code: 'ru', name: 'Russian', flag: '🇷🇺', voices: [
+      { id: 'ru-RU-DmitryNeural', label: '♂ Dmitry (RU Cinema Male)' },
+      { id: 'ru-RU-SvetlanaNeural', label: '♀ Svetlana (RU Story Female)' }
+    ]
+  },
+  {
+    code: 'pt', name: 'Portuguese', flag: '🇧🇷', voices: [
+      { id: 'pt-BR-AntonioNeural', label: '♂ Antonio (BR Recap Male)' },
+      { id: 'pt-BR-FranciscaNeural', label: '♀ Francisca (BR Studio Female)' },
+      { id: 'pt-PT-DuarteNeural', label: '♂ Duarte (PT Neural Male)' }
+    ]
+  },
+  {
+    code: 'it', name: 'Italian', flag: '🇮🇹', voices: [
+      { id: 'it-IT-DiegoNeural', label: '♂ Diego (IT Cinema Male)' },
+      { id: 'it-IT-GiuseppeNeural', label: '♂ Giuseppe (IT Story Narrator)' },
+      { id: 'it-IT-ElsaNeural', label: '♀ Elsa (IT Neural Female)' }
+    ]
+  },
+  {
+    code: 'nl', name: 'Dutch', flag: '🇳🇱', voices: [
+      { id: 'nl-NL-MaartenNeural', label: '♂ Maarten (NL Neural Male)' },
+      { id: 'nl-NL-ColetteNeural', label: '♀ Colette (NL Neural Female)' }
+    ]
+  },
+  {
+    code: 'tr', name: 'Turkish', flag: '🇹🇷', voices: [
+      { id: 'tr-TR-AhmetNeural', label: '♂ Ahmet (TR Neural Male)' },
+      { id: 'tr-TR-EmelNeural', label: '♀ Emel (TR Neural Female)' }
+    ]
+  },
+  {
+    code: 'pl', name: 'Polish', flag: '🇵🇱', voices: [
+      { id: 'pl-PL-MarekNeural', label: '♂ Marek (PL Neural Male)' },
+      { id: 'pl-PL-ZofiaNeural', label: '♀ Zofia (PL Neural Female)' }
+    ]
+  },
+  {
+    code: 'sv', name: 'Swedish', flag: '🇸🇪', voices: [
+      { id: 'sv-SE-MattiasNeural', label: '♂ Mattias (SV Neural Male)' },
+      { id: 'sv-SE-SofieNeural', label: '♀ Sofie (SV Neural Female)' }
+    ]
+  },
+  {
+    code: 'km', name: 'Khmer', flag: '🇰🇭', voices: [
+      { id: 'km-KH-PisethNeural', label: '♂ Piseth (KH Neural Male)' },
+      { id: 'km-KH-SreymomNeural', label: '♀ Sreymom (KH Neural Female)' }
+    ]
+  },
+  {
+    code: 'lo', name: 'Lao', flag: '🇱🇦', voices: [
+      { id: 'lo-LA-ChanthavongNeural', label: '♂ Chanthavong (LA Male)' },
+      { id: 'lo-LA-KeomanyNeural', label: '♀ Keomany (LA Female)' }
+    ]
+  },
+  {
+    code: 'my', name: 'Burmese', flag: '🇲🇲', voices: [
+      { id: 'my-MM-ThihaNeural', label: '♂ Thiha (MM Neural Male)' },
+      { id: 'my-MM-NilarNeural', label: '♀ Nilar (MM Neural Female)' }
+    ]
+  },
+  {
+    code: 'uk', name: 'Ukrainian', flag: '🇺🇦', voices: [
+      { id: 'uk-UA-OstapNeural', label: '♂ Ostap (UA Neural Male)' },
+      { id: 'uk-UA-PolinaNeural', label: '♀ Polina (UA Neural Female)' }
+    ]
+  },
+  {
+    code: 'cs', name: 'Czech', flag: '🇨🇿', voices: [
+      { id: 'cs-CZ-AntoninNeural', label: '♂ Antonin (CZ Neural Male)' },
+      { id: 'cs-CZ-VlastaNeural', label: '♀ Vlasta (CZ Neural Female)' }
+    ]
+  },
+  {
+    code: 'el', name: 'Greek', flag: '🇬🇷', voices: [
+      { id: 'el-GR-NestorasNeural', label: '♂ Nestoras (GR Neural Male)' },
+      { id: 'el-GR-AthinaNeural', label: '♀ Athina (GR Neural Female)' }
+    ]
+  },
+  {
+    code: 'he', name: 'Hebrew', flag: '🇮🇱', voices: [
+      { id: 'he-IL-AvriNeural', label: '♂ Avri (IL Neural Male)' },
+      { id: 'he-IL-HilaNeural', label: '♀ Hila (IL Neural Female)' }
+    ]
+  },
+  {
+    code: 'ro', name: 'Romanian', flag: '🇷🇴', voices: [
+      { id: 'ro-RO-EmilNeural', label: '♂ Emil (RO Neural Male)' },
+      { id: 'ro-RO-AlinaNeural', label: '♀ Alina (RO Neural Female)' }
+    ]
+  },
+  {
+    code: 'hu', name: 'Hungarian', flag: '🇭🇺', voices: [
+      { id: 'hu-HU-TamasNeural', label: '♂ Tamas (HU Neural Male)' },
+      { id: 'hu-HU-NoemiNeural', label: '♀ Noemi (HU Neural Female)' }
+    ]
+  },
+  {
+    code: 'bn', name: 'Bengali', flag: '🇧🇩', voices: [
+      { id: 'bn-BD-PradeepNeural', label: '♂ Pradeep (BN Neural Male)' },
+      { id: 'bn-BD-NabanitaNeural', label: '♀ Nabanita (BN Neural Female)' }
+    ]
+  },
+  {
+    code: 'ta', name: 'Tamil', flag: '🇮🇳', voices: [
+      { id: 'ta-IN-ValluvarNeural', label: '♂ Valluvar (TA Neural Male)' },
+      { id: 'ta-IN-PallaviNeural', label: '♀ Pallavi (TA Neural Female)' }
+    ]
+  },
+  {
+    code: 'ur', name: 'Urdu', flag: '🇵🇰', voices: [
+      { id: 'ur-PK-AsadNeural', label: '♂ Asad (UR Neural Male)' },
+      { id: 'ur-PK-UzmaNeural', label: '♀ Uzma (UR Neural Female)' }
+    ]
+  },
+  {
+    code: 'fa', name: 'Persian', flag: '🇮🇷', voices: [
+      { id: 'fa-IR-FaridNeural', label: '♂ Farid (FA Neural Male)' },
+      { id: 'fa-IR-DilaraNeural', label: '♀ Dilara (FA Neural Female)' }
+    ]
+  },
+  {
+    code: 'sw', name: 'Swahili', flag: '🇰🇪', voices: [
+      { id: 'sw-KE-RafikiNeural', label: '♂ Rafiki (SW Neural Male)' },
+      { id: 'sw-KE-ZuriNeural', label: '♀ Zuri (SW Neural Female)' }
+    ]
+  }
 ];
 
 function populateReviewVoiceSelect(voiceSelectEl, langCode, selectedVoice) {
   if (!voiceSelectEl) return;
-  const entry = REVIEW_LANG_VOICE_CATALOG.find(l => l.code === langCode) || REVIEW_LANG_VOICE_CATALOG[0];
   voiceSelectEl.innerHTML = '';
-  entry.voices.forEach(v => {
-    const opt = document.createElement('option');
-    opt.value = v.id;
-    opt.textContent = v.label;
-    voiceSelectEl.appendChild(opt);
-  });
+
+  if (langCode === 'cloned') {
+    if (!globalClonedVoiceProfiles || globalClonedVoiceProfiles.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = 'none';
+      opt.textContent = 'No cloned voices yet (create in Voice Studio)';
+      voiceSelectEl.appendChild(opt);
+    } else {
+      globalClonedVoiceProfiles.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.id;
+        opt.textContent = `🧬 ${v.name} (Cloned Voice)`;
+        voiceSelectEl.appendChild(opt);
+      });
+    }
+  } else {
+    const entry = REVIEW_LANG_VOICE_CATALOG.find(l => l.code === langCode) || REVIEW_LANG_VOICE_CATALOG[0];
+    entry.voices.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.id;
+      opt.textContent = v.label;
+      voiceSelectEl.appendChild(opt);
+    });
+
+    if (globalClonedVoiceProfiles && globalClonedVoiceProfiles.length > 0) {
+      const grp = document.createElement('optgroup');
+      grp.label = '🧬 My Cloned Voices (Zero-Shot)';
+      globalClonedVoiceProfiles.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.id;
+        opt.textContent = `🧬 ${v.name} (Cloned Voice)`;
+        grp.appendChild(opt);
+      });
+      voiceSelectEl.appendChild(grp);
+    }
+  }
+
   if (selectedVoice && Array.from(voiceSelectEl.options).some(o => o.value === selectedVoice)) {
     voiceSelectEl.value = selectedVoice;
   } else if (voiceSelectEl.options.length > 0) {
@@ -2967,6 +3223,12 @@ function populateReviewLangSelect(langSelectEl, selectedLangCode) {
     opt.textContent = `${l.flag} ${l.name}`;
     langSelectEl.appendChild(opt);
   });
+  // Add Cloned Voices option
+  const clOpt = document.createElement('option');
+  clOpt.value = 'cloned|My Cloned Voices';
+  clOpt.textContent = '🧬 My Cloned Voices (Zero-Shot)';
+  langSelectEl.appendChild(clOpt);
+
   const match = Array.from(langSelectEl.options).find(o => o.value.startsWith((selectedLangCode || 'en') + '|'));
   if (match) langSelectEl.value = match.value;
 }
@@ -3094,7 +3356,11 @@ function updateAiReviewLivePreview() {
     const lName = (pin1Lang.value || 'en|English').split('|')[1] || 'English';
     const vOpt = pin1Voice.options[pin1Voice.selectedIndex];
     const vTxt = vOpt ? vOpt.textContent : pin1Voice.value;
-    voiceTag.textContent = `🎙️ Pin 1: ${lName} (${vTxt})`;
+    if (pin1Voice.value && pin1Voice.value.startsWith('clone_')) {
+      voiceTag.textContent = `🎙️ Pin 1: 🧬 Cloned Voice (${vTxt})`;
+    } else {
+      voiceTag.textContent = `🎙️ Pin 1: ${lName} (${vTxt})`;
+    }
   }
 
   // Logo & Channel Watermark overlay in the live video preview stage
@@ -3187,20 +3453,27 @@ function updateAiReviewLivePreview() {
     return;
   }
   capText.style.opacity = '1';
-  capText.textContent = asp === '9:16'
-    ? '"The hidden truth is finally revealed!"'
-    : '"And right at that moment, the hidden truth behind the entire mission is revealed!"';
-  const fontSize = sz === 'small' ? '10.5px' : (sz === 'large' ? '14.5px' : '12.4px');
-  const styleCfg = {
-    beasty: 'color:#facc15; background:transparent; text-shadow:0 2px 6px rgba(0,0,0,0.95); font-weight:900; padding:2px 6px;',
-    roleplay: 'color:#38bdf8; background:rgba(15,23,42,0.88); border:1px solid rgba(56,189,248,0.45); border-radius:6px; padding:3px 9px; font-weight:800;',
-    popline: 'color:#ffffff; background:rgba(147,51,234,0.88); border-radius:6px; padding:3px 10px; font-weight:800;',
-    deep_diver: 'color:#67e8f9; background:rgba(8,51,68,0.85); border-radius:6px; padding:3px 9px; font-weight:800;',
-    one_punch: 'color:#f87171; background:transparent; text-shadow:0 2px 7px rgba(0,0,0,0.98); font-weight:900; letter-spacing:0.05em;',
-    glow: 'color:#f0abfc; background:transparent; text-shadow:0 0 10px rgba(217,70,239,0.9), 0 2px 5px #000; font-weight:800;',
-    classic: 'color:#f8fafc; background:rgba(0,0,0,0.62); border-radius:4px; padding:2px 8px; font-weight:700;',
+  const fontSize = sz === 'small' ? '10px' : (sz === 'large' ? '13px' : '11.5px');
+  const styleHtml = {
+    beasty: `<span class="chip-beasty-hi" style="font-weight:900; margin-right:4px;">STORY</span><span style="color:#ffffff; font-weight:900;">RECAP · The hidden truth!</span>`,
+    roleplay: `<span class="chip-role-badge" style="font-size:9px; padding:1px 5px; border-radius:3px; margin-right:4px;">NARRATOR</span><span class="chip-role-hi" style="font-size:9px; padding:1px 5px; border-radius:3px; margin-right:4px;">TWIST</span><span style="color:#ffffff; font-weight:800;">The truth is revealed!</span>`,
+    popline: `<span class="chip-popline-hi" style="font-size:9px; padding:1px 5px; border-radius:3px; margin-right:5px;">Plot</span><span style="color:#ffffff; font-weight:800;">Climax · Secret uncovered!</span>`,
+    deep_diver: `<span class="chip-diver-hi" style="font-size:9px; padding:1px 5px; border-radius:3px; margin-right:5px;">Deep Story</span><span style="color:#67e8f9; font-weight:800;">The hidden truth is revealed!</span>`,
+    one_punch: `<span class="chip-punch-hi" style="font-size:1.15em; font-weight:900; margin-right:5px;">SHOCK!</span><span style="color:#f87171; font-weight:900;">The secret was revealed!</span>`,
+    glow: `<span class="chip-glow-hi" style="font-weight:900; margin-right:4px;">Neon Vibe</span><span style="color:#22d3ee; text-shadow:0 0 8px #22d3ee; font-weight:800;">· Truth is finally out!</span>`,
+    classic: `<span style="color:#f8fafc; font-weight:700;">Classic Cinema · The hidden truth is revealed.</span>`,
   };
-  capText.style.cssText = `${styleCfg[style] || styleCfg.beasty} font-size:${fontSize}; transition:all .15s ease;`;
+  const styleBoxCss = {
+    beasty: 'background:rgba(0,0,0,0.65); border-radius:8px; padding:4px 10px;',
+    roleplay: 'background:rgba(15,23,42,0.92); border:1px solid rgba(56,189,248,0.45); border-radius:8px; padding:4px 10px;',
+    popline: 'background:rgba(59,7,100,0.88); border:1px solid rgba(244,114,182,0.45); border-radius:8px; padding:4px 10px;',
+    deep_diver: 'background:rgba(8,51,68,0.88); border:1px solid rgba(103,232,249,0.5); border-radius:8px; padding:4px 10px;',
+    one_punch: 'background:rgba(0,0,0,0.65); border-radius:8px; padding:4px 10px;',
+    glow: 'background:rgba(20,10,30,0.85); border:1px solid rgba(217,70,239,0.45); border-radius:8px; padding:4px 10px;',
+    classic: 'background:rgba(0,0,0,0.72); border-radius:6px; padding:3px 9px;',
+  };
+  capText.innerHTML = styleHtml[style] || styleHtml.beasty;
+  capText.style.cssText = `${styleBoxCss[style] || styleBoxCss.beasty} font-size:${fontSize}; transition:all .15s ease; display:inline-flex; align-items:center; justify-content:center; flex-wrap:wrap; text-align:center;`;
 }
 
 function initAiReviewStudioUI(cfg) {
@@ -3444,7 +3717,7 @@ function bindAiReviewStudioListeners() {
         reviewLogoScale,
         reviewLogoOpacity,
         reviewBrandText,
-      }).catch(() => {});
+      }).catch(() => { });
     }, 180);
   };
 
@@ -3526,7 +3799,7 @@ function bindAiReviewStudioListeners() {
       dragOffX = e.clientX - nRect.left;
       dragOffY = e.clientY - nRect.top;
       if (logoNode.setPointerCapture) {
-        try { logoNode.setPointerCapture(e.pointerId); } catch (_) {}
+        try { logoNode.setPointerCapture(e.pointerId); } catch (_) { }
       }
     });
     window.addEventListener('pointermove', (e) => {
@@ -3908,8 +4181,8 @@ function renderOnboardingTourStep() {
 async function persistTourDismissedState() {
   const chk = document.getElementById('chk-tour-dont-show');
   const dismissed = !!(chk && chk.checked);
-  try { localStorage.setItem('pizza_onboarding_dismissed', dismissed ? '1' : '0'); } catch (_) {}
-  try { await invoke('set_onboarding_dismissed', { dismissed }); } catch (_) {}
+  try { localStorage.setItem('pizza_onboarding_dismissed', dismissed ? '1' : '0'); } catch (_) { }
+  try { await invoke('set_onboarding_dismissed', { dismissed }); } catch (_) { }
 }
 
 async function closeOnboardingTour() {
@@ -3965,7 +4238,7 @@ function initOnboardingTour(cfg) {
 
   const chk = document.getElementById('chk-tour-dont-show');
   let localDismissed = false;
-  try { localDismissed = localStorage.getItem('pizza_onboarding_dismissed') === '1'; } catch (_) {}
+  try { localDismissed = localStorage.getItem('pizza_onboarding_dismissed') === '1'; } catch (_) { }
   const isDismissed = !!(cfg && cfg.onboarding_dismissed) || localDismissed;
   if (chk) chk.checked = isDismissed;
 
@@ -4015,7 +4288,7 @@ function initOnboardingTour(cfg) {
         activeTourStep = Number(e.currentTarget.dataset.tstep) || 0;
         renderOnboardingTourStep();
       });
-    } );
+    });
     document.querySelectorAll('.tour-lang-btn[data-tour-lang]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         activeTourLang = e.currentTarget.dataset.tourLang || 'vi';
@@ -4111,32 +4384,44 @@ bindStudioSubtabs();
 // ---- Barcode & Label Studio: Drag & Drop Label Editor (per-layout custom designs) ----
 // NOTE: BC_DEFAULT_LAYOUTS must stay identical to DEFAULT_LAYOUTS in convert_cmd.rs (generate_barcode_labels).
 var BC_DEFAULT_LAYOUTS = {
-  only_png: { els: {
-    brand:   { x: 0.25, y: 0.05, w: 0.50, h: 0.10, fs: 0.058, color: '#ffffff', bg: '#0f172a', align: 'center', bold: true, show: true },
-    title:   { x: 0.06, y: 0.18, w: 0.88, h: 0.10, fs: 0.066, color: '#141820', align: 'center', bold: true, show: true },
-    barcode: { x: 0.12, y: 0.31, w: 0.76, h: 0.38, color: '#000000', show: true },
-    code:    { x: 0.06, y: 0.71, w: 0.88, h: 0.10, fs: 0.064, color: '#0f1218', align: 'center', bold: true, show: true },
-    price:   { x: 0.06, y: 0.83, w: 0.88, h: 0.10, fs: 0.056, color: '#dc2626', align: 'center', bold: true, show: true } } },
-  with_photo: { els: {
-    photo:   { x: 0.035, y: 0.08, w: 0.37, h: 0.84, show: true },
-    brand:   { x: 0.50, y: 0.05, w: 0.42, h: 0.09, fs: 0.050, color: '#ffffff', bg: '#0f172a', align: 'center', bold: true, show: true },
-    title:   { x: 0.45, y: 0.17, w: 0.52, h: 0.09, fs: 0.060, color: '#141820', align: 'center', bold: true, show: true },
-    barcode: { x: 0.49, y: 0.29, w: 0.44, h: 0.40, color: '#000000', show: true },
-    code:    { x: 0.45, y: 0.71, w: 0.52, h: 0.09, fs: 0.058, color: '#0f1218', align: 'center', bold: true, show: true },
-    price:   { x: 0.45, y: 0.82, w: 0.52, h: 0.09, fs: 0.052, color: '#dc2626', align: 'center', bold: true, show: true } } },
-  stamp_photo: { els: {
-    panel:   { x: 0.56, y: 0.60, w: 0.40, h: 0.36, bg: '#ffffff', opacity: 0.96, show: true },
-    brand:   { x: 0.60, y: 0.625, w: 0.32, h: 0.05, fs: 0.030, color: '#ffffff', bg: '#0f172a', align: 'center', bold: true, show: true },
-    title:   { x: 0.58, y: 0.685, w: 0.36, h: 0.04, fs: 0.028, color: '#141820', align: 'center', bold: true, show: false },
-    barcode: { x: 0.60, y: 0.69, w: 0.32, h: 0.15, color: '#000000', show: true },
-    code:    { x: 0.58, y: 0.85, w: 0.36, h: 0.04, fs: 0.030, color: '#0f1218', align: 'center', bold: true, show: true },
-    price:   { x: 0.58, y: 0.895, w: 0.36, h: 0.04, fs: 0.028, color: '#dc2626', align: 'center', bold: true, show: true } } },
-  sheet_a4: { els: {
-    brand:   { x: 0.18, y: 0.05, w: 0.64, h: 0.13, fs: 0.085, color: '#ffffff', bg: '#0f172a', align: 'center', bold: true, show: true },
-    title:   { x: 0.05, y: 0.20, w: 0.90, h: 0.12, fs: 0.090, color: '#141820', align: 'center', bold: true, show: true },
-    barcode: { x: 0.10, y: 0.34, w: 0.80, h: 0.37, color: '#000000', show: true },
-    code:    { x: 0.05, y: 0.72, w: 0.90, h: 0.12, fs: 0.090, color: '#0f1218', align: 'center', bold: true, show: true },
-    price:   { x: 0.05, y: 0.85, w: 0.90, h: 0.11, fs: 0.080, color: '#dc2626', align: 'center', bold: true, show: true } } }
+  only_png: {
+    els: {
+      brand: { x: 0.25, y: 0.05, w: 0.50, h: 0.10, fs: 0.058, color: '#ffffff', bg: '#0f172a', align: 'center', bold: true, show: true },
+      title: { x: 0.06, y: 0.18, w: 0.88, h: 0.10, fs: 0.066, color: '#141820', align: 'center', bold: true, show: true },
+      barcode: { x: 0.12, y: 0.31, w: 0.76, h: 0.38, color: '#000000', show: true },
+      code: { x: 0.06, y: 0.71, w: 0.88, h: 0.10, fs: 0.064, color: '#0f1218', align: 'center', bold: true, show: true },
+      price: { x: 0.06, y: 0.83, w: 0.88, h: 0.10, fs: 0.056, color: '#dc2626', align: 'center', bold: true, show: true }
+    }
+  },
+  with_photo: {
+    els: {
+      photo: { x: 0.035, y: 0.08, w: 0.37, h: 0.84, show: true },
+      brand: { x: 0.50, y: 0.05, w: 0.42, h: 0.09, fs: 0.050, color: '#ffffff', bg: '#0f172a', align: 'center', bold: true, show: true },
+      title: { x: 0.45, y: 0.17, w: 0.52, h: 0.09, fs: 0.060, color: '#141820', align: 'center', bold: true, show: true },
+      barcode: { x: 0.49, y: 0.29, w: 0.44, h: 0.40, color: '#000000', show: true },
+      code: { x: 0.45, y: 0.71, w: 0.52, h: 0.09, fs: 0.058, color: '#0f1218', align: 'center', bold: true, show: true },
+      price: { x: 0.45, y: 0.82, w: 0.52, h: 0.09, fs: 0.052, color: '#dc2626', align: 'center', bold: true, show: true }
+    }
+  },
+  stamp_photo: {
+    els: {
+      panel: { x: 0.56, y: 0.60, w: 0.40, h: 0.36, bg: '#ffffff', opacity: 0.96, show: true },
+      brand: { x: 0.60, y: 0.625, w: 0.32, h: 0.05, fs: 0.030, color: '#ffffff', bg: '#0f172a', align: 'center', bold: true, show: true },
+      title: { x: 0.58, y: 0.685, w: 0.36, h: 0.04, fs: 0.028, color: '#141820', align: 'center', bold: true, show: false },
+      barcode: { x: 0.60, y: 0.69, w: 0.32, h: 0.15, color: '#000000', show: true },
+      code: { x: 0.58, y: 0.85, w: 0.36, h: 0.04, fs: 0.030, color: '#0f1218', align: 'center', bold: true, show: true },
+      price: { x: 0.58, y: 0.895, w: 0.36, h: 0.04, fs: 0.028, color: '#dc2626', align: 'center', bold: true, show: true }
+    }
+  },
+  sheet_a4: {
+    els: {
+      brand: { x: 0.18, y: 0.05, w: 0.64, h: 0.13, fs: 0.085, color: '#ffffff', bg: '#0f172a', align: 'center', bold: true, show: true },
+      title: { x: 0.05, y: 0.20, w: 0.90, h: 0.12, fs: 0.090, color: '#141820', align: 'center', bold: true, show: true },
+      barcode: { x: 0.10, y: 0.34, w: 0.80, h: 0.37, color: '#000000', show: true },
+      code: { x: 0.05, y: 0.72, w: 0.90, h: 0.12, fs: 0.090, color: '#0f1218', align: 'center', bold: true, show: true },
+      price: { x: 0.05, y: 0.85, w: 0.90, h: 0.11, fs: 0.080, color: '#dc2626', align: 'center', bold: true, show: true }
+    }
+  }
 };
 var BC_EL_ORDER = ['panel', 'photo', 'brand', 'title', 'barcode', 'code', 'price'];
 var BC_EL_LABELS = { panel: '🔲 Tag Background', photo: '🖼️ Photo', brand: '🏪 Brand', title: '📝 Title', barcode: '▮▮ Barcode', code: '🔢 Code Number', price: '💰 Price / Note' };
@@ -4288,9 +4573,11 @@ function bcBindStage(stage) {
     bcEdSel = k;
     var e = bcCurLayout().els[k];
     var r = stage.getBoundingClientRect();
-    drag = { k: k, mode: ev.target.classList.contains('bc-ed-handle') ? 'resize' : 'move', sx: ev.clientX, sy: ev.clientY,
-             o: { x: e.x, y: e.y, w: e.w, h: e.h, fs: e.fs }, rw: r.width, rh: r.height };
-    try { stage.setPointerCapture(ev.pointerId); } catch (_) {}
+    drag = {
+      k: k, mode: ev.target.classList.contains('bc-ed-handle') ? 'resize' : 'move', sx: ev.clientX, sy: ev.clientY,
+      o: { x: e.x, y: e.y, w: e.w, h: e.h, fs: e.fs }, rw: r.width, rh: r.height
+    };
+    try { stage.setPointerCapture(ev.pointerId); } catch (_) { }
     stage.focus({ preventScroll: true });
     ev.preventDefault();
     renderBcEditor(bcEdCtx);
@@ -4484,10 +4771,10 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
       ],
       modalities: { text: true, vision: true, video: true, tts: true, imageGen: true },
       capabilities: [
-        { ok: true,  label: 'Text, Story Recap & Context Translation (AI Review, Subtitles, Dubbing, Doc Summary)' },
-        { ok: true,  label: 'Vision & Image Reading (AI OCR, SEO Alt/Title, Smart RenameMe, Barcode Auto-Fill)' },
-        { ok: true,  label: 'Native Video Frame Understanding (Multimodal Scene & Action Analysis)' },
-        { ok: true,  label: 'Multilingual Audio & Speech Understanding' }
+        { ok: true, label: 'Text, Story Recap & Context Translation (AI Review, Subtitles, Dubbing, Doc Summary)' },
+        { ok: true, label: 'Vision & Image Reading (AI OCR, SEO Alt/Title, Smart RenameMe, Barcode Auto-Fill)' },
+        { ok: true, label: 'Native Video Frame Understanding (Multimodal Scene & Action Analysis)' },
+        { ok: true, label: 'Multilingual Audio & Speech Understanding' }
       ]
     },
     {
@@ -4508,9 +4795,9 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
       ],
       modalities: { text: true, vision: true, video: false, tts: true, imageGen: true },
       capabilities: [
-        { ok: true,  label: 'Text, Story Recap & Context Translation (AI Review, Subtitles, Dubbing, Doc Summary)' },
-        { ok: true,  label: 'Vision & Image Reading (GPT-4o / 4.1 Vision: OCR, SEO Alt/Title, Smart RenameMe)' },
-        { ok: true,  label: 'Cloud Neural TTS & Image Generation Compatible (gpt-4o-mini-tts / gpt-image-1)' },
+        { ok: true, label: 'Text, Story Recap & Context Translation (AI Review, Subtitles, Dubbing, Doc Summary)' },
+        { ok: true, label: 'Vision & Image Reading (GPT-4o / 4.1 Vision: OCR, SEO Alt/Title, Smart RenameMe)' },
+        { ok: true, label: 'Cloud Neural TTS & Image Generation Compatible (gpt-4o-mini-tts / gpt-image-1)' },
         { ok: false, label: 'Native Full-Video File Ingestion (Uses Whisper Transcript + Keyframe Mode instead)' }
       ]
     },
@@ -4531,8 +4818,8 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
       ],
       modalities: { text: true, vision: true, video: false, tts: false, imageGen: false },
       capabilities: [
-        { ok: true,  label: 'Text, Story Recap & Nuanced Translation (Top-tier Literary & Movie Review Scripts)' },
-        { ok: true,  label: 'Vision & Document/Image Reading (AI OCR, SEO Alt/Title, Smart RenameMe, Charts)' },
+        { ok: true, label: 'Text, Story Recap & Nuanced Translation (Top-tier Literary & Movie Review Scripts)' },
+        { ok: true, label: 'Vision & Document/Image Reading (AI OCR, SEO Alt/Title, Smart RenameMe, Charts)' },
         { ok: false, label: 'Native Video File Upload (Uses Whisper Transcript + Keyframe Mode)' },
         { ok: false, label: 'Cloud Voice TTS / Image Backdrop Generation (Uses Built-in Edge Neural TTS & IS-Net)' }
       ]
@@ -4555,8 +4842,8 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
       ],
       modalities: { text: true, vision: true, video: false, tts: false, imageGen: false },
       capabilities: [
-        { ok: true,  label: 'Unified Gateway to 300+ Models (Gemini, Claude, GPT-4o, Llama, Mistral, Qwen)' },
-        { ok: true,  label: 'Vision & Image Reading (When a Vision model like Gemini/GPT-4o/Claude/Llama-Vision is selected)' },
+        { ok: true, label: 'Unified Gateway to 300+ Models (Gemini, Claude, GPT-4o, Llama, Mistral, Qwen)' },
+        { ok: true, label: 'Vision & Image Reading (When a Vision model like Gemini/GPT-4o/Claude/Llama-Vision is selected)' },
         { ok: false, label: 'Native Video Stream Upload (Uses Whisper Transcript Mode)' },
         { ok: false, label: 'Direct Cloud Voice TTS (Uses Built-in Edge Neural TTS)' }
       ]
@@ -4578,8 +4865,8 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
       ],
       modalities: { text: true, vision: true, video: false, tts: false, imageGen: false },
       capabilities: [
-        { ok: true,  label: 'Text, Story Recap & Fast Multilingual Translation (Llama 4 Maverick / Scout / 3.3 70B)' },
-        { ok: true,  label: 'Vision & Image Reading (Llama 4 Maverick/Scout & Llama 3.2 Vision models)' },
+        { ok: true, label: 'Text, Story Recap & Fast Multilingual Translation (Llama 4 Maverick / Scout / 3.3 70B)' },
+        { ok: true, label: 'Vision & Image Reading (Llama 4 Maverick/Scout & Llama 3.2 Vision models)' },
         { ok: false, label: 'Native Video File Upload (Uses Whisper Transcript Mode)' },
         { ok: false, label: 'Cloud Voice TTS / Image Backdrop Generation (Uses Built-in Edge Neural TTS)' }
       ]
@@ -4599,7 +4886,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
       ],
       modalities: { text: true, vision: false, video: false, tts: false, imageGen: false },
       capabilities: [
-        { ok: true,  label: 'Ultra-Low-Cost Text, Movie Recap Script, Subtitle Translation & Document Summary' },
+        { ok: true, label: 'Ultra-Low-Cost Text, Movie Recap Script, Subtitle Translation & Document Summary' },
         { ok: false, label: 'Cannot Read Images / Vision (DeepSeek API is Text-Only — disabled for OCR, SEO Alt & RenameMe)' },
         { ok: false, label: 'Cannot Process Raw Video Frames (Uses Whisper Transcript Mode)' },
         { ok: false, label: 'Cannot Generate Voice TTS or Images (Uses Built-in Edge Neural TTS & Local IS-Net)' }
@@ -5573,7 +5860,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
         await navigator.clipboard.writeText(inpRemoteUrl.value);
         btnCopyUrl.textContent = '✅ Copied!';
         setTimeout(() => { btnCopyUrl.textContent = 'Copy'; }, 2000);
-      } catch (e) {}
+      } catch (e) { }
     });
   }
 
@@ -5663,6 +5950,12 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
   const badgeMaster = document.getElementById('vs-master-badge');
   const voiceList = document.getElementById('vs-voice-list');
   const countBadge = document.getElementById('vs-voice-count-badge');
+  const selLangFilter = document.getElementById('sel-vs-lang-filter');
+  const selGenderFilter = document.getElementById('sel-vs-gender-filter');
+  const inpSearch = document.getElementById('inp-vs-search');
+  const activeVoicePill = document.getElementById('vs-active-voice-pill');
+  const langDetectedTag = document.getElementById('vs-lang-detected-tag');
+
   const btnRecordMic = document.getElementById('btn-vs-record-mic');
   const btnUploadAudio = document.getElementById('btn-vs-upload-audio');
   const recordStatusBox = document.getElementById('vs-record-status-box');
@@ -5676,6 +5969,8 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
   const charCount = document.getElementById('vs-char-count');
   const rngSpeed = document.getElementById('rng-vs-speed');
   const lblSpeed = document.getElementById('lbl-vs-speed');
+  const rngPitch = document.getElementById('rng-vs-pitch');
+  const lblPitch = document.getElementById('lbl-vs-pitch');
   const rngStability = document.getElementById('rng-vs-stability');
   const lblStability = document.getElementById('lbl-vs-stability');
   const btnGenTts = document.getElementById('btn-vs-generate-tts');
@@ -5691,43 +5986,289 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
   const btnDubSrt = document.getElementById('btn-vs-dub-srt');
   const srtResultBox = document.getElementById('vs-srt-result-box');
 
-  let activeVoiceId = 'cinematic_narrator_male';
+  let activeVoiceId = 'en_andrew';
   let recordedAudioBlob = null;
   let mediaRecorder = null;
   let recordInterval = null;
   let selectedSrtPath = '';
   let uploadedRefAudioPath = '';
+  let cachedCustomProfiles = [];
 
   const CURATED_VOICES = [
+    // 🇻🇳 Vietnamese Voices
+    {
+      id: 'vi_nam_minh',
+      name: 'Nam Minh · Thuyết Minh Phim',
+      desc: 'Giọng nam trầm ấm, truyền cảm, cực chuẩn cho review phim & recap YouTube.',
+      avatar: '🇻🇳',
+      gender: 'male',
+      lang: 'vi',
+      lang_name: 'Vietnamese',
+      style: 'Movie Recap & Deep Narration',
+      sample_text: 'Chào mừng các bạn đã quay trở lại với video review phim ngày hôm nay.',
+      type: 'curated'
+    },
+    {
+      id: 'vi_hoai_my',
+      name: 'Hoài My · Kể Chuyện & Sách Nói',
+      desc: 'Giọng nữ dịu dàng, tự nhiên và giàu cảm xúc cho sách nói và chuyện ngắn.',
+      avatar: '🇻🇳',
+      gender: 'female',
+      lang: 'vi',
+      lang_name: 'Vietnamese',
+      style: 'Storytelling & Audiobook',
+      sample_text: 'Hãy cùng lắng nghe câu chuyện tuyệt vời này nhé.',
+      type: 'curated'
+    },
+    // 🇺🇸 English Voices
+    {
+      id: 'en_andrew',
+      name: 'Andrew · Cinematic Multilingual',
+      desc: 'Deep, cinematic baritone for trailers, documentaries & recaps.',
+      avatar: '🎬',
+      gender: 'male',
+      lang: 'en',
+      lang_name: 'English (US)',
+      style: 'Movie Recap & Deep Narration',
+      sample_text: 'In a world where everything changes, one story stands out.',
+      type: 'curated'
+    },
+    {
+      id: 'en_ava',
+      name: 'Ava · Expressive Storyteller',
+      desc: 'Warm, conversational tone for podcasts and storytelling.',
+      avatar: '🎙️',
+      gender: 'female',
+      lang: 'en',
+      lang_name: 'English (US)',
+      style: 'Storytelling & Conversational',
+      sample_text: 'Welcome to our studio, where every word comes alive.',
+      type: 'curated'
+    },
+    {
+      id: 'en_brian',
+      name: 'Brian · BBC Documentary',
+      desc: 'Authoritative, calm, crisp articulation for science and history.',
+      avatar: '🌍',
+      gender: 'male',
+      lang: 'en',
+      lang_name: 'English (US/UK)',
+      style: 'News & Formal Broadcast',
+      sample_text: 'The discovery transformed our understanding of the universe.',
+      type: 'curated'
+    },
+    {
+      id: 'en_emma',
+      name: 'Emma · Energetic & Commercial',
+      desc: 'Fast, vibrant, punchy delivery for TikTok, Shorts & ads.',
+      avatar: '⚡',
+      gender: 'female',
+      lang: 'en',
+      lang_name: 'English (US)',
+      style: 'Commercial & Advertising',
+      sample_text: 'Upgrade your workflow today with Pizza Converter Studio.',
+      type: 'curated'
+    },
     {
       id: 'cinematic_narrator_male',
-      name: 'Marcus · Movie Narrator',
-      desc: 'Deep, cinematic baritone. Ideal for movie recaps, trailers & drama.',
-      avatar: '🎬',
+      name: 'Marcus · Movie Trailer Baritone',
+      desc: 'Heavy bass resonance for dramatic film trailers.',
+      avatar: '🎥',
+      gender: 'male',
+      lang: 'en',
+      lang_name: 'English (US)',
+      style: 'Movie Recap & Deep Narration',
+      sample_text: 'Get ready for the most incredible journey of your life.',
       type: 'curated'
     },
     {
-      id: 'podcast_host_female',
-      name: 'Elena · Podcast & Story',
-      desc: 'Warm, empathetic & natural conversational tone. Ideal for storytelling.',
-      avatar: '🎙️',
+      id: 'en_jenny',
+      name: 'Jenny · Friendly & Bright',
+      desc: 'Friendly, natural assistant tone for tutorials and explainers.',
+      avatar: '✨',
+      gender: 'female',
+      lang: 'en',
+      lang_name: 'English (US)',
+      style: 'Casual & Conversational',
+      sample_text: 'Hi there! I am ready to help you with anything you need.',
+      type: 'curated'
+    },
+    // 🇯🇵 Japanese Voices
+    {
+      id: 'ja_keita',
+      name: 'Keita · Anime & Dramatic',
+      desc: 'Giọng nam tiếng Nhật trầm ấm, phong cách anime và phim tài liệu.',
+      avatar: '🇯🇵',
+      gender: 'male',
+      lang: 'ja',
+      lang_name: 'Japanese',
+      style: 'Movie Recap & Deep Narration',
+      sample_text: 'こんにちは、本日のストーリーへようこそ。',
       type: 'curated'
     },
     {
-      id: 'documentary_expert',
-      name: 'David · BBC Documentary',
-      desc: 'Authoritative, calm, crisp articulation. Ideal for tech & science.',
-      avatar: '🌍',
+      id: 'ja_nanami',
+      name: 'Nanami · Storyteller',
+      desc: 'Giọng nữ tiếng Nhật nhẹ nhàng, trong trẻo và tự nhiên.',
+      avatar: '🇯🇵',
+      gender: 'female',
+      lang: 'ja',
+      lang_name: 'Japanese',
+      style: 'Storytelling & Audiobook',
+      sample_text: '心地よい時間をご一緒にお過ごしください。',
+      type: 'curated'
+    },
+    // 🇰🇷 Korean Voices
+    {
+      id: 'ko_injoon',
+      name: 'InJoon · K-Drama & News',
+      desc: 'Giọng nam tiếng Hàn chuẩn Seoul, phong cách thời sự và phim truyền hình.',
+      avatar: '🇰🇷',
+      gender: 'male',
+      lang: 'ko',
+      lang_name: 'Korean',
+      style: 'News & Formal Broadcast',
+      sample_text: '안녕하세요, 오늘의 주요 소식을 전해드립니다.',
       type: 'curated'
     },
     {
-      id: 'energetic_creator',
-      name: 'Chloe · Viral Shorts',
-      desc: 'Fast, vibrant, punchy delivery. Ideal for TikTok, Reels & marketing.',
-      avatar: '⚡',
+      id: 'ko_sunhi',
+      name: 'SunHi · Warm Narration',
+      desc: 'Giọng nữ tiếng Hàn dịu dàng, tự nhiên cho truyện ngắn.',
+      avatar: '🇰🇷',
+      gender: 'female',
+      lang: 'ko',
+      lang_name: 'Korean',
+      style: 'Storytelling & Audiobook',
+      sample_text: '따뜻하고 편안한 이야기를 들려드리겠습니다.',
+      type: 'curated'
+    },
+    // 🇨🇳 Chinese Voices
+    {
+      id: 'zh_yunxi',
+      name: 'Yunxi · Epic Documentary',
+      desc: 'Giọng nam tiếng Trung truyền cảm, hào hùng cho phóng sự.',
+      avatar: '🇨🇳',
+      gender: 'male',
+      lang: 'zh',
+      lang_name: 'Chinese',
+      style: 'Movie Recap & Deep Narration',
+      sample_text: '欢迎收看今天的精彩故事与深度解析。',
+      type: 'curated'
+    },
+    {
+      id: 'zh_xiaoxiao',
+      name: 'Xiaoxiao · Sweet Story',
+      desc: 'Giọng nữ tiếng Trung nhẹ nhàng, biểu cảm phong phú.',
+      avatar: '🇨🇳',
+      gender: 'female',
+      lang: 'zh',
+      lang_name: 'Chinese',
+      style: 'Storytelling & Audiobook',
+      sample_text: '让我们一起开启这段美好的旅程吧。',
+      type: 'curated'
+    },
+    // 🇫🇷 French Voices
+    {
+      id: 'fr_henri',
+      name: 'Henri · French Cinema',
+      desc: 'Giọng nam tiếng Pháp trầm ấm, phong cách điện ảnh.',
+      avatar: '🇫🇷',
+      gender: 'male',
+      lang: 'fr',
+      lang_name: 'French',
+      style: 'Movie Recap & Deep Narration',
+      sample_text: 'Bienvenue dans ce nouvel épisode passionnant.',
+      type: 'curated'
+    },
+    // 🇩🇪 German Voices
+    {
+      id: 'de_conrad',
+      name: 'Conrad · German Broadcast',
+      desc: 'Giọng nam tiếng Đức đĩnh đạc, rõ nét và chuyên nghiệp.',
+      avatar: '🇩🇪',
+      gender: 'male',
+      lang: 'de',
+      lang_name: 'German',
+      style: 'News & Formal Broadcast',
+      sample_text: 'Hier sind die wichtigsten Berichte des Tages.',
+      type: 'curated'
+    },
+    // 🇪🇸 Spanish Voices
+    {
+      id: 'es_alvaro',
+      name: 'Alvaro · Spanish Story',
+      desc: 'Giọng nam tiếng Tây Ban Nha trầm ấm, kể chuyện sống động.',
+      avatar: '🇪🇸',
+      gender: 'male',
+      lang: 'es',
+      lang_name: 'Spanish',
+      style: 'Movie Recap & Deep Narration',
+      sample_text: 'Bienvenidos a esta emocionante aventura.',
       type: 'curated'
     }
   ];
+
+  function detectTextLang(text) {
+    if (!text || !text.trim()) return 'en'; // Default to English per Global Rule #5
+    const viChars = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ]/;
+    if (viChars.test(text)) return 'vi';
+    if (/[\u3040-\u30ff]/.test(text)) return 'ja';
+    if (/[\uac00-\ud7af]/.test(text)) return 'ko';
+    if (/[\u4e00-\u9fff]/.test(text)) return 'zh';
+    return 'en';
+  }
+
+  function updateActiveVoiceDisplay() {
+    const baseList = (window.GLOBAL_VOICE_CATALOG && Array.isArray(window.GLOBAL_VOICE_CATALOG))
+      ? window.GLOBAL_VOICE_CATALOG
+      : CURATED_VOICES;
+    const all = [...baseList, ...cachedCustomProfiles];
+    const found = all.find((v) => v.id === activeVoiceId) || all[0];
+    if (activeVoicePill && found) {
+      activeVoicePill.textContent = `${found.avatar || '🎙️'} ${found.name}`;
+    }
+  }
+
+  function syncClonedVoicesAcrossApp() {
+    globalClonedVoiceProfiles = cachedCustomProfiles || [];
+    // Update AI Review voice pins if open
+    for (let s = 1; s <= 5; s++) {
+      const vSel = document.querySelector(`.rev-pin-voice[data-slot="${s}"]`);
+      const lSel = document.querySelector(`.rev-pin-lang[data-slot="${s}"]`);
+      if (vSel && lSel) {
+        const [code] = (lSel.value || 'en|English').split('|');
+        populateReviewVoiceSelect(vSel, code, vSel.value);
+      }
+    }
+    const cVoiceSel = document.getElementById('sel-ai-review-custom-voice');
+    const cLangSel = document.getElementById('sel-ai-review-custom-lang');
+    if (cVoiceSel && cLangSel) {
+      const [code] = (cLangSel.value || 'de|German').split('|');
+      populateReviewVoiceSelect(cVoiceSel, code, cVoiceSel.value);
+    }
+    // Update AI Dubbing cloned selector
+    const dubSel = document.getElementById('sel-ai-dub-voice-override');
+    if (dubSel) {
+      const cur = dubSel.value;
+      dubSel.innerHTML = `
+        <option value="auto">🤖 Auto Pitch Tracking (M/F)</option>
+        <option value="vs_active">⚡ Use Voice Studio Active Voice</option>
+      `;
+      if (globalClonedVoiceProfiles.length > 0) {
+        const grp = document.createElement('optgroup');
+        grp.label = '🧬 My Cloned Voices (Zero-Shot)';
+        globalClonedVoiceProfiles.forEach(cl => {
+          const opt = document.createElement('option');
+          opt.value = cl.id;
+          opt.textContent = `🧬 ${cl.name} (Custom Clone)`;
+          grp.appendChild(opt);
+        });
+        dubSel.appendChild(grp);
+      }
+      if (Array.from(dubSel.options).some(o => o.value === cur)) dubSel.value = cur;
+    }
+  }
 
   async function loadVoiceStudioData() {
     try {
@@ -5744,61 +6285,161 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
         activeVoiceId = cfg.vs_active_voice;
       }
       if (badgeMaster) {
-        badgeMaster.textContent = cfg.vs_enabled !== false ? 'OFFLINE · READY' : 'DISABLED';
+        badgeMaster.textContent = cfg.vs_enabled !== false ? 'STUDIO DSP V2 · OFFLINE READY' : 'DISABLED';
         badgeMaster.className = cfg.vs_enabled !== false ? 'cai-status-pill pro' : 'cai-status-pill none';
       }
 
       // Parse custom cloned profiles
-      let customProfiles = [];
+      cachedCustomProfiles = [];
       if (cfg.vs_profiles_json) {
         try {
-          customProfiles = JSON.parse(cfg.vs_profiles_json);
-        } catch (e) {}
+          cachedCustomProfiles = JSON.parse(cfg.vs_profiles_json);
+        } catch (e) { }
       }
 
-      renderVoiceList(customProfiles);
+      syncClonedVoicesAcrossApp();
+      renderVoiceList();
+      updateActiveVoiceDisplay();
     } catch (err) {
       console.warn('loadVoiceStudioData err:', err);
     }
   }
 
-  function renderVoiceList(customProfiles) {
+  function renderVoiceList() {
     if (!voiceList) return;
     voiceList.innerHTML = '';
-    const allVoices = [...CURATED_VOICES, ...(customProfiles || [])];
+    const baseList = (window.GLOBAL_VOICE_CATALOG && Array.isArray(window.GLOBAL_VOICE_CATALOG))
+      ? window.GLOBAL_VOICE_CATALOG
+      : CURATED_VOICES;
+    const allVoices = [...baseList, ...cachedCustomProfiles];
+
+    const langFilter = selLangFilter ? selLangFilter.value : 'en';
+    const genderFilter = selGenderFilter ? selGenderFilter.value : 'all';
+    const searchFilter = (inpSearch ? inpSearch.value : '').toLowerCase().trim();
+
+    const filtered = allVoices.filter((v) => {
+      // Language filter
+      if (langFilter === 'cloned') {
+        if (v.type !== 'cloned') return false;
+      } else if (langFilter !== 'all') {
+        if (v.type === 'cloned') {
+          // Keep cloned voices if they match or if all
+        } else if (v.lang !== langFilter) {
+          return false;
+        }
+      }
+
+      // Gender filter
+      if (genderFilter !== 'all') {
+        if (v.gender && v.gender !== genderFilter) return false;
+      }
+
+      // Search query
+      if (searchFilter) {
+        const text = `${v.name} ${v.desc || ''} ${v.style || ''} ${v.lang_name || ''}`.toLowerCase();
+        if (!text.includes(searchFilter)) return false;
+      }
+
+      return true;
+    });
 
     if (countBadge) {
-      countBadge.textContent = `${allVoices.length} Voices (${customProfiles.length} Cloned)`;
+      countBadge.textContent = `${filtered.length} Voices (${allVoices.length} Total)`;
     }
 
-    allVoices.forEach((v) => {
+    if (filtered.length === 0) {
+      voiceList.innerHTML = `
+        <div style="padding:18px; text-align:center; color:#94a3b8; font-size:11px;">
+          No voices found matching filter. Try changing language or search.
+        </div>
+      `;
+      return;
+    }
+
+    filtered.forEach((v) => {
       const card = document.createElement('div');
       card.className = `vs-voice-card ${v.id === activeVoiceId ? 'selected' : ''}`;
+      card.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 10px; border-radius:8px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); cursor:pointer; transition:all .15s;';
+      if (v.id === activeVoiceId) {
+        card.style.borderColor = '#2dd4bf';
+        card.style.background = 'linear-gradient(135deg, rgba(45,212,191,.18), rgba(56,189,248,.12))';
+        card.style.boxShadow = '0 2px 10px rgba(45,212,191,.15)';
+      }
+
+      const genderBadge = v.gender ? (v.gender === 'male' ? '👨 Male' : '👩 Female') : '';
+      const langBadge = v.lang ? v.lang.toUpperCase() : 'AI';
+
       card.innerHTML = `
-        <div class="vs-card-left">
-          <div class="vs-avatar">${v.avatar || '🧬'}</div>
+        <div class="vs-card-left" style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
+          <div class="vs-avatar" style="font-size:17px; width:28px; height:28px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.07); border-radius:7px; flex-shrink:0;">${v.avatar || '🧬'}</div>
           <div style="flex:1; min-width:0;">
-            <div class="vs-name">${v.name}</div>
-            <div class="vs-tag">${v.desc || 'Custom Neural Voice Clone'}</div>
+            <div class="vs-name" style="font-size:11.5px; font-weight:800; color:#fff; display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
+              <span>${v.name}</span>
+              ${genderBadge ? `<span style="font-size:9px; font-weight:700; padding:1px 5px; border-radius:4px; background:rgba(255,255,255,.08); color:#cbd5e1; border:1px solid rgba(255,255,255,.12);">${genderBadge}</span>` : ''}
+              <span style="font-size:9px; font-weight:800; padding:1px 5px; border-radius:4px; background:rgba(56,189,248,.15); color:#7dd3fc; border:1px solid rgba(56,189,248,.35);">${langBadge}</span>
+            </div>
+            <div class="vs-tag" style="font-size:10px; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;">${v.desc || v.style || 'Custom Neural Voice Clone'}</div>
           </div>
         </div>
-        <div style="display:flex; align-items:center; gap:6px;">
-          <span class="vs-badge ${v.type === 'curated' ? 'curated' : 'cloned'}">${v.type === 'curated' ? 'STUDIO' : 'CLONED'}</span>
-          ${v.type !== 'curated' ? `<button class="btn secondary btn-del-clone" data-id="${v.id}" style="padding:2px 6px; font-size:10px; color:#f87171;" title="Delete Clone">🗑️</button>` : ''}
+        <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+          <button type="button" class="btn secondary btn-vs-preview" data-id="${v.id}" style="padding:3px 8px; font-size:10px; font-weight:700; display:inline-flex; align-items:center; gap:4px; border:1px solid rgba(244,63,94,.45); background:rgba(244,63,94,.12); color:#fda4af; border-radius:6px; cursor:pointer;" title="Play Sample Audio">
+            <span>🔊</span>
+            <span class="lbl-preview">Sample</span>
+          </button>
+          <span style="font-size:9px; font-weight:800; padding:2px 6px; border-radius:5px; ${v.type === 'curated' ? 'background:rgba(45,212,191,.15); color:#5eead4; border:1px solid rgba(45,212,191,.35);' : (v.type === 'cloned' ? 'background:rgba(251,191,36,.15); color:#fbbf24; border:1px solid rgba(251,191,36,.35);' : 'background:rgba(168,85,247,.15); color:#c084fc; border:1px solid rgba(168,85,247,.35);')}">${v.type === 'curated' ? 'STUDIO' : (v.type === 'cloned' ? 'CLONED' : 'NEURAL')}</span>
+          ${v.type === 'cloned' ? `<button class="btn secondary btn-del-clone" data-id="${v.id}" style="padding:2px 6px; font-size:10px; color:#f87171; border-color:rgba(248,113,113,.3);" title="Delete Clone">🗑️</button>` : ''}
         </div>
       `;
 
+      // Select voice on card click
       card.addEventListener('click', async (e) => {
-        if (e.target.closest('.btn-del-clone')) return;
+        if (e.target.closest('.btn-del-clone') || e.target.closest('.btn-vs-preview')) return;
         activeVoiceId = v.id;
-        document.querySelectorAll('.vs-voice-card').forEach((c) => c.classList.remove('selected'));
-        card.classList.add('selected');
+        document.querySelectorAll('.vs-voice-card').forEach((c) => {
+          c.style.borderColor = 'rgba(255,255,255,.08)';
+          c.style.background = 'rgba(255,255,255,.03)';
+          c.style.boxShadow = 'none';
+        });
+        card.style.borderColor = '#2dd4bf';
+        card.style.background = 'linear-gradient(135deg, rgba(45,212,191,.18), rgba(56,189,248,.12))';
+        card.style.boxShadow = '0 2px 10px rgba(45,212,191,.15)';
+        updateActiveVoiceDisplay();
         try {
           await invoke('voice_studio_set_active_voice', { voiceId: v.id });
         } catch (err) {
           console.warn(err);
         }
       });
+
+      // Preview Audio Sample button
+      const previewBtn = card.querySelector('.btn-vs-preview');
+      if (previewBtn) {
+        previewBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const lbl = previewBtn.querySelector('.lbl-preview');
+          if (lbl) lbl.textContent = '...';
+          previewBtn.style.opacity = '0.6';
+          try {
+            const sampleText = v.sample_text || (v.lang === 'vi' ? 'Chào mừng bạn đến với Pizza Converter Voice Studio.' : 'Welcome to Pizza Converter Voice Studio.');
+            const res = await invoke('voice_studio_synthesize_text', {
+              text: sampleText,
+              voiceId: v.id,
+              speed: '1.0',
+              pitch: 0.0,
+              stability: 85
+            });
+            if (res && res.audio_url) {
+              const audio = new Audio(res.audio_url);
+              audio.play();
+            }
+          } catch (err) {
+            alert('Preview error: ' + err);
+          } finally {
+            if (lbl) lbl.textContent = 'Sample';
+            previewBtn.style.opacity = '1';
+          }
+        });
+      }
 
       const delBtn = card.querySelector('.btn-del-clone');
       if (delBtn) {
@@ -5816,6 +6457,17 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
 
       voiceList.appendChild(card);
     });
+  }
+
+  // Filter Listeners
+  if (selLangFilter) {
+    selLangFilter.addEventListener('change', () => renderVoiceList());
+  }
+  if (selGenderFilter) {
+    selGenderFilter.addEventListener('change', () => renderVoiceList());
+  }
+  if (inpSearch) {
+    inpSearch.addEventListener('input', () => renderVoiceList());
   }
 
   // Master switches
@@ -5849,10 +6501,67 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     });
   }
 
-  // Sliders & character counter
-  if (txtScript && charCount) {
+  // Preset script chips handler
+  document.querySelectorAll('.vs-script-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const scr = btn.dataset.script;
+      if (txtScript && scr) {
+        txtScript.value = scr;
+        txtScript.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+  });
+
+  const btnClearText = document.getElementById('btn-vs-clear-text');
+  if (btnClearText) {
+    btnClearText.addEventListener('click', () => {
+      if (txtScript) {
+        txtScript.value = '';
+        txtScript.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+  }
+
+  // Script text input, character count & Smart Language Detector
+  if (txtScript) {
     txtScript.addEventListener('input', () => {
-      charCount.textContent = `${txtScript.value.length} characters`;
+      const val = txtScript.value;
+      const detected = detectTextLang(val);
+      const words = val.trim().split(/\s+/).filter(Boolean).length;
+      const estSeconds = Math.max(1, Math.ceil(words / 2.5));
+
+      if (charCount) {
+        charCount.textContent = `${val.length} chars · ${words} words · ~${estSeconds}s duration`;
+      }
+
+      if (langDetectedTag) {
+        if (!val.trim()) {
+          langDetectedTag.textContent = '🇺🇸 English (Default)';
+          langDetectedTag.style.color = '#38bdf8';
+        } else if (detected === 'vi') {
+          langDetectedTag.textContent = '🇻🇳 Vietnamese Detected (Auto-Switch: Nam Minh / Hoài My)';
+          langDetectedTag.style.color = '#5eead4';
+          // If active voice is English, auto switch to Nam Minh for best experience
+          if (activeVoiceId.startsWith('en_') && !activeVoiceId.startsWith('clone_')) {
+            activeVoiceId = 'vi_nam_minh';
+            if (selLangFilter) selLangFilter.value = 'vi';
+            renderVoiceList();
+            updateActiveVoiceDisplay();
+          }
+        } else if (detected === 'ja') {
+          langDetectedTag.textContent = '🇯🇵 Japanese Detected (Recommended: Keita / Nanami)';
+          langDetectedTag.style.color = '#f472b6';
+        } else if (detected === 'ko') {
+          langDetectedTag.textContent = '🇰🇷 Korean Detected (Recommended: InJoon / SunHi)';
+          langDetectedTag.style.color = '#fbbf24';
+        } else if (detected === 'zh') {
+          langDetectedTag.textContent = '🇨🇳 Chinese Detected (Recommended: Yunxi / Xiaoxiao)';
+          langDetectedTag.style.color = '#f87171';
+        } else {
+          langDetectedTag.textContent = '🇺🇸 English Detected (Active: Andrew / Brian)';
+          langDetectedTag.style.color = '#38bdf8';
+        }
+      }
     });
   }
 
@@ -5860,6 +6569,16 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     rngSpeed.addEventListener('input', () => {
       const rate = (rngSpeed.value / 100).toFixed(2);
       lblSpeed.textContent = `${rate}x`;
+    });
+  }
+
+  if (rngPitch && lblPitch) {
+    rngPitch.addEventListener('input', () => {
+      const p = parseInt(rngPitch.value, 10);
+      let desc = '0 st (Natural)';
+      if (p > 0) desc = `+${p} st (Bright)`;
+      else if (p < 0) desc = `${p} st (Deep/Warm)`;
+      lblPitch.textContent = desc;
     });
   }
 
@@ -5885,7 +6604,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
         const maxSeconds = 8;
 
         if (recordStatusBox) recordStatusBox.style.display = 'block';
-        if (btnRecordMic) btnRecordMic.textContent = '⏹️ Stop Recording';
+        if (btnRecordMic) btnRecordMic.innerHTML = '<span>⏹️</span><span>Stop Recording</span>';
         if (recordProgress) recordProgress.style.width = '0%';
 
         mediaRecorder.ondataavailable = (e) => {
@@ -5896,8 +6615,8 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
           clearInterval(recordInterval);
           stream.getTracks().forEach((t) => t.stop());
           recordedAudioBlob = new Blob(chunks, { type: 'audio/wav' });
-          if (btnRecordMic) btnRecordMic.textContent = '🎙️ Record Mic (5-10s)';
-          if (recordStatusLabel) recordStatusLabel.textContent = '✅ Sample recorded successfully!';
+          if (btnRecordMic) btnRecordMic.innerHTML = '<span>🎙️</span><span>Record Mic (5-10s)</span>';
+          if (recordStatusLabel) recordStatusLabel.textContent = '✅ Sample recorded successfully! Ready to clone.';
           if (recordStatusLabel) recordStatusLabel.style.color = '#4ade80';
         };
 
@@ -5946,17 +6665,16 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     btnSubmitClone.addEventListener('click', async () => {
       const name = inpCloneName ? inpCloneName.value.trim() : '';
       if (!name) {
-        alert('Please enter a name for the cloned voice (e.g. My Voice).');
+        alert('Please enter a name for the cloned voice (e.g. My Studio Voice).');
         return;
       }
 
       btnSubmitClone.disabled = true;
-      btnSubmitClone.textContent = '⏳ Cloning...';
+      btnSubmitClone.textContent = '⏳ Extracting Timbre...';
 
       try {
         let refPath = uploadedRefAudioPath;
         if (!refPath && recordedAudioBlob) {
-          // Convert recorded blob to base64
           const reader = new FileReader();
           const base64Promise = new Promise((res) => {
             reader.onloadend = () => res(reader.result.split(',')[1]);
@@ -5998,6 +6716,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
   }
 
   // TTS Generate & Play
+  let lastGeneratedAudioPath = '';
   if (btnGenTts) {
     btnGenTts.addEventListener('click', async () => {
       const text = txtScript ? txtScript.value.trim() : '';
@@ -6007,21 +6726,29 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
       }
 
       btnGenTts.disabled = true;
-      btnGenTts.textContent = '⏳ Synthesizing...';
+      btnGenTts.innerHTML = '<span>⏳</span><span>Synthesizing...</span>';
 
       try {
         const speedVal = rngSpeed ? (rngSpeed.value / 100).toFixed(2) : '1.0';
+        const pitchVal = rngPitch ? parseFloat(rngPitch.value) : 0.0;
         const stabilityVal = rngStability ? parseInt(rngStability.value, 10) : 85;
 
         const res = await invoke('voice_studio_synthesize_text', {
           text: text,
           voiceId: activeVoiceId,
           speed: speedVal,
+          pitch: pitchVal,
           stability: stabilityVal
         });
 
         if (res && res.audio_url && ttsAudio) {
+          lastGeneratedAudioPath = res.audio_path || '';
           ttsAudio.src = res.audio_url;
+          const pathEl = document.getElementById('vs-player-file-path');
+          if (pathEl && res.audio_path) {
+            pathEl.textContent = res.audio_path.split(/[\/\\]/).pop();
+            pathEl.title = res.audio_path;
+          }
           if (ttsPlayerBox) ttsPlayerBox.style.display = 'block';
           ttsAudio.play();
         }
@@ -6029,8 +6756,37 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
         alert('Text-to-speech error: ' + err);
       } finally {
         btnGenTts.disabled = false;
-        btnGenTts.textContent = '▶️ Generate & Play';
+        btnGenTts.innerHTML = '<span>▶️</span><span>Synthesize &amp; Play</span>';
       }
+    });
+  }
+
+  // Export TTS audio to folder
+  if (btnExportTts) {
+    btnExportTts.addEventListener('click', async () => {
+      if (!lastGeneratedAudioPath) {
+        const text = txtScript ? txtScript.value.trim() : '';
+        if (!text) {
+          alert('Please enter a script or text first.');
+          return;
+        }
+        btnGenTts.click();
+        return;
+      }
+      try {
+        await invoke('show_in_folder', { path: lastGeneratedAudioPath });
+      } catch (err) {
+        alert('Opening folder failed: ' + err);
+      }
+    });
+  }
+
+  // Send to Audiogram button
+  const btnSendAudiogram = document.getElementById('btn-vs-send-audiogram');
+  if (btnSendAudiogram) {
+    btnSendAudiogram.addEventListener('click', () => {
+      const agNav = document.querySelector('.nav-item[data-view="audiogram"]');
+      if (agNav) agNav.click();
     });
   }
 

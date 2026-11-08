@@ -312,7 +312,8 @@ pub fn run_python_streaming(
         }
     };
     let child_pid = child.id();
-    crate::convert_cmd::register_child_pid(child_pid);
+    let task_id = format!("{file_label}::{target_id}");
+    crate::convert_cmd::register_task_child_pid(child_pid, target_id, Some(&task_id));
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
 
@@ -330,7 +331,7 @@ pub fn run_python_streaming(
     if let Some(out_pipe) = stdout {
         let reader = BufReader::new(out_pipe);
         for line in reader.lines().map_while(Result::ok) {
-            if crate::convert_cmd::is_cancelled() {
+            if crate::convert_cmd::is_task_cancelled(Some(&task_id), Some(target_id)) {
                 let _ = child.kill();
                 break;
             }
@@ -346,8 +347,7 @@ pub fn run_python_streaming(
                         } else {
                             format!("{file_label} · {msg}")
                         };
-                        let task_id = format!("{file_label}::{target_id}");
-                        if !crate::convert_cmd::is_cancelled() {
+                        if !crate::convert_cmd::is_task_cancelled(Some(&task_id), Some(target_id)) {
                             let _ = app.emit(
                                 "convert-progress",
                                 serde_json::json!({
@@ -372,7 +372,7 @@ pub fn run_python_streaming(
     let status = child.wait();
     crate::convert_cmd::unregister_child_pid(child_pid);
     let _ = std::fs::remove_file(&tmp_py);
-    if crate::convert_cmd::is_cancelled() {
+    if crate::convert_cmd::is_task_cancelled(Some(&task_id), Some(target_id)) {
         return Err("STOPPED_BY_USER".to_string());
     }
     let status = status.map_err(|e| e.to_string())?;
@@ -647,7 +647,7 @@ pub fn run_ai_subtitle_task(
     let script = r#"
 import sys, os, re, json, tempfile, subprocess, urllib.request, urllib.parse
 
-CREATE_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
+CREATE_NO_WINDOW = (0x08000000 | 0x00004000) if os.name == "nt" else 0
 
 in_path = sys.argv[1]
 out_path = sys.argv[2]
@@ -1113,7 +1113,7 @@ pub fn run_ai_burn_captions(
     let script = r#"
 import sys, os, re, json, shutil, tempfile, subprocess, urllib.request, urllib.parse, cv2
 
-CREATE_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
+CREATE_NO_WINDOW = (0x08000000 | 0x00004000) if os.name == "nt" else 0
 
 in_path = sys.argv[1]
 out_path = sys.argv[2]
@@ -1678,15 +1678,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             cf.write("\n".join(concat_lines) + "\n")
         return c_file, band_y
 
-    sub_concat_info = None if has_sub_flt else build_pil_caption_concat()
+    caption_state = {"concat_info": None if has_sub_flt else build_pil_caption_concat()}
 
     def run_burn_ff(v_flags, force_pil=False):
-        nonlocal sub_concat_info
         use_pil = force_pil or (not has_sub_flt)
-        if use_pil and sub_concat_info is None:
-            sub_concat_info = build_pil_caption_concat()
-        if use_pil and sub_concat_info is not None:
-            c_file, band_y = sub_concat_info
+        if use_pil and caption_state["concat_info"] is None:
+            caption_state["concat_info"] = build_pil_caption_concat()
+        if use_pil and caption_state["concat_info"] is not None:
+            c_file, band_y = caption_state["concat_info"]
             cmd = [
                 ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error",
                 "-progress", "pipe:1", "-nostats",
@@ -1762,6 +1761,72 @@ finally:
     }
 }
 
+pub fn resolve_voice_alias_or_clone(app: &tauri::AppHandle, raw: &str) -> String {
+    let clean = raw.trim();
+    if clean.is_empty() || clean == "auto" {
+        return "auto".to_string();
+    }
+    match clean {
+        "andrew" | "en_andrew" | "cinematic" | "rev_vc_andrew" | "dub_vc_andrew" => {
+            "en-US-AndrewMultilingualNeural".to_string()
+        }
+        "ava" | "en_ava" | "expressive" | "rev_vc_ava" | "dub_vc_ava" => {
+            "en-US-AvaMultilingualNeural".to_string()
+        }
+        "brian" | "en_brian" | "documentary" | "rev_vc_brian" | "dub_vc_brian" => {
+            "en-US-BrianMultilingualNeural".to_string()
+        }
+        "emma" | "en_emma" | "rev_vc_emma" | "dub_vc_emma" => {
+            "en-US-EmmaMultilingualNeural".to_string()
+        }
+        "namminh" | "vi_namminh" | "rev_vc_namminh" | "dub_vc_namminh" => {
+            "vi-VN-NamMinhNeural".to_string()
+        }
+        "hoaimy" | "vi_hoaimy" | "rev_vc_hoaimy" | "dub_vc_hoaimy" => {
+            "vi-VN-HoaiMyNeural".to_string()
+        }
+        "active" | "vs_active" | "rev_vc_active" | "dub_vc_active" => {
+            let cfg = crate::config::load(app);
+            if !cfg.vs_active_voice.is_empty() {
+                resolve_voice_alias_or_clone(app, &cfg.vs_active_voice)
+            } else {
+                "auto".to_string()
+            }
+        }
+        "namminh_recap" | "vi_nam_minh_recap" => "vi_nam_minh_recap".to_string(),
+        "namminh_news" | "vi_nam_minh_news" => "vi_nam_minh_news".to_string(),
+        "namminh_story" | "vi_nam_minh_story" => "vi_nam_minh_story".to_string(),
+        "hoaimy_story" | "vi_hoai_my_story" => "vi_hoai_my_story".to_string(),
+        "hoaimy_review" | "vi_hoai_my_review" => "vi_hoai_my_review".to_string(),
+        "hoaimy_news" | "vi_hoai_my_news" => "vi_hoai_my_news".to_string(),
+        "male" | "dub_vc_male" => "male".to_string(),
+        "female" | "dub_vc_female" => "female".to_string(),
+        "cloned" | "active_clone" | "rev_vc_cloned" | "dub_vc_cloned" => {
+            let cfg = crate::config::load(app);
+            if !cfg.vs_active_voice.is_empty() {
+                resolve_voice_alias_or_clone(app, &cfg.vs_active_voice)
+            } else {
+                "en-US-AndrewMultilingualNeural".to_string()
+            }
+        }
+        other if other.starts_with("clone_") || other.ends_with(".json") => {
+            if let Ok(pdir) = crate::voice_studio::voice_profiles_dir(app) {
+                let pjson = if other.ends_with(".json") {
+                    pdir.join(other)
+                } else {
+                    pdir.join(format!("{other}.json"))
+                };
+                if pjson.is_file() {
+                    return pjson.to_string_lossy().to_string();
+                }
+            }
+            other.to_string()
+        }
+        other if other.contains("Neural") => other.to_string(),
+        _ => clean.to_string(),
+    }
+}
+
 /// AI Video Dubbing with Context/Kinship Role Awareness, Acoustic Pitch (F0) Male/Female Speaker Detection,
 /// and 100+ Language Neural TTS Synthesis + Audio Ducking.
 pub fn run_ai_dubbing_task(
@@ -1777,10 +1842,22 @@ pub fn run_ai_dubbing_task(
         .and_then(|s| s.to_str())
         .unwrap_or("video");
 
-    let (base_dub, style_override) = match dub_target.split_once(':') {
-        Some((b, st)) => (b, Some(st)),
-        None => (dub_target, None),
-    };
+    let parts: Vec<&str> = dub_target.split(':').collect();
+    let base_dub = parts.first().copied().unwrap_or(dub_target);
+    let mut style_override: Option<&str> = None;
+    let mut voice_override: Option<&str> = None;
+
+    const STYLE_KEYS: &[&str] = &[
+        "default", "beasty", "popline", "deep_diver", "one_punch", "glow", "roleplay", "none",
+    ];
+
+    for &part in parts.iter().skip(1) {
+        if STYLE_KEYS.contains(&part) {
+            style_override = Some(part);
+        } else if !part.is_empty() {
+            voice_override = Some(part);
+        }
+    }
 
     let lang_code = match base_dub {
         "dub_vi" => "vi",
@@ -2281,8 +2358,34 @@ def merge_short_dub_segments(segs):
 async def resolve_voices_and_synthesize(segs, lang_code, tmp_dir):
     import edge_tts
     lc = lang_code.lower()
-    pair = VOICE_MAP.get(lc) or VOICE_MAP.get(lc.split("-")[0])
-    if not pair:
+    pair = VOICE_MAP.get(lc) or VOICE_MAP.get(lc.split("-")[0]) or ("en-US-AndrewMultilingualNeural", "en-US-AvaMultilingualNeural")
+
+    clone_profile = None
+    pitch_shift_st = 0.0
+    bass_gain_db = 0.0
+    treble_gain_db = 0.0
+    explicit_voice = None
+
+    if os.path.isfile(dub_voice):
+        try:
+            with open(dub_voice, "r", encoding="utf-8") as pf:
+                clone_profile = json.load(pf)
+                base_v = clone_profile.get("base_neural_voice")
+                if base_v:
+                    explicit_voice = base_v
+                pitch_shift_st = float(clone_profile.get("pitch_shift_st", 0.0))
+                bass_gain_db = float(clone_profile.get("eq_preset", {}).get("bass_gain_db", 0.0))
+                treble_gain_db = float(clone_profile.get("eq_preset", {}).get("treble_gain_db", 0.0))
+        except Exception:
+            pass
+    elif "Neural" in dub_voice:
+        explicit_voice = dub_voice
+    elif dub_voice == "male":
+        explicit_voice = pair[0]
+    elif dub_voice == "female":
+        explicit_voice = pair[1]
+
+    if not explicit_voice and not pair:
         try:
             vm = await asyncio.wait_for(edge_tts.VoicesManager.create(), timeout=10.0)
             lang_prefix = lc.split("-")[0]
@@ -2305,7 +2408,10 @@ async def resolve_voices_and_synthesize(segs, lang_code, tmp_dir):
             s["tts_raw"] = None
             done_count += 1
             return
-        voice_name = pair[1] if s["gender"] == "female" else pair[0]
+        if explicit_voice:
+            voice_name = explicit_voice
+        else:
+            voice_name = pair[1] if s.get("gender") == "female" else pair[0]
         raw_mp3 = os.path.join(tmp_dir, f"tts_raw_{idx:04d}.mp3")
         # Calculate adaptive neural prosody rate when slot is tight so consonants stay 100% crisp
         slot_avail = max(0.6, float(s["end"] - s["start"]))
@@ -2327,6 +2433,21 @@ async def resolve_voices_and_synthesize(segs, lang_code, tmp_dir):
                     # Strict 14-second timeout per segment so a hung WebSocket NEVER freezes at 79%!
                     await asyncio.wait_for(comm.save(raw_mp3), timeout=14.0)
                     if os.path.isfile(raw_mp3) and os.path.getsize(raw_mp3) > 128:
+                        if (abs(pitch_shift_st) > 0.1 or abs(bass_gain_db) > 0.5 or abs(treble_gain_db) > 0.5):
+                            morphed_mp3 = os.path.join(tmp_dir, f"tts_morphed_{idx:04d}.mp3")
+                            f_parts = []
+                            if abs(pitch_shift_st) > 0.1:
+                                ratio = 2.0 ** (pitch_shift_st / 12.0)
+                                f_parts.append(f"asetrate=24000*{ratio:.4f},aresample=24000,atempo={1.0/ratio:.4f}")
+                            if abs(bass_gain_db) > 0.5:
+                                f_parts.append(f"bass=g={bass_gain_db:.1f}:f=150")
+                            if abs(treble_gain_db) > 0.5:
+                                f_parts.append(f"treble=g={treble_gain_db:.1f}:f=3500")
+                            f_str = ",".join(f_parts)
+                            cmd_morph = [ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error", "-i", raw_mp3, "-af", f_str, "-c:a", "libmp3lame", "-q:a", "2", morphed_mp3]
+                            r_m = subprocess.run(cmd_morph, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False)
+                            if r_m.returncode == 0 and os.path.isfile(morphed_mp3) and os.path.getsize(morphed_mp3) > 64:
+                                shutil.move(morphed_mp3, raw_mp3)
                         s["tts_raw"] = raw_mp3
                         break
                 except Exception:
@@ -2760,15 +2881,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 cf.write("\n".join(c_lines) + "\n")
             return c_file, band_y
 
-        dub_pil_info = None if has_sub_flt else build_dub_pil_concat()
+        dub_state = {"pil_info": None if has_sub_flt else build_dub_pil_concat()}
 
         def run_dub_ff(v_flags, force_pil=False):
-            nonlocal dub_pil_info
             use_pil = force_pil or (not has_sub_flt)
-            if use_pil and dub_pil_info is None:
-                dub_pil_info = build_dub_pil_concat()
-            if use_pil and dub_pil_info is not None:
-                c_file, band_y = dub_pil_info
+            if use_pil and dub_state["pil_info"] is None:
+                dub_state["pil_info"] = build_dub_pil_concat()
+            if use_pil and dub_state["pil_info"] is not None:
+                c_file, band_y = dub_state["pil_info"]
                 cmd = [
                     ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error",
                     "-progress", "pipe:1", "-nostats",
@@ -2834,6 +2954,16 @@ finally:
     let cap_emoji_s = if cfg.ai_cap_emoji { "1" } else { "0" };
     let file_label = input.file_name().and_then(|s| s.to_str()).unwrap_or(stem);
 
+    let mut chosen_dub_voice = cfg.ai_dub_voice.clone();
+    if let Some(vo) = voice_override {
+        if !vo.is_empty() && vo != "auto" && vo != "dub_vc_auto" {
+            chosen_dub_voice = vo.to_string();
+        }
+    } else if cfg.vs_enabled && cfg.vs_override_global && !cfg.vs_active_voice.is_empty() {
+        chosen_dub_voice = cfg.vs_active_voice.clone();
+    }
+    chosen_dub_voice = resolve_voice_alias_or_clone(app, &chosen_dub_voice);
+
     run_python_streaming(
         app,
         dub_target,
@@ -2844,7 +2974,7 @@ finally:
             &out_s,
             lang_code,
             &cfg.ai_dub_context,
-            &cfg.ai_dub_voice,
+            &chosen_dub_voice,
             burn_s,
             &cfg.ai_elevenlabs_key,
             &cfg.ai_tier,
@@ -2894,7 +3024,7 @@ import sys, os, re, json, shutil, tempfile, subprocess, urllib.request, urllib.p
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
-CREATE_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
+CREATE_NO_WINDOW = (0x08000000 | 0x00004000) if os.name == "nt" else 0
 
 in_path = sys.argv[1]
 out_path = sys.argv[2]
@@ -3573,7 +3703,10 @@ pub fn run_ai_review_task(
         .and_then(|s| s.to_str())
         .unwrap_or("video");
 
-    let base_target = rev_target.split(':').next().unwrap_or(rev_target);
+    let parts: Vec<&str> = rev_target.split(':').collect();
+    let base_target = parts.first().copied().unwrap_or(rev_target);
+    let voice_override = parts.get(1).copied();
+
     let (lang_code, lang_name, mut voice_id) = if let Some(rest) = base_target.strip_prefix("rev_pin_") {
         let slot_num: u8 = rest.parse().unwrap_or(1);
         if let Some(pin) = cfg.ai_review_pins.iter().find(|p| p.slot == slot_num) {
@@ -3581,7 +3714,7 @@ pub fn run_ai_review_task(
         } else if let Some(pin) = cfg.ai_review_pins.get((slot_num.saturating_sub(1)) as usize) {
             (pin.lang_code.clone(), pin.lang_name.clone(), pin.voice.clone())
         } else {
-            ("vi".into(), "Vietnamese".into(), "vi-VN-NamMinhNeural".into())
+            ("en".into(), "English".into(), "en-US-AndrewMultilingualNeural".into())
         }
     } else {
         (
@@ -3591,9 +3724,14 @@ pub fn run_ai_review_task(
         )
     };
 
-    if cfg.vs_enabled && cfg.vs_override_global && !cfg.vs_active_voice.is_empty() {
+    if let Some(vo) = voice_override {
+        if !vo.is_empty() && vo != "auto" && vo != "rev_vc_auto" {
+            voice_id = vo.to_string();
+        }
+    } else if cfg.vs_enabled && cfg.vs_override_global && !cfg.vs_active_voice.is_empty() {
         voice_id = cfg.vs_active_voice.clone();
     }
+    voice_id = resolve_voice_alias_or_clone(app, &voice_id);
 
     let clean_lang_tag: String = lang_code
         .chars()
@@ -4095,7 +4233,25 @@ async def synthesize_review_beats(beats, lang_code, chosen_voice, tmp_dir):
     import edge_tts
     lc = lang_code.lower()
     pair = VOICE_MAP.get(lc) or VOICE_MAP.get(lc.split("-")[0]) or ("en-US-AndrewMultilingualNeural", "en-US-AvaMultilingualNeural")
-    if not chosen_voice or chosen_voice == "male":
+    resolved_voice = pair[0]
+
+    clone_profile = None
+    pitch_shift_st = 0.0
+    bass_gain_db = 0.0
+    treble_gain_db = 0.0
+    if os.path.isfile(chosen_voice):
+        try:
+            with open(chosen_voice, "r", encoding="utf-8") as pf:
+                clone_profile = json.load(pf)
+                base_v = clone_profile.get("base_neural_voice")
+                if base_v:
+                    resolved_voice = base_v
+                pitch_shift_st = float(clone_profile.get("pitch_shift_st", 0.0))
+                bass_gain_db = float(clone_profile.get("eq_preset", {}).get("bass_gain_db", 0.0))
+                treble_gain_db = float(clone_profile.get("eq_preset", {}).get("treble_gain_db", 0.0))
+        except Exception:
+            pass
+    elif not chosen_voice or chosen_voice == "male":
         resolved_voice = pair[0]
     elif chosen_voice == "female":
         resolved_voice = pair[1]
@@ -4105,7 +4261,7 @@ async def synthesize_review_beats(beats, lang_code, chosen_voice, tmp_dir):
         resolved_voice = pair[0]
 
     # Dynamic lookup if custom language not in static VOICE_MAP and user picked male/female
-    if chosen_voice in ("", "male", "female", "auto") and lc not in VOICE_MAP and lc.split("-")[0] not in VOICE_MAP:
+    if not clone_profile and chosen_voice in ("", "male", "female", "auto") and lc not in VOICE_MAP and lc.split("-")[0] not in VOICE_MAP:
         try:
             vm = await asyncio.wait_for(edge_tts.VoicesManager.create(), timeout=10.0)
             lang_prefix = lc.split("-")[0]
@@ -4135,6 +4291,21 @@ async def synthesize_review_beats(beats, lang_code, chosen_voice, tmp_dir):
                     comm = edge_tts.Communicate(txt, resolved_voice, rate=tts_rate)
                     await asyncio.wait_for(comm.save(raw_mp3), timeout=18.0)
                     if os.path.isfile(raw_mp3) and os.path.getsize(raw_mp3) > 128:
+                        if (abs(pitch_shift_st) > 0.1 or abs(bass_gain_db) > 0.5 or abs(treble_gain_db) > 0.5) and os.path.isfile(raw_mp3):
+                            morphed_mp3 = os.path.join(tmp_dir, f"rev_morphed_{idx:04d}.mp3")
+                            f_parts = []
+                            if abs(pitch_shift_st) > 0.1:
+                                ratio = 2.0 ** (pitch_shift_st / 12.0)
+                                f_parts.append(f"asetrate=24000*{ratio:.4f},aresample=24000,atempo={1.0/ratio:.4f}")
+                            if abs(bass_gain_db) > 0.5:
+                                f_parts.append(f"bass=g={bass_gain_db:.1f}:f=150")
+                            if abs(treble_gain_db) > 0.5:
+                                f_parts.append(f"treble=g={treble_gain_db:.1f}:f=3500")
+                            f_str = ",".join(f_parts)
+                            cmd_morph = [ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error", "-i", raw_mp3, "-af", f_str, "-c:a", "libmp3lame", "-q:a", "2", morphed_mp3]
+                            r_m = subprocess.run(cmd_morph, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False)
+                            if r_m.returncode == 0 and os.path.isfile(morphed_mp3) and os.path.getsize(morphed_mp3) > 128:
+                                shutil.move(morphed_mp3, raw_mp3)
                         b["tts_mp3"] = raw_mp3
                         break
                 except Exception:
@@ -4433,18 +4604,314 @@ try:
                 t_cur += ch_dur
 
         sub_out = os.path.join(tmp_dir, "review_subtitled.mp4")
-        # Map cap_style (beasty | roleplay | popline | deep_diver | one_punch | glow | classic) to ASS & PIL colors
+        # High-fidelity stylized subtitle palettes matching Settings Live Preview 1:1
         style_palettes = {
-            "beasty": {"ass_pri": "&H0015FAFF", "ass_out": "&H00000000", "ass_back": "&H80000000", "ass_bs": 1, "pil_fill": (250, 204, 21, 255), "pil_stroke": (10, 14, 24, 255), "pil_box": None},
-            "roleplay": {"ass_pri": "&H00FFFFFF", "ass_out": "&H001E293B", "ass_back": "&HB40F172A", "ass_bs": 3, "pil_fill": (255, 255, 255, 255), "pil_stroke": (15, 23, 42, 255), "pil_box": (15, 23, 42, 215)},
-            "popline": {"ass_pri": "&H00F9A8D4", "ass_out": "&H00581C87", "ass_back": "&H903B0764", "ass_bs": 1, "pil_fill": (244, 114, 182, 255), "pil_stroke": (59, 7, 100, 255), "pil_box": (59, 7, 100, 185)},
-            "deep_diver": {"ass_pri": "&H00F8BD38", "ass_out": "&H000F172A", "ass_back": "&HB40F172A", "ass_bs": 3, "pil_fill": (56, 189, 248, 255), "pil_stroke": (15, 23, 42, 255), "pil_box": (15, 23, 42, 210)},
-            "one_punch": {"ass_pri": "&H004444EF", "ass_out": "&H00FFFFFF", "ass_back": "&H80000000", "ass_bs": 1, "pil_fill": (244, 63, 94, 255), "pil_stroke": (255, 255, 255, 255), "pil_box": None},
-            "glow": {"ass_pri": "&H00D4F55E", "ass_out": "&H006E760F", "ass_back": "&H80000000", "ass_bs": 1, "pil_fill": (94, 234, 212, 255), "pil_stroke": (15, 118, 110, 255), "pil_box": None},
-            "classic": {"ass_pri": "&H00FFFFFF", "ass_out": "&H00000000", "ass_back": "&H80000000", "ass_bs": 1, "pil_fill": (255, 255, 255, 255), "pil_stroke": (10, 14, 24, 245), "pil_box": None},
+            "beasty": {
+                "pil_fill": (250, 204, 21, 255),
+                "pil_stroke": (10, 14, 24, 255),
+                "stroke_w": 4,
+                "pil_box": None,
+                "pil_outline": None,
+                "radius": 14,
+                "pad_x": 22,
+                "pad_y": 10,
+                "ass_pri": "&H0015FAFF",
+                "ass_out": "&H00000000",
+                "ass_back": "&H80000000",
+                "ass_bs": 1,
+            },
+            "roleplay": {
+                "pil_fill": (56, 189, 248, 255),
+                "pil_stroke": (15, 23, 42, 255),
+                "stroke_w": 2,
+                "pil_box": (15, 23, 42, 230),
+                "pil_outline": (56, 189, 248, 140),
+                "radius": 14,
+                "pad_x": 24,
+                "pad_y": 10,
+                "ass_pri": "&H00FFFFFF",
+                "ass_out": "&H001E293B",
+                "ass_back": "&HB40F172A",
+                "ass_bs": 3,
+            },
+            "popline": {
+                "pil_fill": (255, 255, 255, 255),
+                "pil_stroke": (59, 7, 100, 255),
+                "stroke_w": 2,
+                "pil_box": (147, 51, 234, 225),
+                "pil_outline": (244, 114, 182, 155),
+                "radius": 14,
+                "pad_x": 24,
+                "pad_y": 10,
+                "ass_pri": "&H00F9A8D4",
+                "ass_out": "&H00581C87",
+                "ass_back": "&H903B0764",
+                "ass_bs": 1,
+            },
+            "deep_diver": {
+                "pil_fill": (103, 232, 249, 255),
+                "pil_stroke": (4, 25, 34, 255),
+                "stroke_w": 2,
+                "pil_box": (8, 51, 68, 225),
+                "pil_outline": (103, 232, 249, 165),
+                "radius": 16,
+                "pad_x": 26,
+                "pad_y": 12,
+                "ass_pri": "&H00F8BD38",
+                "ass_out": "&H000F172A",
+                "ass_back": "&HB40F172A",
+                "ass_bs": 3,
+            },
+            "one_punch": {
+                "pil_fill": (248, 113, 113, 255),
+                "pil_stroke": (255, 255, 255, 255),
+                "stroke_w": 3,
+                "pil_box": None,
+                "pil_outline": None,
+                "radius": 12,
+                "pad_x": 20,
+                "pad_y": 8,
+                "ass_pri": "&H004444EF",
+                "ass_out": "&H00FFFFFF",
+                "ass_back": "&H80000000",
+                "ass_bs": 1,
+            },
+            "glow": {
+                "pil_fill": (240, 171, 252, 255),
+                "pil_stroke": (192, 38, 211, 255),
+                "stroke_w": 3,
+                "pil_box": (20, 10, 30, 210),
+                "pil_outline": (217, 70, 239, 140),
+                "radius": 16,
+                "pad_x": 24,
+                "pad_y": 10,
+                "ass_pri": "&H00D4F55E",
+                "ass_out": "&H006E760F",
+                "ass_back": "&H80000000",
+                "ass_bs": 1,
+            },
+            "classic": {
+                "pil_fill": (248, 250, 252, 255),
+                "pil_stroke": (0, 0, 0, 200),
+                "stroke_w": 2,
+                "pil_box": (0, 0, 0, 180),
+                "pil_outline": None,
+                "radius": 8,
+                "pad_x": 18,
+                "pad_y": 8,
+                "ass_pri": "&H00FFFFFF",
+                "ass_out": "&H00000000",
+                "ass_back": "&H80000000",
+                "ass_bs": 1,
+            },
         }
         spal = style_palettes.get(cap_style, style_palettes["beasty"])
-        if has_sub_flt:
+
+        # Primary engine: PIL anti-aliased pill-badge overlay (smooth rounded corners, exact borders & padding)
+        used_pil = False
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+            band_h = max(140, int(play_y * 0.22))
+            if band_h % 2 == 1:
+                band_h += 1
+            band_y = max(0, (play_y - band_h) // 2) if cap_pos == "middle" else max(0, play_y - band_h - int(play_y * 0.04))
+            fnt = ImageFont.load_default()
+            for fp in [
+                "C:/Windows/Fonts/segoeuib.ttf",
+                "C:/Windows/Fonts/arialbd.ttf",
+                "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+                "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+                "/System/Library/Fonts/Helvetica.ttc",
+            ]:
+                if os.path.isfile(fp):
+                    try:
+                        fnt = ImageFont.truetype(fp, base_fs)
+                        break
+                    except Exception:
+                        pass
+            badge_fs = max(14, int(round(base_fs * 0.74)))
+            badge_fnt = fnt
+            for fp in [
+                "C:/Windows/Fonts/segoeuib.ttf",
+                "C:/Windows/Fonts/arialbd.ttf",
+                "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+                "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+                "/System/Library/Fonts/Helvetica.ttc",
+            ]:
+                if os.path.isfile(fp):
+                    try:
+                        badge_fnt = ImageFont.truetype(fp, badge_fs)
+                        break
+                    except Exception:
+                        pass
+
+            punch_fnt = fnt
+            for fp in [
+                "C:/Windows/Fonts/segoeuib.ttf",
+                "C:/Windows/Fonts/arialbd.ttf",
+            ]:
+                if os.path.isfile(fp):
+                    try:
+                        punch_fnt = ImageFont.truetype(fp, int(round(base_fs * 1.15)))
+                        break
+                    except Exception:
+                        pass
+
+            blank_p = os.path.join(tmp_dir, "rev_sub_blank.png")
+            Image.new("RGBA", (play_x, band_h), (0, 0, 0, 0)).save(blank_p, "PNG")
+            c_lines = []
+            t_c = 0.0
+            pad_x = spal.get("pad_x", 24)
+            pad_y = spal.get("pad_y", 10)
+            box_rad = spal.get("radius", 14)
+            st_w = spal.get("stroke_w", 2)
+
+            for idx_p, p in enumerate(sub_phrases):
+                s_t = max(t_c, float(p["start"]))
+                e_t = max(s_t, float(p["end"]))
+                if e_t - s_t < 0.04:
+                    continue
+                if s_t - t_c > 0.02:
+                    c_lines.append(f"file 'rev_sub_blank.png'\nduration {s_t - t_c:.4f}")
+                im = Image.new("RGBA", (play_x, band_h), (0, 0, 0, 0))
+                dr = ImageDraw.Draw(im)
+
+                raw_txt = p["text"].strip()
+                words = [w for w in raw_txt.split() if w]
+                tokens = []
+                if cap_style == "roleplay":
+                    # Role-play signature style: [NARRATOR (yellow badge)] [TWIST (red badge)] Text...
+                    if len(words) >= 1:
+                        tokens.append({"text": words[0].upper(), "is_badge": True, "bg": (250, 204, 21, 255), "fg": (9, 9, 11, 255)})
+                    if len(words) >= 3:
+                        tokens.append({"text": words[1].upper(), "is_badge": True, "bg": (239, 68, 68, 255), "fg": (255, 255, 255, 255)})
+                        for w in words[2:]:
+                            tokens.append({"text": w, "is_badge": False, "fg": (255, 255, 255, 255), "stroke": (15, 23, 42, 255)})
+                    elif len(words) == 2:
+                        tokens.append({"text": words[1], "is_badge": False, "fg": (255, 255, 255, 255), "stroke": (15, 23, 42, 255)})
+                elif cap_style == "popline":
+                    # Popline signature style: [Plot (purple badge)] Climax / Text in pink-white
+                    if len(words) >= 1:
+                        tokens.append({"text": words[0], "is_badge": True, "bg": (147, 51, 234, 255), "fg": (255, 255, 255, 255)})
+                    for w in words[1:]:
+                        tokens.append({"text": w, "is_badge": False, "fg": (255, 255, 255, 255), "stroke": (59, 7, 100, 255)})
+                elif cap_style == "deep_diver":
+                    # Deep Diver signature style: [Deep Story (ice slate badge)] glowing Cyan text...
+                    if len(words) >= 1:
+                        tokens.append({"text": words[0], "is_badge": True, "bg": (226, 232, 240, 255), "fg": (15, 23, 42, 255)})
+                    for w in words[1:]:
+                        tokens.append({"text": w, "is_badge": False, "fg": (103, 232, 249, 255), "stroke": (4, 25, 34, 255)})
+                elif cap_style == "beasty":
+                    # Beasty signature style: [STORY (gold yellow)] RECAP / Words in bold yellow/white
+                    if len(words) >= 1:
+                        tokens.append({"text": words[0].upper(), "is_badge": False, "fg": (250, 204, 21, 255), "stroke": (10, 14, 24, 255), "stroke_w": max(3, base_fs // 8)})
+                    for w in words[1:]:
+                        tokens.append({"text": w.upper(), "is_badge": False, "fg": (255, 255, 255, 255), "stroke": (10, 14, 24, 255), "stroke_w": max(3, base_fs // 8)})
+                elif cap_style == "one_punch":
+                    # One Punch signature style: SHOCK! (oversized punch gold italic) + Red/White text
+                    if len(words) >= 1:
+                        tokens.append({"text": words[0].upper(), "is_badge": False, "fg": (251, 191, 36, 255), "stroke": (244, 63, 94, 255), "font": punch_fnt})
+                    for w in words[1:]:
+                        tokens.append({"text": w, "is_badge": False, "fg": (248, 113, 113, 255), "stroke": (15, 23, 42, 255)})
+                elif cap_style == "glow":
+                    # Glow signature style: Neon cyan lead with double luminous glow
+                    for idx_w, w in enumerate(words):
+                        fg_c = (34, 211, 238, 255) if idx_w == 0 else (240, 171, 252, 255)
+                        tokens.append({"text": w, "is_badge": False, "fg": fg_c, "stroke": (192, 38, 211, 255), "glow": True})
+                else: # classic
+                    for w in words:
+                        tokens.append({"text": w, "is_badge": False, "fg": (248, 250, 252, 255), "stroke": (0, 0, 0, 200)})
+
+                if not tokens:
+                    tokens.append({"text": raw_txt, "is_badge": False, "fg": spal["pil_fill"], "stroke": spal["pil_stroke"]})
+
+                space_bbox = dr.textbbox((0, 0), " ", font=fnt)
+                space_w = max(6, space_bbox[2] - space_bbox[0])
+                line_toks = []
+                line_w = 0
+                max_tok_h = base_fs
+
+                for tok in tokens:
+                    f = tok.get("font", fnt)
+                    stk_w = tok.get("stroke_w", st_w)
+                    if tok.get("is_badge"):
+                        tb = dr.textbbox((0, 0), tok["text"], font=badge_fnt)
+                        tw, th = tb[2] - tb[0], tb[3] - tb[1]
+                        bw = tw + 16
+                        bh = th + 10
+                        max_tok_h = max(max_tok_h, bh)
+                        line_toks.append({**tok, "w": bw, "h": bh, "tw": tw, "th": th})
+                        line_w += bw + 8
+                    else:
+                        tb = dr.textbbox((0, 0), tok["text"], font=f, stroke_width=stk_w)
+                        tw, th = tb[2] - tb[0], tb[3] - tb[1]
+                        max_tok_h = max(max_tok_h, th)
+                        line_toks.append({**tok, "w": tw, "h": th, "tw": tw, "th": th})
+                        line_w += tw + space_w
+
+                if line_toks:
+                    if line_toks[-1].get("is_badge"):
+                        line_w -= 8
+                    else:
+                        line_w -= space_w
+
+                box_h = max(max_tok_h + pad_y * 2, int(base_fs * 1.5))
+                box_y = max(8, (band_h - box_h) // 2)
+                start_x = max(16, (play_x - line_w) // 2)
+
+                # Outer container rounded rectangle
+                if spal.get("pil_box"):
+                    box_rect = [start_x - pad_x, box_y, start_x + line_w + pad_x, box_y + box_h]
+                    outline_c = spal.get("pil_outline")
+                    if outline_c:
+                        dr.rounded_rectangle(box_rect, radius=box_rad, fill=spal["pil_box"], outline=outline_c, width=2)
+                    else:
+                        dr.rounded_rectangle(box_rect, radius=box_rad, fill=spal["pil_box"])
+
+                # Draw individual tokens
+                cur_x = start_x
+                for t in line_toks:
+                    if t.get("is_badge"):
+                        by = box_y + (box_h - t["h"]) // 2
+                        dr.rounded_rectangle([cur_x, by, cur_x + t["w"], by + t["h"]], radius=4, fill=t["bg"])
+                        dr.text((cur_x + 8, by + 4), t["text"], font=badge_fnt, fill=t["fg"])
+                        cur_x += t["w"] + 8
+                    else:
+                        f = t.get("font", fnt)
+                        ty = box_y + (box_h - t["h"]) // 2
+                        stk_w = t.get("stroke_w", st_w)
+                        if t.get("glow"):
+                            for glow_r in (6, 4, 2):
+                                dr.text((cur_x, ty), t["text"], font=f, fill=(217, 70, 239, 90), stroke_width=stk_w + glow_r, stroke_fill=(217, 70, 239, 90))
+                        dr.text((cur_x, ty), t["text"], font=f, fill=t["fg"], stroke_width=stk_w, stroke_fill=t.get("stroke", spal["pil_stroke"]))
+                        cur_x += t["w"] + space_w
+
+                p_nm = f"rev_sub_{idx_p:04d}.png"
+                im.save(os.path.join(tmp_dir, p_nm), "PNG")
+                c_lines.append(f"file '{p_nm}'\nduration {e_t - s_t:.4f}")
+                t_c = e_t
+
+            c_lines.append("file 'rev_sub_blank.png'\nduration 10.0")
+            c_lines.append("file 'rev_sub_blank.png'")
+            c_file = os.path.join(tmp_dir, "rev_subs_concat.txt")
+            with open(c_file, "w", encoding="utf-8") as cf:
+                cf.write("\n".join(c_lines) + "\n")
+
+            subprocess.run(
+                [ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error",
+                 "-threads", str(SAFE_CPU),
+                 "-i", joined_mp4, "-f", "concat", "-safe", "0", "-i", c_file,
+                 "-filter_complex", f"[0:v][1:v]overlay=0:{band_y}:format=auto:shortest=1[v]",
+                 "-map", "[v]", "-map", "0:a:0"] + enc_flags + ["-c:a", "copy", "-movflags", "+faststart", sub_out],
+                cwd=tmp_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False
+            )
+            if os.path.isfile(sub_out) and os.path.getsize(sub_out) >= 1024:
+                used_pil = True
+        except Exception as e_pil:
+            used_pil = False
+
+        # Fallback to libass ASS filter if PIL was not used or failed
+        if not used_pil and has_sub_flt:
             def fmt_ass(sec):
                 sec = max(0.0, float(sec))
                 return f"{int(sec//3600)}:{int((sec%3600)//60):02d}:{int(sec%60):02d}.{min(99, int(round((sec-int(sec))*100))):02d}"
@@ -4473,62 +4940,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                  "-threads", str(SAFE_CPU),
                  "-i", joined_mp4, "-vf", "subtitles=rev_subs.ass",
                  "-map", "0:v:0", "-map", "0:a:0"] + enc_flags + ["-c:a", "copy", "-movflags", "+faststart", sub_out],
-                cwd=tmp_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False
-            )
-        else:
-            from PIL import Image, ImageDraw, ImageFont
-            band_h = max(140, int(play_y * 0.22))
-            if band_h % 2 == 1:
-                band_h += 1
-            band_y = max(0, (play_y - band_h) // 2) if cap_pos == "middle" else max(0, play_y - band_h - int(play_y * 0.04))
-            fnt = ImageFont.load_default()
-            for fp in [
-                "C:/Windows/Fonts/segoeuib.ttf",
-                "C:/Windows/Fonts/arialbd.ttf",
-                "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-                "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
-                "/System/Library/Fonts/Helvetica.ttc",
-            ]:
-                if os.path.isfile(fp):
-                    try:
-                        fnt = ImageFont.truetype(fp, base_fs)
-                        break
-                    except Exception:
-                        pass
-            blank_p = os.path.join(tmp_dir, "rev_sub_blank.png")
-            Image.new("RGBA", (play_x, band_h), (0, 0, 0, 0)).save(blank_p, "PNG")
-            c_lines = []
-            t_c = 0.0
-            for idx_p, p in enumerate(sub_phrases):
-                s_t = max(t_c, float(p["start"]))
-                e_t = max(s_t, float(p["end"]))
-                if e_t - s_t < 0.04:
-                    continue
-                if s_t - t_c > 0.02:
-                    c_lines.append(f"file 'rev_sub_blank.png'\nduration {s_t - t_c:.4f}")
-                im = Image.new("RGBA", (play_x, band_h), (0, 0, 0, 0))
-                dr = ImageDraw.Draw(im)
-                tb = dr.textbbox((0, 0), p["text"], font=fnt, stroke_width=4)
-                tw, th = tb[2] - tb[0], tb[3] - tb[1]
-                tx = max(16, (play_x - tw) // 2)
-                ty = max(8, (band_h - th) // 2)
-                if spal["pil_box"]:
-                    dr.rounded_rectangle([tx - 18, ty - 10, tx + tw + 18, ty + th + 12], radius=14, fill=spal["pil_box"])
-                dr.text((tx, ty), p["text"], font=fnt, fill=spal["pil_fill"], stroke_width=4, stroke_fill=spal["pil_stroke"])
-                p_nm = f"rev_sub_{idx_p:04d}.png"
-                im.save(os.path.join(tmp_dir, p_nm), "PNG")
-                c_lines.append(f"file '{p_nm}'\nduration {e_t - s_t:.4f}")
-                t_c = e_t
-            c_lines.append("file 'rev_sub_blank.png'")
-            c_file = os.path.join(tmp_dir, "rev_subs_concat.txt")
-            with open(c_file, "w", encoding="utf-8") as cf:
-                cf.write("\n".join(c_lines) + "\n")
-            subprocess.run(
-                [ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error",
-                 "-threads", str(SAFE_CPU),
-                 "-i", joined_mp4, "-f", "concat", "-safe", "0", "-i", c_file,
-                 "-filter_complex", f"[0:v][1:v]overlay=0:{band_y}:format=auto:shortest=1[v]",
-                 "-map", "[v]", "-map", "0:a:0"] + enc_flags + ["-c:a", "copy", "-movflags", "+faststart", sub_out],
                 cwd=tmp_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False
             )
 
