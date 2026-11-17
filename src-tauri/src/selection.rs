@@ -49,7 +49,7 @@ fn windows_selection() -> Vec<PathBuf> {
                             let s = path_bstr.to_string();
                             if !s.is_empty() {
                                 let p = PathBuf::from(s);
-                                if p.exists() && p.is_file() {
+                                if p.exists() && (p.is_file() || p.is_dir()) {
                                     out.push(p);
                                 }
                             }
@@ -184,12 +184,19 @@ fn macos_selection() -> Vec<PathBuf> {
 
     let script = r#"
         tell application "Finder"
-            set sel to selection as alias list
-            set out to ""
-            repeat with itemRef in sel
-                set out to out & (POSIX path of itemRef) & linefeed
-            end repeat
-            return out
+            try
+                set sel to selection
+                if (count of sel) is 0 then return ""
+                set out to ""
+                repeat with itemRef in sel
+                    try
+                        set out to out & (POSIX path of (itemRef as alias)) & linefeed
+                    end try
+                end repeat
+                return out
+            on error
+                return ""
+            end try
         end tell
     "#;
 

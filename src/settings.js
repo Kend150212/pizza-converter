@@ -40,6 +40,89 @@ try {
 }
 const msg = (s) => { document.getElementById('msg').textContent = s; dlog('MSG:', s); };
 
+// Theme Manager: Light / Dark Mode Toggle & Persistence
+(function initAppTheme() {
+  const THEME_KEY = 'pizza_app_theme';
+  function applyTheme(theme) {
+    const isLight = theme === 'light';
+    if (isLight) {
+      document.body.classList.add('light-theme');
+    } else {
+      document.body.classList.remove('light-theme');
+    }
+    const tText = document.getElementById('theme-toggle-text');
+    const tIcon = document.getElementById('theme-toggle-icon');
+    if (tText) tText.textContent = isLight ? 'Dark' : 'Light';
+    if (tIcon) tIcon.textContent = isLight ? '🌙' : '☀️';
+
+    // Update General preferences Appearance controls
+    const btnDark = document.getElementById('btn-theme-dark');
+    const btnLight = document.getElementById('btn-theme-light');
+    const badgeTheme = document.getElementById('badge-theme-mode');
+    if (btnDark) btnDark.classList.toggle('active', !isLight);
+    if (btnLight) btnLight.classList.toggle('active', isLight);
+    if (badgeTheme) {
+      badgeTheme.textContent = isLight ? 'Light Mode' : 'Dark Mode';
+      badgeTheme.className = isLight ? 'cai-status-pill pro' : 'cai-status-pill ok';
+    }
+
+    // Update Sidebar toggle
+    const sbText = document.getElementById('sidebar-theme-text');
+    const sbIcon = document.getElementById('sidebar-theme-icon');
+    if (sbText) sbText.textContent = isLight ? 'Dark Mode' : 'Light Mode';
+    if (sbIcon) sbIcon.textContent = isLight ? '🌙' : '☀️';
+  }
+
+  const savedTheme = localStorage.getItem(THEME_KEY) || 'dark';
+  applyTheme(savedTheme);
+
+  function attachToggleListener() {
+    function toggleTheme() {
+      const isCurrentLight = document.body.classList.contains('light-theme');
+      const nextTheme = isCurrentLight ? 'dark' : 'light';
+      localStorage.setItem(THEME_KEY, nextTheme);
+      applyTheme(nextTheme);
+    }
+    function setTheme(mode) {
+      localStorage.setItem(THEME_KEY, mode);
+      applyTheme(mode);
+    }
+
+    const toggleBtn = document.getElementById('btn-theme-toggle');
+    if (toggleBtn && !toggleBtn.__theme_bound) {
+      toggleBtn.__theme_bound = true;
+      toggleBtn.addEventListener('click', toggleTheme);
+    }
+
+    const sbBtn = document.getElementById('btn-sidebar-theme-toggle');
+    if (sbBtn && !sbBtn.__theme_bound) {
+      sbBtn.__theme_bound = true;
+      sbBtn.addEventListener('click', toggleTheme);
+    }
+
+    const btnDark = document.getElementById('btn-theme-dark');
+    if (btnDark && !btnDark.__theme_bound) {
+      btnDark.__theme_bound = true;
+      btnDark.addEventListener('click', () => setTheme('dark'));
+    }
+
+    const btnLight = document.getElementById('btn-theme-light');
+    if (btnLight && !btnLight.__theme_bound) {
+      btnLight.__theme_bound = true;
+      btnLight.addEventListener('click', () => setTheme('light'));
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+      attachToggleListener();
+    });
+  } else {
+    attachToggleListener();
+  }
+})();
+
 // sidebar
 document.querySelectorAll('.nav-item').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -55,8 +138,12 @@ document.querySelectorAll('.nav-item').forEach(btn => {
       design: t('nav_design') || 'Design & Product Studio',
       templates: t('nav_templates') || 'Template Studio (Max 5 Pinned)',
       ai: t('nav_ai') || 'AI Studio',
+      voicestudio: 'Voice Studio',
+      voiceapi: 'Voice Studio Local REST API',
       audiogram: t('nav_audiogram') || 'Audiogram',
+      automontage: 'Smart Cut & Video Montage Studio',
       cloud: 'Cloud Drop & 1-Click Share',
+      videodownloader: t('videodl_title') || 'Video Downloader Pro',
       pro: t('pro_title'),
       history: t('nav_history'),
       contact: t('nav_contact') || 'Support & Feedback',
@@ -67,6 +154,9 @@ document.querySelectorAll('.nav-item').forEach(btn => {
     document.getElementById('title-text').textContent = title;
     if (viewId === 'history') renderHistory();
     if (viewId === 'cloud') refreshCloudDropView();
+    if (viewId === 'videodownloader') refreshVideoDlTab();
+    if (viewId === 'voiceapi') refreshVoiceApiTab();
+    if (viewId === 'automontage') refreshAutoMontageTab();
     if (viewId === 'design' || viewId === 'templates') refreshDesignStudioView();
     if (viewId === 'pro') refreshProStatusUI();
     if (viewId === 'contact') ensureContactFormLoaded(false);
@@ -361,7 +451,7 @@ async function renderHistory(keepFilters = false) {
         `<div class="hist-qr-box"><span style="font-size:10px; color:#0f172a;">⏳ QR...</span></div>` +
         `<div class="hist-qr-meta">` +
         `<div class="hist-qr-title">${isVi ? '📱 Quét Mã QR Bằng iPhone / Android (Trực Tiếp · 0% Quảng Cáo)' : '📱 Scan QR on iPhone / Android (Direct PC Stream · Zero Ads)'}</div>` +
-        `<div class="hist-qr-sub">${isVi ? '⚡ Truyền trực tiếp từ máy của bạn qua Cloudflare HTTPS & Wi-Fi 1 Gbps — Không qua server quảng cáo bên thứ 3!' : '⚡ Streams 100% directly from your PC via Cloudflare HTTPS & 1 Gbps Wi-Fi — Zero third-party ad servers!'}</div>` +
+        `<div class="hist-qr-sub">${isVi ? '📶 Wi-Fi Nội Bộ Trực Tiếp — kết nối điện thoại & PC cùng mạng Wi-Fi' : '📶 Local Wi-Fi Direct — connect phone & PC to same Wi-Fi'}</div>` +
         `<div class="hist-qr-url-row">` +
         `<div class="hist-qr-url">...</div>` +
         `<button class="btn-hist-act btn-hist-copy-qr">📋 Copy</button>` +
@@ -389,6 +479,7 @@ async function renderHistory(keepFilters = false) {
       const qrBtn = wrap.querySelector('.btn-hist-qr');
       const qrDrawer = wrap.querySelector('.hist-qr-drawer');
       const qrBox = wrap.querySelector('.hist-qr-box');
+      const qrSubEl = wrap.querySelector('.hist-qr-sub');
       const qrUrlEl = wrap.querySelector('.hist-qr-url');
       const qrCopyBtn = wrap.querySelector('.hist-qr-copy-qr') || wrap.querySelector('.btn-hist-copy-qr');
       let qrLoadedUrl = '';
@@ -398,8 +489,8 @@ async function renderHistory(keepFilters = false) {
         qrDrawer.classList.toggle('hidden', !willOpen);
         qrBtn.classList.toggle('active', willOpen);
         if (willOpen && !qrLoadedUrl) {
-          qrBox.innerHTML = `<span style="font-size:10px; color:#0f172a; text-align:center;">⏳ HTTPS...</span>`;
-          qrUrlEl.textContent = isVi ? '⏳ Đang mở đường truyền trực tiếp Cloudflare (0% quảng cáo)...' : '⏳ Opening direct ad-free Cloudflare HTTPS stream...';
+          qrBox.innerHTML = `<span style="font-size:10px; color:#0f172a; text-align:center;">⏳ QR...</span>`;
+          qrUrlEl.textContent = isVi ? '⏳ Đang mở đường truyền Wi-Fi trực tiếp...' : '⏳ Opening direct Wi-Fi transfer link...';
           try {
             const qrPrimary = (!isUrl && outPath) ? outPath : (e.input || outPath);
             let res;
@@ -416,6 +507,12 @@ async function renderHistory(keepFilters = false) {
               qrBox.innerHTML = res.svg;
               qrLoadedUrl = res.url || outPath;
               qrUrlEl.textContent = qrLoadedUrl;
+              if (qrSubEl) {
+                const isHttps = String(qrLoadedUrl || '').toLowerCase().startsWith('https://');
+                qrSubEl.textContent = isHttps
+                  ? (isVi ? '🌐 HTTPS Công Khai — hoạt động trên cả 4G/5G & mọi mạng Wi-Fi' : '🌐 Public HTTPS — works on 4G/5G & any Wi-Fi')
+                  : (isVi ? '📶 Wi-Fi Nội Bộ Trực Tiếp — kết nối điện thoại & PC cùng mạng Wi-Fi' : '📶 Local Wi-Fi Direct — connect phone & PC to same Wi-Fi');
+              }
             }
           } catch (err) {
             qrBox.innerHTML = `<span style="font-size:10px; color:#ef4444; text-align:center;">${isVi ? 'Lỗi QR' : 'QR Error'}</span>`;
@@ -567,9 +664,24 @@ const resetCloudBtn = document.getElementById('btn-reset-cloud-hotkey');
 const recordDesignBtn = document.getElementById('btn-record-design-hotkey');
 const recordDesignText = document.getElementById('record-design-hotkey-text');
 const resetDesignBtn = document.getElementById('btn-reset-design-hotkey');
+const recordVideoDlBtn = document.getElementById('btn-record-videodl');
+const dispVideoDlKey = document.getElementById('disp-videodl-key');
+const resetVideoDlBtn = document.getElementById('btn-reset-videodl');
 let isRecording = false;
-let recordingTarget = 'convert'; // 'convert', 'cloud', or 'design'
+let recordingTarget = 'convert'; // 'convert', 'cloud', 'design', or 'videodl'
 let pendingModCombo = '';
+
+let shortcutToastTimer = null;
+function showShortcutToast(text, ok = true) {
+  let toastEl = document.getElementById('settings-floating-toast');
+  if (!toastEl) return;
+  toastEl.textContent = text;
+  toastEl.className = ok ? 'show ok' : 'show warn';
+  clearTimeout(shortcutToastTimer);
+  shortcutToastTimer = setTimeout(() => {
+    toastEl.className = 'hidden';
+  }, 2600);
+}
 
 function formatHotkeyDisplay(raw) {
   if (!raw) return 'Ctrl + G';
@@ -616,7 +728,7 @@ function extractKeyFromEvent(e) {
 function updateHotkeyUI(key) {
   const normKey = (key || 'ctrl+g').toLowerCase().trim();
   document.querySelectorAll('#trigger-key-segmented .seg-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.key === normKey);
+    b.classList.toggle('active', (b.dataset.key || '').toLowerCase() === normKey);
   });
   if (recordText) {
     recordText.textContent = formatHotkeyDisplay(normKey);
@@ -624,102 +736,139 @@ function updateHotkeyUI(key) {
 }
 
 function updateCloudHotkeyUI(key) {
-  const normKey = (key || 'ctrl+shift+g').toLowerCase().trim();
+  const normKey = (key || 'alt+g').toLowerCase().trim();
   document.querySelectorAll('#cloud-key-segmented .seg-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.ckey === normKey);
+    b.classList.toggle('active', (b.dataset.ckey || '').toLowerCase() === normKey);
   });
   if (recordCloudText) {
     recordCloudText.textContent = formatHotkeyDisplay(normKey);
   }
+  const dispCur = document.getElementById('disp-cloud-current-key');
+  if (dispCur) dispCur.textContent = formatHotkeyDisplay(normKey);
 }
 
 function updateDesignHotkeyUI(key) {
   const normKey = (key || 'ctrl+shift+d').toLowerCase().trim();
   document.querySelectorAll('#design-key-segmented .seg-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.dkey === normKey);
+    b.classList.toggle('active', (b.dataset.dkey || '').toLowerCase() === normKey);
   });
   if (recordDesignText) {
     recordDesignText.textContent = formatHotkeyDisplay(normKey);
   }
+  const dispCur = document.getElementById('disp-design-current-key');
+  if (dispCur) dispCur.textContent = formatHotkeyDisplay(normKey);
 }
 
-async function stopRecordingMode() {
+function updateVideoDlHotkeyUI(key) {
+  const normKey = (key || 'ctrl+shift+v').toLowerCase().trim();
+  document.querySelectorAll('#videodl-key-segmented .seg-btn').forEach(b => {
+    b.classList.toggle('active', (b.dataset.vdkey || '').toLowerCase() === normKey);
+  });
+  if (dispVideoDlKey) {
+    dispVideoDlKey.textContent = formatHotkeyDisplay(normKey);
+  }
+}
+
+function stopRecordingMode() {
+  if (!isRecording) return;
   isRecording = false;
   pendingModCombo = '';
   if (recordBtn) recordBtn.classList.remove('recording');
   if (recordCloudBtn) recordCloudBtn.classList.remove('recording');
   if (recordDesignBtn) recordDesignBtn.classList.remove('recording');
-  try { await invoke('set_recording_hotkey', { recording: false }); } catch (_) { }
+  if (recordVideoDlBtn) recordVideoDlBtn.classList.remove('recording');
+  invoke('set_recording_hotkey', { recording: false }).catch(() => {});
+  // Refresh display text from active config
+  invoke('get_config').then(cfg => {
+    if (recordText && cfg.trigger_key) recordText.textContent = formatHotkeyDisplay(cfg.trigger_key);
+    if (recordDesignText && cfg.design_trigger_key) recordDesignText.textContent = formatHotkeyDisplay(cfg.design_trigger_key);
+    if (recordCloudText && cfg.cloud_trigger_key) recordCloudText.textContent = formatHotkeyDisplay(cfg.cloud_trigger_key);
+    if (dispVideoDlKey && cfg.video_downloader_trigger_key) dispVideoDlKey.textContent = formatHotkeyDisplay(cfg.video_downloader_trigger_key);
+  }).catch(() => {});
+}
+
+function startRecording(target, btnEl, textEl) {
+  stopRecordingMode();
+  isRecording = true;
+  recordingTarget = target;
+  pendingModCombo = '';
+  if (btnEl) btnEl.classList.add('recording');
+  if (textEl) textEl.textContent = '🔴 Press keys... (Esc)';
+  showShortcutToast('⌨️ Press your custom key combination on keyboard...', false);
+  invoke('set_recording_hotkey', { recording: true }).catch(() => {});
 }
 
 async function applyRecordedCombo(combo) {
   const targetMode = recordingTarget;
-  await stopRecordingMode();
+  isRecording = false;
+  pendingModCombo = '';
+  if (recordBtn) recordBtn.classList.remove('recording');
+  if (recordCloudBtn) recordCloudBtn.classList.remove('recording');
+  if (recordDesignBtn) recordDesignBtn.classList.remove('recording');
+  if (recordVideoDlBtn) recordVideoDlBtn.classList.remove('recording');
+  invoke('set_recording_hotkey', { recording: false }).catch(() => {});
+
+  const disp = formatHotkeyDisplay(combo);
   if (targetMode === 'cloud') {
     updateCloudHotkeyUI(combo);
     try {
       await invoke('set_cloud_trigger_key', { key: combo });
-      dlog('Custom cloud trigger key set to:', combo);
+      showShortcutToast(`✓ Cloud Drop shortcut saved: ${disp}`);
     } catch (err) {
-      dlog('set_cloud_trigger_key failed:', err);
-      msg(t('error_prefix') + err);
+      showShortcutToast(`Failed to save shortcut: ${err}`, false);
     }
   } else if (targetMode === 'design') {
     updateDesignHotkeyUI(combo);
     try {
       await invoke('set_design_trigger_key', { key: combo });
-      dlog('Custom design trigger key set to:', combo);
+      showShortcutToast(`✓ Design Studio shortcut saved: ${disp}`);
     } catch (err) {
-      dlog('set_design_trigger_key failed:', err);
-      msg(t('error_prefix') + err);
+      showShortcutToast(`Failed to save shortcut: ${err}`, false);
+    }
+  } else if (targetMode === 'videodl') {
+    updateVideoDlHotkeyUI(combo);
+    try {
+      await invoke('set_video_downloader_trigger_key', { key: combo });
+      showShortcutToast(`✓ Quick Download shortcut saved: ${disp}`);
+    } catch (err) {
+      showShortcutToast(`Failed to save shortcut: ${err}`, false);
     }
   } else {
     updateHotkeyUI(combo);
     try {
       await invoke('set_trigger_key', { key: combo });
-      dlog('Custom trigger key set to:', combo);
+      showShortcutToast(`✓ Main Radial shortcut saved: ${disp}`);
     } catch (err) {
-      dlog('set_trigger_key failed:', err);
-      msg(t('error_prefix') + err);
+      showShortcutToast(`Failed to save shortcut: ${err}`, false);
     }
   }
 }
 
 if (recordBtn) {
-  recordBtn.addEventListener('click', async () => {
-    isRecording = true;
-    recordingTarget = 'convert';
-    pendingModCombo = '';
-    if (recordCloudBtn) recordCloudBtn.classList.remove('recording');
-    recordBtn.classList.add('recording');
-    recordText.textContent = t('recording_hotkey_hint') || 'Press keys...';
-    try { await invoke('set_recording_hotkey', { recording: true }); } catch (_) { }
-  });
-}
-
-if (recordCloudBtn) {
-  recordCloudBtn.addEventListener('click', async () => {
-    isRecording = true;
-    recordingTarget = 'cloud';
-    pendingModCombo = '';
-    if (recordBtn) recordBtn.classList.remove('recording');
-    if (recordDesignBtn) recordDesignBtn.classList.remove('recording');
-    recordCloudBtn.classList.add('recording');
-    if (recordCloudText) recordCloudText.textContent = t('recording_hotkey_hint') || 'Press keys...';
-    try { await invoke('set_recording_hotkey', { recording: true }); } catch (_) { }
+  recordBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    startRecording('convert', recordBtn, recordText);
   });
 }
 
 if (recordDesignBtn) {
-  recordDesignBtn.addEventListener('click', async () => {
-    isRecording = true;
-    recordingTarget = 'design';
-    pendingModCombo = '';
-    if (recordBtn) recordBtn.classList.remove('recording');
-    if (recordCloudBtn) recordCloudBtn.classList.remove('recording');
-    recordDesignBtn.classList.add('recording');
-    if (recordDesignText) recordDesignText.textContent = t('recording_hotkey_hint') || 'Press keys...';
-    try { await invoke('set_recording_hotkey', { recording: true }); } catch (_) { }
+  recordDesignBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    startRecording('design', recordDesignBtn, recordDesignText);
+  });
+}
+
+if (recordCloudBtn) {
+  recordCloudBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    startRecording('cloud', recordCloudBtn, recordCloudText);
+  });
+}
+
+if (recordVideoDlBtn) {
+  recordVideoDlBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    startRecording('videodl', recordVideoDlBtn, dispVideoDlKey);
   });
 }
 
@@ -728,14 +877,11 @@ window.addEventListener('keydown', async (e) => {
   e.preventDefault();
   e.stopPropagation();
 
-  const activeTextEl = recordingTarget === 'cloud' ? recordCloudText : (recordingTarget === 'design' ? recordDesignText : recordText);
+  const activeTextEl = recordingTarget === 'cloud' ? recordCloudText : (recordingTarget === 'design' ? recordDesignText : (recordingTarget === 'videodl' ? dispVideoDlKey : recordText));
 
   if (e.key === 'Escape') {
-    await stopRecordingMode();
-    const cfg = await invoke('get_config').catch(() => ({ trigger_key: 'ctrl+g', cloud_trigger_key: 'ctrl+shift+g', design_trigger_key: 'ctrl+shift+d' }));
-    updateHotkeyUI(cfg.trigger_key || 'ctrl+g');
-    updateCloudHotkeyUI(cfg.cloud_trigger_key || 'ctrl+shift+g');
-    updateDesignHotkeyUI(cfg.design_trigger_key || 'ctrl+shift+d');
+    stopRecordingMode();
+    showShortcutToast('Recording cancelled', false);
     return;
   }
 
@@ -763,7 +909,6 @@ window.addEventListener('keydown', async (e) => {
   if (e.shiftKey) parts.push('shift');
   if (e.metaKey) parts.push('meta');
   if (parts.length === 0 && !keyName.startsWith('f')) {
-    // Require at least Ctrl, Alt, Shift, or Win for non-Function keys so normal typing isn't blocked
     parts.push('ctrl');
   }
   parts.push(keyName);
@@ -779,65 +924,127 @@ window.addEventListener('keyup', async (e) => {
   }
 }, true);
 
-if (resetBtn) {
-  resetBtn.addEventListener('click', async () => {
-    await stopRecordingMode();
-    const defaultKey = 'ctrl+g';
-    updateHotkeyUI(defaultKey);
+// Cancel recording if user clicks anywhere outside
+document.addEventListener('click', (e) => {
+  if (!isRecording) return;
+  if (!e.target.closest('.btn-hotkey-input')) {
+    stopRecordingMode();
+  }
+});
+
+// Preset Buttons Listeners
+document.querySelectorAll('#trigger-key-segmented .seg-btn').forEach(b => {
+  b.addEventListener('click', async (e) => {
+    stopRecordingMode();
+    const key = e.currentTarget.dataset.key;
+    if (!key) return;
+    updateHotkeyUI(key);
     try {
-      await invoke('set_trigger_key', { key: defaultKey });
-      dlog('Trigger key reset to default:', defaultKey);
+      await invoke('set_trigger_key', { key });
+      showShortcutToast(`✓ Main Radial shortcut set to ${formatHotkeyDisplay(key)}`);
     } catch (err) {
-      msg(t('error_prefix') + err);
+      showShortcutToast(`Error: ${err}`, false);
     }
   });
-}
+});
 
-if (resetCloudBtn) {
-  resetCloudBtn.addEventListener('click', async () => {
-    await stopRecordingMode();
-    const defaultKey = 'ctrl+shift+g';
-    updateCloudHotkeyUI(defaultKey);
+document.querySelectorAll('#design-key-segmented .seg-btn').forEach(b => {
+  b.addEventListener('click', async (e) => {
+    stopRecordingMode();
+    const key = e.currentTarget.dataset.dkey;
+    if (!key) return;
+    updateDesignHotkeyUI(key);
     try {
-      await invoke('set_cloud_trigger_key', { key: defaultKey });
-      dlog('Cloud trigger key reset to default:', defaultKey);
+      await invoke('set_design_trigger_key', { key });
+      showShortcutToast(`✓ Design Studio shortcut set to ${formatHotkeyDisplay(key)}`);
     } catch (err) {
-      msg(t('error_prefix') + err);
+      showShortcutToast(`Error: ${err}`, false);
     }
+  });
+});
+
+document.querySelectorAll('#cloud-key-segmented .seg-btn').forEach(b => {
+  b.addEventListener('click', async (e) => {
+    stopRecordingMode();
+    const key = e.currentTarget.dataset.ckey;
+    if (!key) return;
+    updateCloudHotkeyUI(key);
+    try {
+      await invoke('set_cloud_trigger_key', { key });
+      showShortcutToast(`✓ Cloud Drop shortcut set to ${formatHotkeyDisplay(key)}`);
+    } catch (err) {
+      showShortcutToast(`Error: ${err}`, false);
+    }
+  });
+});
+
+document.querySelectorAll('#videodl-key-segmented .seg-btn').forEach(b => {
+  b.addEventListener('click', async (e) => {
+    stopRecordingMode();
+    const key = e.currentTarget.dataset.vdkey;
+    if (!key) return;
+    updateVideoDlHotkeyUI(key);
+    try {
+      await invoke('set_video_downloader_trigger_key', { key });
+      showShortcutToast(`✓ Quick Download shortcut set to ${formatHotkeyDisplay(key)}`);
+    } catch (err) {
+      showShortcutToast(`Error: ${err}`, false);
+    }
+  });
+});
+
+// Default Reset Buttons
+if (resetBtn) {
+  resetBtn.addEventListener('click', async () => {
+    stopRecordingMode();
+    updateHotkeyUI('ctrl+g');
+    await invoke('set_trigger_key', { key: 'ctrl+g' }).catch(() => {});
+    showShortcutToast('✓ Main Radial shortcut reset to default: Ctrl + G');
   });
 }
 
 if (resetDesignBtn) {
   resetDesignBtn.addEventListener('click', async () => {
-    await stopRecordingMode();
-    const defaultKey = 'ctrl+shift+d';
-    updateDesignHotkeyUI(defaultKey);
-    try {
-      await invoke('set_design_trigger_key', { key: defaultKey });
-      dlog('Design trigger key reset to default:', defaultKey);
-    } catch (err) {
-      msg(t('error_prefix') + err);
-    }
+    stopRecordingMode();
+    updateDesignHotkeyUI('ctrl+shift+d');
+    await invoke('set_design_trigger_key', { key: 'ctrl+shift+d' }).catch(() => {});
+    showShortcutToast('✓ Design Studio shortcut reset to default: Ctrl + Shift + D');
   });
 }
 
-document.querySelectorAll('#trigger-key-segmented .seg-btn').forEach(b => {
-  b.addEventListener('click', async (e) => {
-    await stopRecordingMode();
-    const key = e.currentTarget.dataset.key;
-    updateHotkeyUI(key);
-    try {
-      await invoke('set_trigger_key', { key });
-      dlog('Trigger key set to:', key);
-    } catch (err) {
-      dlog('set_trigger_key failed:', err);
-      msg(t('error_prefix') + err);
-    }
+if (resetCloudBtn) {
+  resetCloudBtn.addEventListener('click', async () => {
+    stopRecordingMode();
+    updateCloudHotkeyUI('alt+g');
+    await invoke('set_cloud_trigger_key', { key: 'alt+g' }).catch(() => {});
+    showShortcutToast('✓ Cloud Drop shortcut reset to default: Alt + G');
+  });
+}
+
+if (resetVideoDlBtn) {
+  resetVideoDlBtn.addEventListener('click', async () => {
+    stopRecordingMode();
+    updateVideoDlHotkeyUI('ctrl+shift+v');
+    await invoke('set_video_downloader_trigger_key', { key: 'ctrl+shift+v' }).catch(() => {});
+    showShortcutToast('✓ Quick Download shortcut reset to default: Ctrl + Shift + V');
+  });
+}
+
+// Navigation links from other tabs to General Shortcuts card
+document.querySelectorAll('.btn-goto-general-shortcuts').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const navGeneral = document.querySelector('.nav-item[data-view="general"]');
+    if (navGeneral) navGeneral.click();
+    setTimeout(() => {
+      const targetCard = document.getElementById('card-global-shortcuts');
+      if (targetCard) targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 60);
   });
 });
 
 async function init() {
   dlog('init() started');
+  checkHotkeyPermission();
   const cfg = await invoke('get_config').catch((e) => { dlog('get_config failed:', e); return { enabled: true, autostart: true, output_dir: null, language: 'en', trigger_key: 'ctrl+g' }; });
   dlog('get_config returned:', cfg);
   setToggle(document.getElementById('tgl-enable'), cfg.enabled !== false);
@@ -877,8 +1084,22 @@ async function init() {
   if (tglDub) setToggle(tglDub, cfg.ai_dubbing_enabled !== false);
   const selCtx = document.getElementById('sel-ai-dub-context');
   if (selCtx) selCtx.value = cfg.ai_dub_context || 'auto';
+  window.LATEST_AI_CFG = cfg;
   const curVoice = cfg.ai_dub_voice || 'auto';
-  document.querySelectorAll('#ai-dub-voice-segmented .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.voice === curVoice));
+  const dubSelInit = document.getElementById('sel-ai-dub-voice-override');
+  if (curVoice === 'auto' || curVoice === 'male' || curVoice === 'female') {
+    document.querySelectorAll('#ai-dub-voice-segmented .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.voice === curVoice));
+    if (dubSelInit) dubSelInit.value = 'auto';
+  } else {
+    document.querySelectorAll('#ai-dub-voice-segmented .seg-btn').forEach(b => b.classList.remove('active'));
+    if (dubSelInit) {
+      if (Array.from(dubSelInit.options).some(o => o.value === curVoice)) {
+        dubSelInit.value = curVoice;
+      } else if (curVoice === 'active' || curVoice === 'vs_active') {
+        dubSelInit.value = 'vs_active';
+      }
+    }
+  }
   const selCustomLang = document.getElementById('sel-ai-custom-lang');
   if (selCustomLang && cfg.ai_custom_lang_code) {
     const matchOpt = Array.from(selCustomLang.options).find(o => o.value.startsWith(cfg.ai_custom_lang_code + '|'));
@@ -908,8 +1129,9 @@ async function init() {
   document.getElementById('output-path').textContent = cfg.output_dir || t('output_default');
 
   updateHotkeyUI(cfg.trigger_key || 'ctrl+g');
-  updateCloudHotkeyUI(cfg.cloud_trigger_key || 'ctrl+shift+g');
+  updateCloudHotkeyUI(cfg.cloud_trigger_key || 'alt+g');
   updateDesignHotkeyUI(cfg.design_trigger_key || 'ctrl+shift+d');
+  updateVideoDlHotkeyUI(cfg.video_downloader_trigger_key || 'ctrl+shift+v');
 
   await loadLocale(cfg.language || 'en');
   document.getElementById('output-path').textContent = cfg.output_dir || t('output_default');
@@ -1106,20 +1328,48 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Show the Accessibility permission banner when the global hotkey fails
-// (macOS 29/10: rdev needs Input Monitoring / Accessibility permission).
+// (macOS: rdev needs Input Monitoring / Accessibility permission).
+async function checkHotkeyPermission() {
+  try {
+    const trusted = await invoke('check_accessibility_permission');
+    const banner = document.getElementById('perm-banner');
+    if (banner) {
+      if (trusted === false) {
+        banner.classList.remove('hidden');
+      } else {
+        banner.classList.add('hidden');
+      }
+    }
+  } catch (e) {
+    dlog('check_accessibility_permission error:', e);
+  }
+}
+
 async function watchHotkeyPermission() {
   try {
     const { listen } = window.__TAURI__.event;
     await listen('hotkey-permission-needed', () => {
-      document.getElementById('perm-banner').classList.remove('hidden');
+      const banner = document.getElementById('perm-banner');
+      if (banner) banner.classList.remove('hidden');
     });
-  } catch (e) { dlog('listen hotkey-permission-needed failed:', e); }
+    await listen('hotkey-permission-granted', () => {
+      const banner = document.getElementById('perm-banner');
+      if (banner) banner.classList.add('hidden');
+    });
+  } catch (e) {
+    dlog('listen hotkey permission events failed:', e);
+  }
 }
 watchHotkeyPermission();
+checkHotkeyPermission();
 
 document.getElementById('btn-perm').addEventListener('click', async () => {
-  try { await invoke('open_accessibility_settings'); }
-  catch (e) { msg(t('error_prefix') + e); }
+  try {
+    await invoke('request_accessibility_permission');
+    await invoke('open_accessibility_settings');
+  } catch (e) {
+    msg(t('error_prefix') + e);
+  }
 });
 
 document.getElementById('tgl-enable').addEventListener('click', async (e) => {
@@ -1297,7 +1547,7 @@ async function loadAppVersion() {
     const badge = document.getElementById('app-version-badge');
     if (badge) badge.textContent = ver;
     const sideBadge = document.getElementById('sidebar-version-badge-text');
-    if (sideBadge) sideBadge.textContent = `${ver} · VOICE STUDIO`;
+    if (sideBadge) sideBadge.textContent = `v${ver.replace(/^v/i, '')}`;
     const aboutLine = document.getElementById('about-line');
     if (aboutLine) aboutLine.textContent = t('about_version', { version: ver }) || `Version ${ver}`;
     const descEl = document.getElementById('update-status-desc');
@@ -1360,7 +1610,7 @@ async function checkForAppUpdates(isManual = false) {
     if (lblManual) lblManual.textContent = 'Checking...';
   }
 
-  let localVer = '1.0.6.0';
+  let localVer = '1.0.7.0';
   const badge = document.getElementById('app-version-badge');
   if (badge && badge.textContent) {
     localVer = badge.textContent.replace(/^v/i, '').trim();
@@ -1509,9 +1759,27 @@ setTimeout(() => {
     b.addEventListener('click', async (e) => {
       const v = e.currentTarget.dataset.voice;
       document.querySelectorAll('#ai-dub-voice-segmented .seg-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.voice === v));
+      const selDub = document.getElementById('sel-ai-dub-voice-override');
+      if (selDub) selDub.value = 'auto';
       await invoke('set_ai_highlight_config', { dubVoice: v });
     });
   });
+  const selDubOverrideEl = document.getElementById('sel-ai-dub-voice-override');
+  if (selDubOverrideEl) {
+    selDubOverrideEl.addEventListener('change', async (e) => {
+      const val = e.target.value;
+      if (val === 'auto') {
+        document.querySelectorAll('#ai-dub-voice-segmented .seg-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.voice === 'auto'));
+        await invoke('set_ai_highlight_config', { dubVoice: 'auto' });
+      } else if (val === 'vs_active') {
+        document.querySelectorAll('#ai-dub-voice-segmented .seg-btn').forEach(btn => btn.classList.remove('active'));
+        await invoke('set_ai_highlight_config', { dubVoice: 'active' });
+      } else {
+        document.querySelectorAll('#ai-dub-voice-segmented .seg-btn').forEach(btn => btn.classList.remove('active'));
+        await invoke('set_ai_highlight_config', { dubVoice: val });
+      }
+    });
+  }
   const selCustomLangEl = document.getElementById('sel-ai-custom-lang');
   if (selCustomLangEl) {
     selCustomLangEl.addEventListener('change', async (e) => {
@@ -1684,7 +1952,7 @@ async function refreshCloudDropView() {
     if (tglEn) setToggle(tglEn, cfg.cloud_enabled !== false);
     const tglCp = document.getElementById('tgl-cloud-auto-copy');
     if (tglCp) setToggle(tglCp, cfg.cloud_auto_copy_link !== false);
-    const ckey = (cfg.cloud_trigger_key || 'ctrl+shift+g').toLowerCase();
+    const ckey = (cfg.cloud_trigger_key || 'alt+g').toLowerCase();
     updateCloudHotkeyUI(ckey);
     const fmode = cfg.cloud_folder_mode || 'month';
     document.querySelectorAll('#cloud-folder-segmented .seg-btn').forEach(b => {
@@ -1812,14 +2080,6 @@ async function refreshCloudDropView() {
       setToggle(el, c.cloud_auto_copy_link);
     });
   }
-  document.querySelectorAll('#cloud-key-segmented .seg-btn').forEach(b => {
-    b.addEventListener('click', async (e) => {
-      await stopRecordingMode();
-      const key = e.currentTarget.dataset.ckey;
-      updateCloudHotkeyUI(key);
-      await invoke('set_cloud_trigger_key', { key });
-    });
-  });
   document.querySelectorAll('#cloud-folder-segmented .seg-btn').forEach(b => {
     b.addEventListener('click', async (e) => {
       const fmode = e.currentTarget.dataset.fmode;
@@ -2572,14 +2832,6 @@ async function refreshDesignStudioView() {
       setToggle(el, c.design_enabled);
     });
   }
-  document.querySelectorAll('#design-key-segmented .seg-btn').forEach(b => {
-    b.addEventListener('click', async (e) => {
-      await stopRecordingMode();
-      const key = e.currentTarget.dataset.dkey;
-      updateDesignHotkeyUI(key);
-      await invoke('set_design_trigger_key', { key });
-    });
-  });
   const btnGoTpl = document.getElementById('btn-go-template-studio');
   if (btnGoTpl) {
     btnGoTpl.addEventListener('click', () => {
@@ -2921,6 +3173,11 @@ async function refreshDesignStudioView() {
       if (proNav) proNav.click();
       refreshProStatusUI();
     }).catch(() => { });
+    window.__TAURI__.event.listen('settings-open-view', (e) => {
+      const view = (e && e.payload) ? e.payload : 'voicestudio';
+      const nav = document.querySelector(`.nav-item[data-view="${view}"]`);
+      if (nav) nav.click();
+    }).catch(() => { });
   }
 }
 
@@ -2986,17 +3243,17 @@ const REVIEW_LANG_VOICE_CATALOG = [
   },
   {
     code: 'vi', name: 'Vietnamese', flag: '🇻🇳', voices: [
-      { id: 'vi_nam_minh_recap', label: '♂ Nam Minh (Review Phim / Movie Recap · Bass Dày)' },
-      { id: 'vi_nam_minh_news', label: '♂ Nam Minh (Tin Tức & Thời Sự · Chuẩn MC)' },
-      { id: 'vi_nam_minh_audiobook', label: '♂ Nam Minh (Sách Nói & Triết Lý · Sâu Lắng)' },
-      { id: 'vi_nam_minh_story', label: '♂ Nam Minh (Truyện Ma & Kịch Tính · Trầm Tối)' },
-      { id: 'vi_nam_minh_shorts', label: '♂ Nam Minh (Trẻ Trung / TikTok Shorts · Năng Động)' },
-      { id: 'vi-VN-NamMinhNeural', label: '♂ Nam Minh (Tự Nhiên Chuẩn Mực)' },
-      { id: 'vi_hoai_my_story', label: '♀ Hoài My (Kể Chuyện & Sách Nói · Dịu Dàng)' },
-      { id: 'vi_hoai_my_review', label: '♀ Hoài My (Review & Đập Hộp KOC · Tươi Tắn)' },
-      { id: 'vi_hoai_my_news', label: '♀ Hoài My (Bản Tin & Phóng Sự · Nghiêm Túc)' },
-      { id: 'vi_hoai_my_lullaby', label: '♀ Hoài My (Tâm Sự Đêm Khuya · Thủ Thỉ)' },
-      { id: 'vi-VN-HoaiMyNeural', label: '♀ Hoài My (Tự Nhiên Chuẩn Mực)' },
+      { id: 'vi_nam_minh_recap', label: '♂ Nam Minh (Movie Recap · Deep Bass)' },
+      { id: 'vi_nam_minh_news', label: '♂ Nam Minh (News & Broadcast · Crisp Anchor)' },
+      { id: 'vi_nam_minh_audiobook', label: '♂ Nam Minh (Audiobook & Essay · Warm)' },
+      { id: 'vi_nam_minh_story', label: '♂ Nam Minh (Thriller & Mystery · Dark)' },
+      { id: 'vi_nam_minh_shorts', label: '♂ Nam Minh (TikTok & Shorts · Energetic)' },
+      { id: 'vi-VN-NamMinhNeural', label: '♂ Nam Minh (Natural Standard)' },
+      { id: 'vi_hoai_my_story', label: '♀ Hoai My (Storytelling & Audiobook · Gentle)' },
+      { id: 'vi_hoai_my_review', label: '♀ Hoai My (Product Review & Vlog · Bright)' },
+      { id: 'vi_hoai_my_news', label: '♀ Hoai My (News & Documentary · Formal)' },
+      { id: 'vi_hoai_my_lullaby', label: '♀ Hoai My (Late-Night Podcast · Soft)' },
+      { id: 'vi-VN-HoaiMyNeural', label: '♀ Hoai My (Natural Standard)' },
       { id: 'en-US-AndrewMultilingualNeural', label: '♂ Andrew Multilingual (US Accent in VN)' },
       { id: 'en-US-AvaMultilingualNeural', label: '♀ Ava Multilingual (US Accent in VN)' }
     ]
@@ -3978,17 +4235,17 @@ const TOUR_STEPS_DATA = [
     targetSelector: '#view-cloud .card',
     tabVi: '4 · Cloud & QR ĐT',
     tabEn: '4 · Cloud & Phone QR',
-    titleVi: 'Bước 4: Phím Ctrl + Shift + G · Cloud Drop & Bắn File Qua Điện Thoại (QR)',
-    titleEn: 'Step 4: Press Ctrl + Shift + G · Cloud Drop & 2-Way Phone Wi-Fi QR',
+    titleVi: 'Bước 4: Phím Alt + G · Cloud Drop & Bắn File Qua Điện Thoại (QR)',
+    titleEn: 'Step 4: Press Alt + G · Cloud Drop & 2-Way Phone Wi-Fi QR',
     subVi: 'Chia sẻ file siêu tốc lên đám mây hoặc bắn ảnh/video trực tiếp giữa iPhone / Android và máy tính không cần cáp:',
     subEn: 'Upload files to your cloud with auto-copied links or beam photos/videos between iPhone/Android and PC over Wi-Fi:',
     clicksVi: [
-      { badge: 'PHÍM TẮT', html: 'Chọn file bất kỳ → Nhấn <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd> để mở vòng xoay <b>Cloud Drop</b>.' },
+      { badge: 'PHÍM TẮT', html: 'Chọn file bất kỳ → Nhấn <kbd>Alt</kbd> + <kbd>G</kbd> để mở vòng xoay <b>Cloud Drop</b>.' },
       { badge: 'UP CLOUD 1-CLICK', html: 'Bấm vào <b>Google Drive, Dropbox, OneDrive</b> hoặc <b>Instant Link</b> → App tự động tải lên và <b>copy sẵn link chia sẻ vào Clipboard</b> (chỉ việc nhấn Ctrl+V để gửi).' },
       { badge: 'PC ↔ ĐIỆN THOẠI', html: 'Bấm <b>PC → Phone</b> (tải file từ PC về ĐT) hoặc <b>Phone → PC</b> (gửi ảnh từ ĐT vào PC) → Mở camera điện thoại <b>quét mã QR</b> trên màn hình là nhận ngay!' }
     ],
     clicksEn: [
-      { badge: 'SHORTCUT', html: 'Select any file(s) → Press <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd> to open the <b>Cloud Drop</b> wheel.' },
+      { badge: 'SHORTCUT', html: 'Select any file(s) → Press <kbd>Alt</kbd> + <kbd>G</kbd> to open the <b>Cloud Drop</b> wheel.' },
       { badge: '1-CLICK CLOUD', html: 'Click <b>Google Drive, Dropbox, OneDrive</b>, or <b>Instant Link</b> → Uploads and <b>auto-copies the share URL</b> to your clipboard!' },
       { badge: 'PHONE ↔ PC QR', html: 'Click <b>PC → Phone</b> or <b>Phone → PC</b> → Scan the on-screen <b>Wi-Fi QR Code</b> with your phone camera for instant transfer!' }
     ],
@@ -3997,7 +4254,7 @@ const TOUR_STEPS_DATA = [
     visualHtml: (isVi) => `
       <div style="display:flex; align-items:center; justify-content:space-between; font-size:9.5px; font-weight:800; color:#38bdf8;">
         <span>● ${isVi ? 'CLOUD DROP & BẮN FILE ĐIỆN THOẠI QR' : 'CLOUD DROP & 2-WAY WI-FI QR TRANSFER'}</span>
-        <span>CTRL + SHIFT + G</span>
+        <span>ALT + G</span>
       </div>
       <div style="display:flex; align-items:center; justify-content:space-around; gap:10px; margin:8px 0;">
         <div style="display:flex; flex-direction:column; gap:5px; width:155px;">
@@ -4850,23 +5107,26 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     },
     {
       id: 'meta',
-      name: 'Meta Llama API',
-      short: 'LLAMA',
+      name: 'Meta AI API',
+      short: 'META',
       icon: '∞',
       color: '#60a5fa',
       bg: 'rgba(96, 165, 250, 0.18)',
-      placeholder: 'LLM|...',
-      defaultModel: 'Llama-4-Maverick-17B-128E-Instruct-FP8',
+      placeholder: 'LLM_... or Bearer token',
+      defaultModel: 'muse-spark-1.3',
       fallbackModels: [
+        'muse-spark-1.3',
+        'muse-spark-1.3-contributor',
+        'muse-spark-1.2',
+        'muse-wonder-1.0',
+        'muse-ember-1.0',
         'Llama-4-Maverick-17B-128E-Instruct-FP8',
-        'Llama-4-Scout-17B-16E-Instruct-FP8',
-        'Llama-3.3-70B-Instruct',
-        'Llama-3.2-90B-Vision-Instruct'
+        'Llama-3.3-70B-Instruct'
       ],
       modalities: { text: true, vision: true, video: false, tts: false, imageGen: false },
       capabilities: [
-        { ok: true, label: 'Text, Story Recap & Fast Multilingual Translation (Llama 4 Maverick / Scout / 3.3 70B)' },
-        { ok: true, label: 'Vision & Image Reading (Llama 4 Maverick/Scout & Llama 3.2 Vision models)' },
+        { ok: true, label: 'Text, Story Recap & Fast Multilingual Translation (Muse Spark 1.3 / Llama 4)' },
+        { ok: true, label: 'Vision & Image Reading (Muse / Llama Vision models)' },
         { ok: false, label: 'Native Video File Upload (Uses Whisper Transcript Mode)' },
         { ok: false, label: 'Cloud Voice TTS / Image Backdrop Generation (Uses Built-in Edge Neural TTS)' }
       ]
@@ -4890,6 +5150,28 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
         { ok: false, label: 'Cannot Read Images / Vision (DeepSeek API is Text-Only — disabled for OCR, SEO Alt & RenameMe)' },
         { ok: false, label: 'Cannot Process Raw Video Frames (Uses Whisper Transcript Mode)' },
         { ok: false, label: 'Cannot Generate Voice TTS or Images (Uses Built-in Edge Neural TTS & Local IS-Net)' }
+      ]
+    },
+    {
+      id: 'elevenlabs',
+      name: 'ElevenLabs Neural Voice',
+      short: '11LABS',
+      icon: '🔊',
+      color: '#f472b6',
+      bg: 'rgba(244, 114, 182, 0.18)',
+      placeholder: 'sk_...',
+      defaultModel: 'eleven_multilingual_v2',
+      fallbackModels: [
+        'eleven_multilingual_v2',
+        'eleven_flash_v2_5',
+        'eleven_turbo_v2_5'
+      ],
+      modalities: { text: false, vision: false, video: false, tts: true, imageGen: false },
+      capabilities: [
+        { ok: true, label: 'Ultra-Realistic Multilingual Cloud Neural TTS & Expressive Voice Synthesis' },
+        { ok: true, label: 'Encrypted OS Vault Key Storage (Available for Voice Studio & Dubbing Engines)' },
+        { ok: false, label: 'Text / Story LLM Reasoning (Audio TTS Provider Only)' },
+        { ok: false, label: 'Vision / Image Reading (Audio TTS Provider Only)' }
       ]
     }
   ];
@@ -4919,7 +5201,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
       desc: 'Scores transcript moments by viral retention potential and writes punchy 9:16 TikTok/Reels hook titles.',
       modality: 'text',
       defaultProvider: 'gemini',
-      wheelTargets: ['ai_highlight', 'hl_clips_auto', 'hl_clips_3', 'hl_clips_5', 'hl_clips_8', 'hl_clips_10', 'hl_clips_12'],
+      wheelTargets: ['ai_studio', 'ai_shorts', 'ai_summary', 'ai_compilation', 'ai_clean_um'],
       defaultOptions: {
         tone: 'High-Energy Viral TikTok / Shorts Hook',
         rules: 'Spoiler-free teaser and hook; never reveal the final twist',
@@ -4930,16 +5212,33 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
       }
     },
     {
+      id: 'auto_montage',
+      category: '🎬 VIDEO & MOVIE RECAP STUDIO',
+      title: '⚡ Smart Cut & AI Story Director Montage',
+      desc: 'Analyzes clip transcripts and prompt beats to sequence raw scenes into a cohesive narrative arc.',
+      modality: 'text',
+      defaultProvider: 'gemini',
+      wheelTargets: ['auto_montage'],
+      defaultOptions: {
+        tone: 'High-Energy Viral TikTok / Shorts Hook',
+        rules: 'Continuous flow without Chapter labels; natural spoken rhythm',
+        temperature: 0.4,
+        max_tokens: 2048,
+        glossary: '',
+        custom_prompt: 'Arrange clips chronologically or by emotional hook-journey-climax-resolution arc without Chapter labels.'
+      }
+    },
+    {
       id: 'sub_translate',
       category: '🌐 SUBTITLES, DUBBING & CAPTIONS',
       title: '🌐 AI Subtitle Translation & Context Polish (.SRT / .VTT)',
       desc: 'Translates whole-scene dialogue with character pronoun awareness and natural idioms instead of literal line-by-line.',
       modality: 'text',
       defaultProvider: 'gemini',
-      wheelTargets: ['ai_subtitles', 'sub_orig_srt', 'sub_vi_srt', 'sub_en_srt', 'sub_bilingual_srt', 'sub_vtt', 'sub_custom_srt'],
+      wheelTargets: ['ai_subtitles', 'to_srt', 'to_vtt', 'to_ass', 'to_transcript', 'sub_translate', 'sub_en', 'sub_vi', 'sub_zh', 'sub_ja', 'sub_ko', 'sub_es', 'sub_fr', 'sub_custom'],
       defaultOptions: {
         tone: 'Natural & Conversational',
-        rules: 'Preserve character hierarchy & natural pronouns (Anh/Em/Ngài/Tôi)',
+        rules: 'Preserve character hierarchy & natural context-aware pronouns',
         temperature: 0.3,
         max_tokens: 4096,
         glossary: '',
@@ -4956,7 +5255,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
       wheelTargets: ['ai_dubbing', 'dub_vi', 'dub_en', 'dub_zh', 'dub_ja', 'dub_ko', 'dub_es', 'dub_fr', 'dub_de', 'dub_custom'],
       defaultOptions: {
         tone: 'Natural & Conversational',
-        rules: 'Preserve character hierarchy & natural pronouns (Anh/Em/Ngài/Tôi)',
+        rules: 'Preserve character hierarchy & natural context-aware pronouns',
         temperature: 0.3,
         max_tokens: 4096,
         glossary: '',
@@ -4978,6 +5277,23 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
         max_tokens: 2048,
         glossary: '',
         custom_prompt: 'Highlight 1-2 high-impact keywords per line and pair relevant emojis.'
+      }
+    },
+    {
+      id: 'ai_audiogram',
+      category: '🌐 SUBTITLES, DUBBING & CAPTIONS',
+      title: '📻 Animated Waveform Audiogram & Synced Lyrics',
+      desc: 'Polishes and translates synced lyric/podcast captions for studio waveform audiogram videos.',
+      modality: 'text',
+      defaultProvider: 'gemini',
+      wheelTargets: ['ai_audiogram', 'ag_daily_cafe', 'ag_vinyl_vibes', 'ag_after_dark', 'ag_studio_pulse'],
+      defaultOptions: {
+        tone: 'Natural & Conversational',
+        rules: 'Continuous flow without Chapter labels; natural spoken rhythm',
+        temperature: 0.3,
+        max_tokens: 2048,
+        glossary: '',
+        custom_prompt: 'Keep synced audiogram lines crisp, accurate, and easy to read at a glance.'
       }
     },
     {
@@ -5080,7 +5396,54 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     if (!p) return false;
     if (modality === 'vision') return !!p.modalities.vision;
     if (modality === 'video') return !!p.modalities.video;
-    return true;
+    if (modality === 'tts') return !!p.modalities.tts;
+    return !!p.modalities.text;
+  }
+
+  async function autoActivateVerifiedProvider(pid, testResult) {
+    if (testResult && testResult.providers) {
+      caiState = testResult;
+    } else if (testResult && testResult.state && testResult.state.providers) {
+      caiState = testResult.state;
+    }
+    ensureFeatureDefaults();
+    const provInfo = caiState && caiState.providers && caiState.providers[pid];
+    const isVerified = (testResult && testResult.ok === true) || !!(provInfo && provInfo.verified);
+    if (!isVerified) {
+      renderAllCloudAi();
+      if (typeof window.refreshMontageVaultPill === 'function') window.refreshMontageVaultPill();
+      return;
+    }
+
+    const chk = document.getElementById('chk-cloud-ai-consent');
+    if (chk) chk.checked = true;
+    caiState.enabled = true;
+    try {
+      const enRes = await invoke('cloud_ai_set_enabled', { enabled: true, consent: true });
+      if (enRes && enRes.providers) caiState = enRes;
+    } catch (err) {
+      console.warn('cloud_ai_set_enabled auto-activate warning:', err);
+    }
+
+    ensureFeatureDefaults();
+    FEATURE_CATALOG.forEach(f => {
+      if (providerSupportsModality(pid, f.modality)) {
+        const fCfg = caiState.features[f.id];
+        fCfg.enabled = true;
+        const curProv = fCfg.provider || f.defaultProvider;
+        const curHasKey = !!(caiState.providers && caiState.providers[curProv] && caiState.providers[curProv].has_key);
+        if (!curHasKey || !providerSupportsModality(curProv, f.modality)) {
+          fCfg.provider = pid;
+        }
+      }
+    });
+
+    await persistFeatures();
+    renderAllCloudAi();
+    if (typeof window.refreshMontageVaultPill === 'function') window.refreshMontageVaultPill();
+    if (typeof showShortcutToast === 'function') {
+      showShortcutToast('✓ API Key verified — Cloud AI enabled automatically!');
+    }
   }
 
   function ensureFeatureDefaults() {
@@ -5227,7 +5590,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
         <div class="cai-cap-box">
           <div class="cai-cap-head">
             <span>WHAT THIS ${p.short} KEY CAN &amp; CANNOT DO</span>
-            <span>${p.modalities.vision ? 'TEXT + VISION' : 'TEXT ONLY'}</span>
+            <span>${p.modalities.vision ? 'TEXT + VISION' : (p.modalities.text ? 'TEXT ONLY' : 'NEURAL TTS')}</span>
           </div>
           ${capsHtml}
         </div>
@@ -5258,9 +5621,8 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
           if (!curM && pMeta) {
             caiState = await invoke('cloud_ai_set_model', { provider: pid, model: pMeta.defaultModel });
           }
-          caiState = await invoke('cloud_ai_test', { provider: pid });
-          ensureFeatureDefaults();
-          renderAllCloudAi();
+          const testRes = await invoke('cloud_ai_test', { provider: pid });
+          await autoActivateVerifiedProvider(pid, testRes);
         } catch (e) {
           alert('API Key save/verify failed: ' + e);
           btn.textContent = origTxt;
@@ -5276,9 +5638,8 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
         btn.textContent = '⏳...';
         btn.disabled = true;
         try {
-          caiState = await invoke('cloud_ai_test', { provider: pid });
-          ensureFeatureDefaults();
-          renderAllCloudAi();
+          const testRes = await invoke('cloud_ai_test', { provider: pid });
+          await autoActivateVerifiedProvider(pid, testRes);
         } catch (e) {
           alert('Verification failed: ' + e);
           btn.textContent = '🔄 Test';
@@ -5295,6 +5656,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
           caiState = await invoke('cloud_ai_save_key', { provider: pid, key: '' });
           ensureFeatureDefaults();
           renderAllCloudAi();
+          if (typeof window.refreshMontageVaultPill === 'function') window.refreshMontageVaultPill();
         } catch (e) {
           console.warn(e);
         }
@@ -5348,7 +5710,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
         const provOpts = PROVIDERS_META.map(p => {
           const compat = providerSupportsModality(p.id, f.modality);
           const pk = caiState.providers && caiState.providers[p.id] && caiState.providers[p.id].has_key;
-          const tag = !compat ? ' (❌ No Vision)' : (pk ? ' (✓ Key Ready)' : ' (No Key)');
+          const tag = !compat ? (f.modality === 'vision' ? ' (❌ No Vision)' : ' (❌ TTS Only)') : (pk ? ' (✓ Key Ready)' : ' (No Key)');
           return `<option value="${p.id}" ${p.id === chosenProv ? 'selected' : ''} ${!compat ? 'disabled' : ''}>${p.name}${tag}</option>`;
         }).join('');
 
@@ -5455,7 +5817,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
       provSel.innerHTML = PROVIDERS_META.map(p => {
         const compat = providerSupportsModality(p.id, f.modality);
         const pk = caiState.providers && caiState.providers[p.id] && caiState.providers[p.id].has_key;
-        const tag = !compat ? ' (❌ No Vision)' : (pk ? ' (✓ Key Saved)' : ' (No Key)');
+        const tag = !compat ? (f.modality === 'vision' ? ' (❌ No Vision)' : ' (❌ TTS Only)') : (pk ? ' (✓ Key Saved)' : ' (No Key)');
         return `<option value="${p.id}" ${p.id === fCfg.provider ? 'selected' : ''} ${!compat ? 'disabled' : ''}>${p.name}${tag}</option>`;
       }).join('');
     }
@@ -5464,7 +5826,12 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     if (toneSel) toneSel.value = opts.tone || f.defaultOptions.tone;
 
     const ruleSel = document.getElementById('sel-cai-cust-rules');
-    if (ruleSel) ruleSel.value = opts.rules || f.defaultOptions.rules;
+    if (ruleSel) {
+      const rawRule = String(opts.rules || f.defaultOptions.rules || '');
+      ruleSel.value = rawRule.startsWith('Preserve character hierarchy')
+        ? 'Preserve character hierarchy & natural context-aware pronouns'
+        : rawRule;
+    }
 
     const tempRng = document.getElementById('rng-cai-cust-temp');
     const tempLbl = document.getElementById('lbl-cai-cust-temp');
@@ -5687,261 +6054,6 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
 })();
 
 // ═══════════════════════════════════════════════════════════════════════
-// AI AGENT HUB (MCP SERVER & 1-CLICK / QR CONNECT)
-// ═══════════════════════════════════════════════════════════════════════
-(function initMcpHubUI() {
-  const tglMaster = document.getElementById('tgl-mcp-master');
-  const badgeMaster = document.getElementById('mcp-master-badge');
-  const claudeBadge = document.getElementById('mcp-claude-badge');
-  const cursorBadge = document.getElementById('mcp-cursor-badge');
-  const btnInstallClaude = document.getElementById('btn-mcp-install-claude');
-  const btnInstallCursor = document.getElementById('btn-mcp-install-cursor');
-  const btnCopySnippet = document.getElementById('btn-mcp-copy-snippet');
-  const qrBox = document.getElementById('mcp-qr-box');
-  const inpRemoteUrl = document.getElementById('inp-mcp-remote-url');
-  const btnCopyUrl = document.getElementById('btn-mcp-copy-url');
-  const inpToken = document.getElementById('inp-mcp-token');
-  const btnToggleToken = document.getElementById('btn-mcp-toggle-token');
-  const btnRegenToken = document.getElementById('btn-mcp-regen-token');
-  const btnTestPing = document.getElementById('btn-mcp-test-ping');
-  const pingResult = document.getElementById('mcp-ping-result');
-  const btnCopyAgentPrompt = document.getElementById('btn-mcp-copy-agent-prompt');
-  const btnTogglePromptPreview = document.getElementById('btn-mcp-toggle-prompt-preview');
-  const promptPreviewContainer = document.getElementById('mcp-prompt-preview-container');
-  const txtAgentPrompt = document.getElementById('txt-mcp-agent-prompt');
-  const promptCopyStatus = document.getElementById('mcp-prompt-copy-status');
-
-  async function refreshMcpStatus() {
-    try {
-      const st = await invoke('mcp_get_status');
-      if (!st) return;
-
-      if (tglMaster) {
-        tglMaster.classList.toggle('active', !!st.enabled);
-        tglMaster.setAttribute('aria-pressed', st.enabled ? 'true' : 'false');
-      }
-      if (badgeMaster) {
-        if (st.enabled) {
-          badgeMaster.className = 'cai-status-pill pro';
-          badgeMaster.textContent = `ACTIVE · PORT ${st.port} (${st.tool_count} TOOLS)`;
-        } else {
-          badgeMaster.className = 'cai-status-pill none';
-          badgeMaster.textContent = 'OFFLINE';
-        }
-      }
-
-      if (inpRemoteUrl) inpRemoteUrl.value = st.remote_url || st.local_url || '';
-      if (inpToken) inpToken.value = st.token || '';
-
-      if (claudeBadge) {
-        if (st.claude_desktop_installed) {
-          claudeBadge.style.background = 'rgba(34,197,94,.18)';
-          claudeBadge.style.color = '#4ade80';
-          claudeBadge.textContent = '🟢 Configured';
-        } else {
-          claudeBadge.style.background = 'rgba(148,163,184,.15)';
-          claudeBadge.style.color = '#94a3b8';
-          claudeBadge.textContent = '⚪ Not Configured';
-        }
-      }
-
-      if (cursorBadge) {
-        if (st.cursor_installed) {
-          cursorBadge.style.background = 'rgba(34,197,94,.18)';
-          cursorBadge.style.color = '#4ade80';
-          cursorBadge.textContent = '🟢 Configured';
-        } else {
-          cursorBadge.style.background = 'rgba(148,163,184,.15)';
-          cursorBadge.style.color = '#94a3b8';
-          cursorBadge.textContent = '⚪ Not Configured';
-        }
-      }
-
-      // Generate QR Code SVG for remote agent connection
-      if (qrBox && (st.remote_url || st.local_url)) {
-        try {
-          const qrRes = await invoke('get_qr_svg_cmd', { pathOrUrl: st.remote_url || st.local_url });
-          if (qrRes && qrRes.svg) {
-            qrBox.innerHTML = qrRes.svg;
-          }
-        } catch (e) {
-          console.warn('QR code gen error:', e);
-        }
-      }
-
-      // Auto-update Agent Prompt preview
-      if (txtAgentPrompt) {
-        try {
-          const promptText = await invoke('mcp_get_agent_prompt');
-          if (promptText) {
-            txtAgentPrompt.value = promptText;
-          }
-        } catch (e) {
-          console.warn('mcp_get_agent_prompt err:', e);
-        }
-      }
-    } catch (e) {
-      console.warn('refreshMcpStatus error:', e);
-    }
-  }
-
-  if (tglMaster) {
-    tglMaster.addEventListener('click', async () => {
-      const willEnable = !tglMaster.classList.contains('active');
-      tglMaster.classList.toggle('active', willEnable);
-      tglMaster.setAttribute('aria-pressed', willEnable ? 'true' : 'false');
-      try {
-        await invoke('mcp_toggle_enabled', { enabled: willEnable });
-        await refreshMcpStatus();
-      } catch (err) {
-        console.error('mcp_toggle_enabled err:', err);
-      }
-    });
-  }
-
-  if (btnInstallClaude) {
-    btnInstallClaude.addEventListener('click', async () => {
-      btnInstallClaude.disabled = true;
-      btnInstallClaude.textContent = '⏳ Installing...';
-      try {
-        await invoke('mcp_install_claude_desktop');
-        btnInstallClaude.textContent = '✅ Installed to Claude!';
-        btnInstallClaude.style.borderColor = '#22c55e';
-        btnInstallClaude.style.color = '#86efac';
-        await refreshMcpStatus();
-      } catch (e) {
-        btnInstallClaude.textContent = `❌ ${e}`;
-      } finally {
-        setTimeout(() => {
-          btnInstallClaude.disabled = false;
-          btnInstallClaude.textContent = '⚡ 1-Click Install to Claude';
-        }, 3000);
-      }
-    });
-  }
-
-  if (btnInstallCursor) {
-    btnInstallCursor.addEventListener('click', async () => {
-      btnInstallCursor.disabled = true;
-      btnInstallCursor.textContent = '⏳ Installing...';
-      try {
-        await invoke('mcp_install_cursor');
-        btnInstallCursor.textContent = '✅ Installed to Cursor!';
-        btnInstallCursor.style.borderColor = '#22c55e';
-        btnInstallCursor.style.color = '#86efac';
-        await refreshMcpStatus();
-      } catch (e) {
-        btnInstallCursor.textContent = `❌ ${e}`;
-      } finally {
-        setTimeout(() => {
-          btnInstallCursor.disabled = false;
-          btnInstallCursor.textContent = '⚡ 1-Click Install to Cursor';
-        }, 3000);
-      }
-    });
-  }
-
-  if (btnCopySnippet) {
-    btnCopySnippet.addEventListener('click', async () => {
-      try {
-        const snippet = await invoke('mcp_get_config_snippet');
-        await navigator.clipboard.writeText(snippet);
-        btnCopySnippet.textContent = '✅ Copied to Clipboard!';
-        setTimeout(() => { btnCopySnippet.textContent = '📋 Copy MCP Config JSON'; }, 2500);
-      } catch (e) {
-        console.error(e);
-      }
-    });
-  }
-
-  if (btnCopyUrl && inpRemoteUrl) {
-    btnCopyUrl.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(inpRemoteUrl.value);
-        btnCopyUrl.textContent = '✅ Copied!';
-        setTimeout(() => { btnCopyUrl.textContent = 'Copy'; }, 2000);
-      } catch (e) { }
-    });
-  }
-
-  if (btnToggleToken && inpToken) {
-    btnToggleToken.addEventListener('click', () => {
-      inpToken.type = inpToken.type === 'password' ? 'text' : 'password';
-      btnToggleToken.textContent = inpToken.type === 'password' ? '👁️' : '🔒';
-    });
-  }
-
-  if (btnRegenToken) {
-    btnRegenToken.addEventListener('click', async () => {
-      if (!confirm('Regenerate security token? Any previously connected remote agents will need the new token.')) return;
-      try {
-        await invoke('mcp_regenerate_token');
-        await refreshMcpStatus();
-      } catch (e) {
-        console.error(e);
-      }
-    });
-  }
-
-  if (btnTestPing && pingResult) {
-    btnTestPing.addEventListener('click', async () => {
-      pingResult.textContent = 'Testing...';
-      pingResult.style.color = '#94a3b8';
-      const t0 = performance.now();
-      try {
-        const st = await invoke('mcp_get_status');
-        const dt = Math.round(performance.now() - t0);
-        if (st && st.enabled) {
-          pingResult.textContent = `🟢 MCP Server Online (${dt}ms latency · 6 tools loaded)`;
-          pingResult.style.color = '#4ade80';
-        } else {
-          pingResult.textContent = '🔴 MCP Server is currently Disabled';
-          pingResult.style.color = '#f87171';
-        }
-      } catch (e) {
-        pingResult.textContent = `❌ Ping failed: ${e}`;
-        pingResult.style.color = '#f87171';
-      }
-    });
-  }
-
-  if (btnCopyAgentPrompt) {
-    btnCopyAgentPrompt.addEventListener('click', async () => {
-      try {
-        let textToCopy = txtAgentPrompt ? txtAgentPrompt.value : '';
-        if (!textToCopy) {
-          textToCopy = await invoke('mcp_get_agent_prompt');
-        }
-        await navigator.clipboard.writeText(textToCopy);
-        if (promptCopyStatus) {
-          promptCopyStatus.textContent = '✅ Copied to Clipboard! Ready to paste into AI chat.';
-          setTimeout(() => { promptCopyStatus.textContent = ''; }, 3500);
-        }
-        btnCopyAgentPrompt.textContent = '✅ Copied Agent Prompt!';
-        setTimeout(() => { btnCopyAgentPrompt.textContent = '✨ 1-Click Copy Agent Setup Prompt'; }, 2500);
-      } catch (err) {
-        console.error('Copy prompt err:', err);
-      }
-    });
-  }
-
-  if (btnTogglePromptPreview && promptPreviewContainer) {
-    btnTogglePromptPreview.addEventListener('click', () => {
-      const isHidden = promptPreviewContainer.style.display === 'none';
-      promptPreviewContainer.style.display = isHidden ? 'block' : 'none';
-      btnTogglePromptPreview.textContent = isHidden ? '🙈 Hide Prompt Preview' : '👁️ Show / Hide Prompt Preview';
-    });
-  }
-
-  // Refresh status on page load and when tab is clicked
-  const navMcp = document.querySelector('.nav-item[data-view="mcphub"]');
-  if (navMcp) {
-    navMcp.addEventListener('click', refreshMcpStatus);
-  }
-  refreshMcpStatus();
-})();
-
-// ═══════════════════════════════════════════════════════════════════════
 // AI VOICE STUDIO & VOICELAB UI CONTROLLER (v1.0.6)
 // ═══════════════════════════════════════════════════════════════════════
 (function initVoiceStudioUI() {
@@ -5998,8 +6110,8 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     // 🇻🇳 Vietnamese Voices
     {
       id: 'vi_nam_minh',
-      name: 'Nam Minh · Thuyết Minh Phim',
-      desc: 'Giọng nam trầm ấm, truyền cảm, cực chuẩn cho review phim & recap YouTube.',
+      name: 'Nam Minh · Vietnamese Cinematic Recap',
+      desc: 'Deep, warm resonant baritone for movie recaps, documentaries & storytelling.',
       avatar: '🇻🇳',
       gender: 'male',
       lang: 'vi',
@@ -6010,8 +6122,8 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     },
     {
       id: 'vi_hoai_my',
-      name: 'Hoài My · Kể Chuyện & Sách Nói',
-      desc: 'Giọng nữ dịu dàng, tự nhiên và giàu cảm xúc cho sách nói và chuyện ngắn.',
+      name: 'Hoai My · Gentle Storyteller',
+      desc: 'Gentle, natural and expressive female tone for audiobooks & calm narration.',
       avatar: '🇻🇳',
       gender: 'female',
       lang: 'vi',
@@ -6097,7 +6209,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     {
       id: 'ja_keita',
       name: 'Keita · Anime & Dramatic',
-      desc: 'Giọng nam tiếng Nhật trầm ấm, phong cách anime và phim tài liệu.',
+      desc: 'Warm, resonant Japanese baritone for anime recaps and documentaries.',
       avatar: '🇯🇵',
       gender: 'male',
       lang: 'ja',
@@ -6109,7 +6221,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     {
       id: 'ja_nanami',
       name: 'Nanami · Storyteller',
-      desc: 'Giọng nữ tiếng Nhật nhẹ nhàng, trong trẻo và tự nhiên.',
+      desc: 'Clear, gentle, and natural Japanese female voice for storytelling.',
       avatar: '🇯🇵',
       gender: 'female',
       lang: 'ja',
@@ -6122,7 +6234,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     {
       id: 'ko_injoon',
       name: 'InJoon · K-Drama & News',
-      desc: 'Giọng nam tiếng Hàn chuẩn Seoul, phong cách thời sự và phim truyền hình.',
+      desc: 'Standard Seoul Korean male voice for K-drama recaps and broadcast news.',
       avatar: '🇰🇷',
       gender: 'male',
       lang: 'ko',
@@ -6134,7 +6246,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     {
       id: 'ko_sunhi',
       name: 'SunHi · Warm Narration',
-      desc: 'Giọng nữ tiếng Hàn dịu dàng, tự nhiên cho truyện ngắn.',
+      desc: 'Warm, natural Korean female voice for storytelling and narration.',
       avatar: '🇰🇷',
       gender: 'female',
       lang: 'ko',
@@ -6147,7 +6259,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     {
       id: 'zh_yunxi',
       name: 'Yunxi · Epic Documentary',
-      desc: 'Giọng nam tiếng Trung truyền cảm, hào hùng cho phóng sự.',
+      desc: 'Expressive Chinese baritone for documentaries and video recaps.',
       avatar: '🇨🇳',
       gender: 'male',
       lang: 'zh',
@@ -6159,7 +6271,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     {
       id: 'zh_xiaoxiao',
       name: 'Xiaoxiao · Sweet Story',
-      desc: 'Giọng nữ tiếng Trung nhẹ nhàng, biểu cảm phong phú.',
+      desc: 'Warm and sweet Chinese female voice for storytelling.',
       avatar: '🇨🇳',
       gender: 'female',
       lang: 'zh',
@@ -6172,7 +6284,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     {
       id: 'fr_henri',
       name: 'Henri · French Cinema',
-      desc: 'Giọng nam tiếng Pháp trầm ấm, phong cách điện ảnh.',
+      desc: 'Deep resonant French baritone, cinematic and cultured.',
       avatar: '🇫🇷',
       gender: 'male',
       lang: 'fr',
@@ -6185,7 +6297,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     {
       id: 'de_conrad',
       name: 'Conrad · German Broadcast',
-      desc: 'Giọng nam tiếng Đức đĩnh đạc, rõ nét và chuyên nghiệp.',
+      desc: 'Authoritative, crisp German male voice for broadcast and news.',
       avatar: '🇩🇪',
       gender: 'male',
       lang: 'de',
@@ -6198,7 +6310,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     {
       id: 'es_alvaro',
       name: 'Alvaro · Spanish Story',
-      desc: 'Giọng nam tiếng Tây Ban Nha trầm ấm, kể chuyện sống động.',
+      desc: 'Warm Spanish baritone, engaging for stories and recaps.',
       avatar: '🇪🇸',
       gender: 'male',
       lang: 'es',
@@ -6227,6 +6339,9 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     const found = all.find((v) => v.id === activeVoiceId) || all[0];
     if (activeVoicePill && found) {
       activeVoicePill.textContent = `${found.avatar || '🎙️'} ${found.name}`;
+    }
+    if (txtScript && txtScript.value) {
+      txtScript.dispatchEvent(new Event('input', { bubbles: true }));
     }
   }
 
@@ -6266,7 +6381,13 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
         });
         dubSel.appendChild(grp);
       }
-      if (Array.from(dubSel.options).some(o => o.value === cur)) dubSel.value = cur;
+      const targetVal = (cur && cur !== 'auto') ? cur : (window.LATEST_AI_CFG && window.LATEST_AI_CFG.ai_dub_voice ? window.LATEST_AI_CFG.ai_dub_voice : cur);
+      if (Array.from(dubSel.options).some(o => o.value === targetVal)) {
+        dubSel.value = targetVal;
+        if (targetVal !== 'auto') {
+          document.querySelectorAll('#ai-dub-voice-segmented .seg-btn').forEach(b => b.classList.remove('active'));
+        }
+      }
     }
   }
 
@@ -6299,6 +6420,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
 
       syncClonedVoicesAcrossApp();
       renderVoiceList();
+      renderVoiceLabClonesShelf();
       updateActiveVoiceDisplay();
     } catch (err) {
       console.warn('loadVoiceStudioData err:', err);
@@ -6359,35 +6481,37 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     filtered.forEach((v) => {
       const card = document.createElement('div');
       card.className = `vs-voice-card ${v.id === activeVoiceId ? 'selected' : ''}`;
-      card.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 10px; border-radius:8px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); cursor:pointer; transition:all .15s;';
+      card.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 10px; border-radius:8px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); cursor:pointer; transition:all .15s;';
       if (v.id === activeVoiceId) {
         card.style.borderColor = '#2dd4bf';
         card.style.background = 'linear-gradient(135deg, rgba(45,212,191,.18), rgba(56,189,248,.12))';
         card.style.boxShadow = '0 2px 10px rgba(45,212,191,.15)';
       }
 
-      const genderBadge = v.gender ? (v.gender === 'male' ? '👨 Male' : '👩 Female') : '';
+      const genderBadge = v.gender ? (v.gender.toLowerCase() === 'male' ? 'Male' : 'Female') : '';
       const langBadge = v.lang ? v.lang.toUpperCase() : 'AI';
 
       card.innerHTML = `
         <div class="vs-card-left" style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
-          <div class="vs-avatar" style="font-size:17px; width:28px; height:28px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.07); border-radius:7px; flex-shrink:0;">${v.avatar || '🧬'}</div>
+          <div class="vs-avatar" style="width:26px; height:26px; display:flex; align-items:center; justify-content:center; background:${v.type === 'cloned' ? 'rgba(244,63,94,.15)' : 'rgba(45,212,191,.12)'}; border:1px solid ${v.type === 'cloned' ? 'rgba(244,63,94,.3)' : 'rgba(45,212,191,.25)'}; border-radius:6px; flex-shrink:0;">
+            <svg style="width:13px; height:13px; stroke:${v.type === 'cloned' ? '#fb7185' : '#2dd4bf'}; fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+          </div>
           <div style="flex:1; min-width:0;">
-            <div class="vs-name" style="font-size:11.5px; font-weight:800; color:#fff; display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
+            <div class="vs-name" style="font-size:11px; font-weight:800; color:#fff; display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
               <span>${v.name}</span>
-              ${genderBadge ? `<span style="font-size:9px; font-weight:700; padding:1px 5px; border-radius:4px; background:rgba(255,255,255,.08); color:#cbd5e1; border:1px solid rgba(255,255,255,.12);">${genderBadge}</span>` : ''}
-              <span style="font-size:9px; font-weight:800; padding:1px 5px; border-radius:4px; background:rgba(56,189,248,.15); color:#7dd3fc; border:1px solid rgba(56,189,248,.35);">${langBadge}</span>
+              ${genderBadge ? `<span style="font-size:8.5px; font-weight:700; padding:1px 4px; border-radius:3px; background:rgba(255,255,255,.08); color:#cbd5e1; border:1px solid rgba(255,255,255,.12);">${genderBadge}</span>` : ''}
+              <span style="font-size:8.5px; font-weight:800; padding:1px 4px; border-radius:3px; background:rgba(56,189,248,.15); color:#7dd3fc; border:1px solid rgba(56,189,248,.35);">${langBadge}</span>
             </div>
-            <div class="vs-tag" style="font-size:10px; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;">${v.desc || v.style || 'Custom Neural Voice Clone'}</div>
+            <div class="vs-tag" style="font-size:9.5px; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px;">${v.desc || v.style || 'Custom Neural Voice Clone'}</div>
           </div>
         </div>
-        <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
-          <button type="button" class="btn secondary btn-vs-preview" data-id="${v.id}" style="padding:3px 8px; font-size:10px; font-weight:700; display:inline-flex; align-items:center; gap:4px; border:1px solid rgba(244,63,94,.45); background:rgba(244,63,94,.12); color:#fda4af; border-radius:6px; cursor:pointer;" title="Play Sample Audio">
-            <span>🔊</span>
+        <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
+          <button type="button" class="btn secondary btn-vs-preview" data-id="${v.id}" style="padding:3px 7px; font-size:9.5px; font-weight:700; display:inline-flex; align-items:center; gap:3px; border:1px solid rgba(244,63,94,.4); background:rgba(244,63,94,.1); color:#fda4af; border-radius:5px; cursor:pointer;" title="Play Sample Audio">
+            <svg style="width:10px; height:10px; fill:currentColor;" viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg>
             <span class="lbl-preview">Sample</span>
           </button>
-          <span style="font-size:9px; font-weight:800; padding:2px 6px; border-radius:5px; ${v.type === 'curated' ? 'background:rgba(45,212,191,.15); color:#5eead4; border:1px solid rgba(45,212,191,.35);' : (v.type === 'cloned' ? 'background:rgba(251,191,36,.15); color:#fbbf24; border:1px solid rgba(251,191,36,.35);' : 'background:rgba(168,85,247,.15); color:#c084fc; border:1px solid rgba(168,85,247,.35);')}">${v.type === 'curated' ? 'STUDIO' : (v.type === 'cloned' ? 'CLONED' : 'NEURAL')}</span>
-          ${v.type === 'cloned' ? `<button class="btn secondary btn-del-clone" data-id="${v.id}" style="padding:2px 6px; font-size:10px; color:#f87171; border-color:rgba(248,113,113,.3);" title="Delete Clone">🗑️</button>` : ''}
+          <span style="font-size:8.5px; font-weight:800; padding:2px 5px; border-radius:4px; ${v.type === 'curated' ? 'background:rgba(45,212,191,.15); color:#5eead4; border:1px solid rgba(45,212,191,.35);' : (v.type === 'cloned' ? 'background:rgba(251,191,36,.15); color:#fbbf24; border:1px solid rgba(251,191,36,.35);' : 'background:rgba(168,85,247,.15); color:#c084fc; border:1px solid rgba(168,85,247,.35);')}">${v.type === 'curated' ? 'STUDIO' : (v.type === 'cloned' ? 'CLONE' : 'NEURAL')}</span>
+          ${v.type === 'cloned' ? `<button type="button" class="btn secondary btn-del-clone" data-id="${v.id}" style="padding:3px 6px; font-size:10px; color:#f87171; border-color:rgba(248,113,113,.3); display:inline-flex; align-items:center; justify-content:center;" title="Delete Clone"><svg style="width:11px; height:11px; stroke:currentColor; fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg></button>` : ''}
         </div>
       `;
 
@@ -6447,8 +6571,10 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
           e.stopPropagation();
           if (!confirm(`Delete cloned voice "${v.name}"?`)) return;
           try {
-            await invoke('voice_studio_delete_profile', { profileId: v.id });
+            await invoke('voice_studio_delete_profile', { id: v.id, profileId: v.id, profile_id: v.id });
             await loadVoiceStudioData();
+            renderVoiceList();
+            renderVoiceLabClonesShelf();
           } catch (err) {
             alert(`Error deleting profile: ${err}`);
           }
@@ -6535,18 +6661,32 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
       }
 
       if (langDetectedTag) {
+        const activeClone = cachedCustomProfiles.find(c => c.id === activeVoiceId || c.name === activeVoiceId || (c.id && activeVoiceId && (c.id.includes(activeVoiceId) || activeVoiceId.includes(c.id))));
+        const isClone = Boolean(activeClone) || (activeVoiceId && activeVoiceId.startsWith('clone_'));
+        const cloneName = activeClone ? activeClone.name : (isClone ? 'Custom Clone' : null);
+
         if (!val.trim()) {
-          langDetectedTag.textContent = '🇺🇸 English (Default)';
-          langDetectedTag.style.color = '#38bdf8';
+          langDetectedTag.textContent = isClone ? `🧬 Voice: ${cloneName}` : '🇺🇸 English (Default)';
+          langDetectedTag.style.color = isClone ? '#c084fc' : '#38bdf8';
+        } else if (isClone) {
+          const langMap = { vi: '🇻🇳 Vietnamese', en: '🇺🇸 English', ja: '🇯🇵 Japanese', ko: '🇰🇷 Korean', zh: '🇨🇳 Chinese', es: '🇪🇸 Spanish', fr: '🇫🇷 French', de: '🇩🇪 German' };
+          const lgLabel = langMap[detected] || `${detected.toUpperCase()} Language`;
+          langDetectedTag.textContent = `${lgLabel} Detected (Voice: 🧬 ${cloneName})`;
+          langDetectedTag.style.color = '#c084fc';
         } else if (detected === 'vi') {
-          langDetectedTag.textContent = '🇻🇳 Vietnamese Detected (Auto-Switch: Nam Minh / Hoài My)';
-          langDetectedTag.style.color = '#5eead4';
-          // If active voice is English, auto switch to Nam Minh for best experience
-          if (activeVoiceId.startsWith('en_') && !activeVoiceId.startsWith('clone_')) {
+          const catalog = (window.GLOBAL_VOICE_CATALOG && Array.isArray(window.GLOBAL_VOICE_CATALOG)) ? window.GLOBAL_VOICE_CATALOG : [];
+          const curV = catalog.find(v => v.id === activeVoiceId);
+          if (activeVoiceId.startsWith('en_')) {
             activeVoiceId = 'vi_nam_minh';
             if (selLangFilter) selLangFilter.value = 'vi';
             renderVoiceList();
             updateActiveVoiceDisplay();
+            langDetectedTag.textContent = '🇻🇳 Vietnamese Detected (Active: Nam Minh)';
+            langDetectedTag.style.color = '#5eead4';
+          } else {
+            const vLabel = curV ? curV.name.split('·')[0].trim() : 'Nam Minh';
+            langDetectedTag.textContent = `🇻🇳 Vietnamese Detected (Active: ${vLabel})`;
+            langDetectedTag.style.color = '#5eead4';
           }
         } else if (detected === 'ja') {
           langDetectedTag.textContent = '🇯🇵 Japanese Detected (Recommended: Keita / Nanami)';
@@ -6588,130 +6728,468 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
     });
   }
 
-  // Mic recording
-  if (btnRecordMic) {
-    btnRecordMic.addEventListener('click', async () => {
-      if (mediaRecorder && mediaRecorder.state === 'recording') {
-        mediaRecorder.stop();
-        return;
-      }
+  // --- SUB-TABS SWITCHER: Studio Canvas vs VoiceLab & Cloner ---
+  const tabBtnStudio = document.getElementById('tab-btn-vs-studio');
+  const tabBtnVoiceLab = document.getElementById('tab-btn-vs-voicelab');
+  const paneStudio = document.getElementById('vtab-pane-studio');
+  const paneVoiceLab = document.getElementById('vtab-pane-voicelab');
+  const btnSwitchToCloner = document.getElementById('btn-vs-switch-to-cloner');
 
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const chunks = [];
-        mediaRecorder = new MediaRecorder(stream);
-        let seconds = 0;
-        const maxSeconds = 8;
-
-        if (recordStatusBox) recordStatusBox.style.display = 'block';
-        if (btnRecordMic) btnRecordMic.innerHTML = '<span>⏹️</span><span>Stop Recording</span>';
-        if (recordProgress) recordProgress.style.width = '0%';
-
-        mediaRecorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) chunks.push(e.data);
-        };
-
-        mediaRecorder.onstop = () => {
-          clearInterval(recordInterval);
-          stream.getTracks().forEach((t) => t.stop());
-          recordedAudioBlob = new Blob(chunks, { type: 'audio/wav' });
-          if (btnRecordMic) btnRecordMic.innerHTML = '<span>🎙️</span><span>Record Mic (5-10s)</span>';
-          if (recordStatusLabel) recordStatusLabel.textContent = '✅ Sample recorded successfully! Ready to clone.';
-          if (recordStatusLabel) recordStatusLabel.style.color = '#4ade80';
-        };
-
-        mediaRecorder.start();
-        recordInterval = setInterval(() => {
-          seconds++;
-          const pct = Math.min(100, Math.round((seconds / maxSeconds) * 100));
-          if (recordProgress) recordProgress.style.width = `${pct}%`;
-          if (recordTimer) recordTimer.textContent = `0:0${seconds} / 0:0${maxSeconds}`;
-          if (seconds >= maxSeconds) {
-            mediaRecorder.stop();
-          }
-        }, 1000);
-      } catch (err) {
-        alert('Microphone access denied or not available: ' + err);
-      }
-    });
+  function switchVoiceStudioTab(tab) {
+    if (tab === 'voicelab') {
+      tabBtnStudio?.classList.remove('active');
+      tabBtnVoiceLab?.classList.add('active');
+      if (paneStudio) paneStudio.style.display = 'none';
+      if (paneVoiceLab) paneVoiceLab.style.display = 'grid';
+      renderVoiceLabClonesShelf();
+    } else {
+      tabBtnVoiceLab?.classList.remove('active');
+      tabBtnStudio?.classList.add('active');
+      if (paneVoiceLab) paneVoiceLab.style.display = 'none';
+      if (paneStudio) paneStudio.style.display = 'grid';
+    }
   }
 
-  // Upload reference audio file
-  if (btnUploadAudio) {
-    btnUploadAudio.addEventListener('click', async () => {
-      try {
-        const path = await invoke('pick_file', {
-          title: 'Select Voice Reference Audio (5-15s WAV/MP3)',
-          filters: [{ name: 'Audio Files', extensions: ['wav', 'mp3', 'm4a', 'flac'] }]
-        });
-        if (path) {
-          uploadedRefAudioPath = path;
-          const fname = path.split(/[\/\\]/).pop();
-          if (recordStatusBox) recordStatusBox.style.display = 'block';
-          if (recordStatusLabel) {
-            recordStatusLabel.textContent = `📁 Selected: ${fname}`;
-            recordStatusLabel.style.color = '#38bdf8';
-          }
-          if (recordProgress) recordProgress.style.width = '100%';
+  tabBtnStudio?.addEventListener('click', () => switchVoiceStudioTab('studio'));
+  tabBtnVoiceLab?.addEventListener('click', () => switchVoiceStudioTab('voicelab'));
+  btnSwitchToCloner?.addEventListener('click', () => switchVoiceStudioTab('voicelab'));
+
+  // --- RECORDING CONTROLLER (5s - 2min) + 16-BIT 48KHZ MONO RIFF PCM WAV ENCODER ---
+  let activeRecorder = null;
+  let activeAudioBlob = null;
+  let recTimerInterval = null;
+  let recSeconds = 0;
+  const MAX_REC_SECONDS = 120; // 2 minutes maximum
+
+  async function encodeBlobToPcm16Wav(inputBlob, targetSampleRate = 48000) {
+    const rawBuf = await inputBlob.arrayBuffer();
+    if (rawBuf.byteLength >= 44) {
+      const magic = String.fromCharCode(...new Uint8Array(rawBuf, 0, 4));
+      const wave = String.fromCharCode(...new Uint8Array(rawBuf, 8, 4));
+      if (magic === 'RIFF' && wave === 'WAVE') {
+        return new Blob([rawBuf], { type: 'audio/wav' });
+      }
+    }
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const actx = new AudioCtx();
+    let decoded;
+    try {
+      decoded = await actx.decodeAudioData(rawBuf.slice(0));
+    } finally {
+      actx.close().catch(() => {});
+    }
+    const frameCount = Math.max(1, Math.ceil(decoded.duration * targetSampleRate));
+    const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    let monoSamples;
+    if (OfflineCtx) {
+      const offline = new OfflineCtx(1, frameCount, targetSampleRate);
+      const src = offline.createBufferSource();
+      src.buffer = decoded;
+      src.connect(offline.destination);
+      src.start(0);
+      const rendered = await offline.startRendering();
+      monoSamples = rendered.getChannelData(0);
+    } else {
+      monoSamples = decoded.getChannelData(0);
+      targetSampleRate = decoded.sampleRate || targetSampleRate;
+    }
+
+    const numSamples = monoSamples.length;
+    const dataByteLen = numSamples * 2;
+    const wavBuf = new ArrayBuffer(44 + dataByteLen);
+    const view = new DataView(wavBuf);
+    const writeAscii = (offset, str) => {
+      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    };
+    writeAscii(0, 'RIFF');
+    view.setUint32(4, 36 + dataByteLen, true);
+    writeAscii(8, 'WAVE');
+    writeAscii(12, 'fmt ');
+    view.setUint32(16, 16, true); // PCM chunk size
+    view.setUint16(20, 1, true);  // AudioFormat = 1 (PCM)
+    view.setUint16(22, 1, true);  // NumChannels = 1 (Mono)
+    view.setUint32(24, targetSampleRate, true);
+    view.setUint32(28, targetSampleRate * 2, true); // ByteRate
+    view.setUint16(32, 2, true);  // BlockAlign
+    view.setUint16(34, 16, true); // BitsPerSample
+    writeAscii(36, 'data');
+    view.setUint32(40, dataByteLen, true);
+
+    let offset = 44;
+    for (let i = 0; i < numSamples; i++, offset += 2) {
+      const s = Math.max(-1, Math.min(1, monoSamples[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+    return new Blob([wavBuf], { type: 'audio/wav' });
+  }
+
+  async function startRecordingSession() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const chunks = [];
+      activeRecorder = new MediaRecorder(stream);
+      recSeconds = 0;
+      activeAudioBlob = null;
+
+      activeRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunks.push(e.data);
+      };
+
+      activeRecorder.onstop = async () => {
+        clearInterval(recTimerInterval);
+        stream.getTracks().forEach((t) => t.stop());
+        const rawRecordedBlob = new Blob(chunks, { type: activeRecorder.mimeType || 'audio/webm' });
+        try {
+          activeAudioBlob = await encodeBlobToPcm16Wav(rawRecordedBlob, 48000);
+        } catch (wavErr) {
+          console.warn('PCM WAV decode fallback:', wavErr);
+          activeAudioBlob = rawRecordedBlob;
         }
-      } catch (err) {
-        console.error(err);
-      }
-    });
+        const audioUrl = URL.createObjectURL(activeAudioBlob);
+
+        // Update VoiceLab UI
+        const vlStart = document.getElementById('btn-vl-start-rec');
+        const vlStop = document.getElementById('btn-vl-stop-rec');
+        const vlHudStatus = document.getElementById('vl-rec-status-txt');
+        const vlPreviewBox = document.getElementById('vl-audio-preview-box');
+        const vlPreviewAudio = document.getElementById('vl-audio-preview-el');
+        const vlPreviewDur = document.getElementById('vl-audio-preview-duration');
+
+        if (vlStart) { vlStart.disabled = false; vlStart.style.opacity = '1'; }
+        if (vlStop) { vlStop.disabled = true; vlStop.style.opacity = '0.5'; vlStop.style.cursor = 'not-allowed'; }
+        if (vlPreviewBox && vlPreviewAudio) {
+          vlPreviewBox.style.display = 'block';
+          vlPreviewAudio.src = audioUrl;
+          if (vlPreviewDur) vlPreviewDur.textContent = `${recSeconds}s`;
+        }
+        if (vlHudStatus) {
+          if (recSeconds < 5) {
+            vlHudStatus.innerHTML = `⚠️ Short sample (${recSeconds}s < 5s). For highest timbre fidelity, 5–30s is recommended.`;
+            vlHudStatus.style.color = '#fbbf24';
+          } else {
+            vlHudStatus.innerHTML = `✅ ${recSeconds}s sample captured! Listen below and save voice.`;
+            vlHudStatus.style.color = '#4ade80';
+          }
+        }
+
+        // Update Quick Studio UI
+        const vsStart = document.getElementById('btn-vs-record-start');
+        const vsStop = document.getElementById('btn-vs-record-stop');
+        const vsStatusLabel = document.getElementById('vs-record-status-label');
+        const vsQuickAudio = document.getElementById('vs-quick-audio-preview');
+        if (vsStart) { vsStart.disabled = false; vsStart.style.opacity = '1'; }
+        if (vsStop) { vsStop.disabled = true; vsStop.style.opacity = '0.5'; vsStop.style.cursor = 'not-allowed'; }
+        if (vsQuickAudio) {
+          vsQuickAudio.style.display = 'block';
+          vsQuickAudio.src = audioUrl;
+        }
+        if (vsStatusLabel) {
+          vsStatusLabel.textContent = `✅ Sample captured (${recSeconds}s)!`;
+          vsStatusLabel.style.color = '#4ade80';
+        }
+      };
+
+      activeRecorder.start(250);
+
+      // Button states
+      const vlStart = document.getElementById('btn-vl-start-rec');
+      const vlStop = document.getElementById('btn-vl-stop-rec');
+      const vlHud = document.getElementById('vl-rec-hud');
+      const vlTimer = document.getElementById('vl-rec-timer-txt');
+      const vlProgress = document.getElementById('vl-rec-progress-bar');
+      const vlPreviewBox = document.getElementById('vl-audio-preview-box');
+      if (vlStart) { vlStart.disabled = true; vlStart.style.opacity = '0.5'; }
+      if (vlStop) { vlStop.disabled = false; vlStop.style.opacity = '1'; vlStop.style.cursor = 'pointer'; }
+      if (vlHud) vlHud.style.display = 'block';
+      if (vlPreviewBox) vlPreviewBox.style.display = 'none';
+
+      const vsStart = document.getElementById('btn-vs-record-start');
+      const vsStop = document.getElementById('btn-vs-record-stop');
+      const vsHud = document.getElementById('vs-record-status-box');
+      const vsTimer = document.getElementById('vs-record-timer');
+      const vsProgress = document.getElementById('vs-record-progress');
+      if (vsStart) { vsStart.disabled = true; vsStart.style.opacity = '0.5'; }
+      if (vsStop) { vsStop.disabled = false; vsStop.style.opacity = '1'; vsStop.style.cursor = 'pointer'; }
+      if (vsHud) vsHud.style.display = 'block';
+
+      recTimerInterval = setInterval(() => {
+        recSeconds++;
+        const mins = Math.floor(recSeconds / 60);
+        const secs = recSeconds % 60;
+        const timeStr = `${mins}:${secs < 10 ? '0' : ''}${secs} / 2:00`;
+        const pct = Math.min(100, Math.round((recSeconds / MAX_REC_SECONDS) * 100));
+
+        if (vlTimer) vlTimer.textContent = timeStr;
+        if (vlProgress) vlProgress.style.width = `${pct}%`;
+        if (vsTimer) vsTimer.textContent = timeStr;
+        if (vsProgress) vsProgress.style.width = `${pct}%`;
+
+        if (recSeconds >= MAX_REC_SECONDS) {
+          stopRecordingSession();
+        }
+      }, 1000);
+
+    } catch (err) {
+      alert('Microphone access denied or error: ' + err);
+    }
   }
 
-  // Submit Clone
-  if (btnSubmitClone) {
-    btnSubmitClone.addEventListener('click', async () => {
-      const name = inpCloneName ? inpCloneName.value.trim() : '';
-      if (!name) {
-        alert('Please enter a name for the cloned voice (e.g. My Studio Voice).');
-        return;
+  function stopRecordingSession() {
+    if (activeRecorder && activeRecorder.state === 'recording') {
+      activeRecorder.stop();
+    }
+  }
+
+  // VoiceLab Recording events
+  document.getElementById('btn-vl-start-rec')?.addEventListener('click', startRecordingSession);
+  document.getElementById('btn-vl-stop-rec')?.addEventListener('click', stopRecordingSession);
+
+  // Quick Cloner Recording events
+  document.getElementById('btn-vs-record-start')?.addEventListener('click', startRecordingSession);
+  document.getElementById('btn-vs-record-stop')?.addEventListener('click', stopRecordingSession);
+
+  // Upload Reference Audio
+  async function pickAudioFile() {
+    try {
+      const path = await invoke('pick_file', {
+        title: 'Select Voice Reference Audio (WAV, MP3, M4A, FLAC)',
+        filters: [{ name: 'Audio Files', extensions: ['wav', 'mp3', 'm4a', 'flac', 'ogg'] }]
+      });
+      if (path) {
+        uploadedRefAudioPath = path;
+        activeAudioBlob = null;
+        const fname = path.split(/[\/\\]/).pop();
+
+        // Update VoiceLab UI
+        const vlInfo = document.getElementById('vl-upload-info-box');
+        if (vlInfo) {
+          vlInfo.style.display = 'block';
+          vlInfo.textContent = `📁 File Selected: ${fname}`;
+        }
+        const vlHud = document.getElementById('vl-rec-hud');
+        if (vlHud) vlHud.style.display = 'none';
+
+        // Update Quick UI
+        const vsLabel = document.getElementById('vs-record-status-label');
+        const vsBox = document.getElementById('vs-record-status-box');
+        if (vsBox) vsBox.style.display = 'block';
+        if (vsLabel) {
+          vsLabel.textContent = `📁 Selected: ${fname}`;
+          vsLabel.style.color = '#38bdf8';
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  document.getElementById('btn-vl-upload-audio')?.addEventListener('click', pickAudioFile);
+  document.getElementById('btn-vs-upload-audio')?.addEventListener('click', pickAudioFile);
+
+  // Submit Clone Handler
+  async function submitClonedVoice(name, langHint, genderHint, submitBtn) {
+    if (!name) {
+      alert('Please enter a name for your cloned voice (e.g. My Studio Voice).');
+      return;
+    }
+    if (!activeAudioBlob && !uploadedRefAudioPath) {
+      alert('Please record your voice with the Start button or upload an audio sample first.');
+      return;
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span>⏳</span><span>Extracting Timbre &amp; Formants...</span>';
+    }
+
+    try {
+      let refPath = uploadedRefAudioPath;
+      if (!refPath && activeAudioBlob) {
+        const pcmWavBlob = await encodeBlobToPcm16Wav(activeAudioBlob, 48000);
+        activeAudioBlob = pcmWavBlob;
+        const reader = new FileReader();
+        const base64Promise = new Promise((resolve, reject) => {
+          reader.onloadend = () => resolve(String(reader.result || '').split(',')[1] || '');
+          reader.onerror = reject;
+        });
+        reader.readAsDataURL(pcmWavBlob);
+        const b64 = await base64Promise;
+        const cleanName = name.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+        refPath = await invoke('voice_studio_save_blob', {
+          base64Data: b64,
+          filename: `rec_${cleanName}_sample.wav`
+        });
       }
 
-      btnSubmitClone.disabled = true;
-      btnSubmitClone.textContent = '⏳ Extracting Timbre...';
+      const res = await invoke('voice_studio_create_clone', {
+        audioPath: refPath,
+        name: name,
+        tag: `Custom Timbre (${genderHint.toUpperCase()})`,
+        gender: genderHint,
+        accent: langHint
+      });
 
-      try {
-        let refPath = uploadedRefAudioPath;
-        if (!refPath && recordedAudioBlob) {
-          const reader = new FileReader();
-          const base64Promise = new Promise((res) => {
-            reader.onloadend = () => res(reader.result.split(',')[1]);
+      activeVoiceId = res.id;
+      uploadedRefAudioPath = '';
+      activeAudioBlob = null;
+      await loadVoiceStudioData();
+      renderVoiceLabClonesShelf();
+
+      alert(`✅ Voice "${name}" successfully cloned and saved to VoiceLab!`);
+
+      // Switch to studio tab so user can immediately type and test
+      switchVoiceStudioTab('studio');
+    } catch (err) {
+      alert('Voice cloning failed: ' + err);
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span>🧬</span><span>Clone &amp; Save Voice Profile</span>';
+      }
+    }
+  }
+
+  // VoiceLab Tab Clone Submit
+  document.getElementById('btn-vl-submit-clone')?.addEventListener('click', () => {
+    const name = document.getElementById('inp-vl-name')?.value.trim() || '';
+    const lang = document.getElementById('sel-vl-lang')?.value || 'en';
+    const gender = document.getElementById('sel-vl-gender')?.value || 'auto';
+    const btn = document.getElementById('btn-vl-submit-clone');
+    submitClonedVoice(name, lang, gender, btn);
+  });
+
+  // Quick Cloner Submit
+  document.getElementById('btn-vs-submit-clone')?.addEventListener('click', () => {
+    const name = document.getElementById('inp-vs-clone-name')?.value.trim() || '';
+    const btn = document.getElementById('btn-vs-submit-clone');
+    submitClonedVoice(name, 'en', 'auto', btn);
+  });
+
+  // Render VoiceLab Clones Shelf
+  function renderVoiceLabClonesShelf() {
+    const listEl = document.getElementById('vl-clones-shelf-list');
+    const badgeEl = document.getElementById('vl-clones-count-badge');
+    const tabBadge = document.getElementById('vl-tab-badge');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    const clones = cachedCustomProfiles || [];
+    if (badgeEl) badgeEl.textContent = `${clones.length} Cloned Voices`;
+    if (tabBadge) tabBadge.textContent = `${clones.length} Clones`;
+
+    if (clones.length === 0) {
+      listEl.innerHTML = `
+        <div style="padding:36px 16px; text-align:center; color:#94a3b8; border:1px dashed rgba(255,255,255,0.12); border-radius:10px;">
+          <div style="font-size:32px; margin-bottom:8px;">🧬</div>
+          <div style="font-size:12.5px; font-weight:700; color:#cbd5e1;">No custom cloned voices yet</div>
+          <div style="font-size:11px; color:#64748b; margin-top:4px;">Use the recorder or upload audio on the left to extract your vocal timbre and save your first clone!</div>
+        </div>
+      `;
+      return;
+    }
+
+    clones.forEach((c) => {
+      const card = document.createElement('div');
+      card.className = `el-card ${c.id === activeVoiceId ? 'selected' : ''}`;
+      card.style.cssText = 'padding:10px 12px; margin-bottom:8px; border-radius:10px; display:flex; align-items:center; justify-content:space-between; gap:10px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); transition:all .15s;';
+      if (c.id === activeVoiceId) {
+        card.style.borderColor = '#fb7185';
+        card.style.background = 'linear-gradient(135deg, rgba(244,63,94,.15), rgba(168,85,247,.12))';
+      }
+
+      card.innerHTML = `
+        <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
+          <div style="width:32px; height:32px; border-radius:8px; background:rgba(244,63,94,.15); border:1px solid rgba(244,63,94,.3); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <svg style="width:15px; height:15px; stroke:#fb7185; fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          </div>
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:12px; font-weight:800; color:#fff; display:flex; align-items:center; gap:6px;">
+              <span>${c.name}</span>
+              ${c.id === activeVoiceId ? '<span style="font-size:9px; background:#fb7185; color:#fff; padding:1px 6px; border-radius:999px; font-weight:800;">ACTIVE</span>' : ''}
+            </div>
+            <div style="font-size:10.5px; color:#94a3b8; margin-top:2px;">
+              ${c.gender ? c.gender.toUpperCase() : 'NEURAL'} · ${c.accent ? c.accent.toUpperCase() : 'EN'} ${c.f0_median ? `· F0: ${c.f0_median}Hz` : ''}
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+          <button type="button" class="btn secondary btn-vl-preview" data-id="${c.id}" style="padding:4px 9px; font-size:10px; font-weight:700; display:flex; align-items:center; gap:4px; border-color:rgba(56,189,248,.4); color:#38bdf8;" title="Synthesize and play test phrase">
+            <svg style="width:10px; height:10px; fill:currentColor;" viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+            <span>Test</span>
+          </button>
+          <button type="button" class="btn primary btn-vl-set-active" data-id="${c.id}" style="padding:4px 10px; font-size:10px; font-weight:800; background:linear-gradient(135deg, #0284c7, #2563eb); border-color:#38bdf8; display:flex; align-items:center; gap:4px;" title="Use as active voice">
+            <svg style="width:11px; height:11px; stroke:currentColor; fill:none; stroke-width:2.5;" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Use</span>
+          </button>
+          <button type="button" class="btn secondary btn-vl-del" data-id="${c.id}" style="padding:4px 8px; font-size:10px; color:#f87171; border-color:rgba(248,113,113,.3); display:inline-flex; align-items:center; justify-content:center;" title="Delete this clone">
+            <svg style="width:12px; height:12px; stroke:currentColor; fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg>
+          </button>
+        </div>
+      `;
+
+      card.querySelector('.btn-vl-set-active')?.addEventListener('click', async () => {
+        activeVoiceId = c.id;
+        try {
+          await invoke('voice_studio_set_active_voice', { voiceId: c.id });
+          updateActiveVoiceDisplay();
+          renderVoiceLabClonesShelf();
+          renderVoiceList();
+        } catch (e) { console.error(e); }
+      });
+
+      card.querySelector('.btn-vl-preview')?.addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        btn.textContent = '...';
+        try {
+          const validLangs = ['en', 'vi', 'ja', 'ko', 'zh', 'es', 'fr', 'de', 'it', 'pt', 'ru', 'th', 'id', 'hi', 'ar'];
+          const rawAccent = String(c.accent || '').trim().toLowerCase().split(/[-_]/)[0];
+          const previewLang = validLangs.includes(rawAccent) ? rawAccent : 'en';
+          const testText = previewLang === 'vi'
+            ? 'Xin chào! Đây là đoạn âm thanh kiểm tra chất giọng nhân bản của bạn trên Pizza Converter.'
+            : 'Hello! This is a test of your cloned voice synthesized with high-fidelity neural audio.';
+          const res = await invoke('voice_studio_synthesize_text', {
+            text: testText,
+            voiceId: c.id,
+            speed: '1.0',
+            pitch: 0.0,
+            stability: 85,
+            lang: previewLang
           });
-          reader.readAsDataURL(recordedAudioBlob);
-          const b64 = await base64Promise;
-          const savedPath = await invoke('voice_studio_save_blob', { base64Data: b64, filename: `${name.toLowerCase().replace(/\s+/g, '_')}_sample.wav` });
-          refPath = savedPath;
+          const outPath = res && (res.audio_path || res.output_path);
+          const playUrl = (res && res.audio_url) || (outPath
+            ? (window.__TAURI__?.core?.convertFileSrc ? window.__TAURI__.core.convertFileSrc(outPath) : outPath)
+            : '');
+          if (playUrl) {
+            const player = ttsAudio || new Audio();
+            player.src = playUrl;
+            await player.play();
+            if (ttsPlayerBox) ttsPlayerBox.style.display = 'block';
+          } else {
+            throw new Error((res && res.error) || 'No audio output path returned');
+          }
+        } catch (err) {
+          alert('Test synthesis error: ' + err);
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = '<svg style="width:10px; height:10px; fill:currentColor;" viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg><span>Test</span>';
         }
+      });
 
-        if (!refPath) {
-          alert('Please record a mic sample or select an audio file first.');
-          btnSubmitClone.disabled = false;
-          btnSubmitClone.textContent = 'Save Voice';
-          return;
+      card.querySelector('.btn-vl-del')?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm(`Delete cloned voice "${c.name}"?`)) return;
+        try {
+          await invoke('voice_studio_delete_profile', { id: c.id, profileId: c.id, profile_id: c.id });
+          await loadVoiceStudioData();
+          renderVoiceLabClonesShelf();
+          renderVoiceList();
+        } catch (e) {
+          alert('Failed to delete clone: ' + e);
         }
+      });
 
-        await invoke('voice_studio_create_clone', {
-          audioPath: refPath,
-          name: name,
-          tag: 'Custom Neural Clone'
-        });
-
-        if (inpCloneName) inpCloneName.value = '';
-        if (recordStatusBox) recordStatusBox.style.display = 'none';
-        recordedAudioBlob = null;
-        uploadedRefAudioPath = '';
-        btnSubmitClone.textContent = '✅ Voice Cloned!';
-        await loadVoiceStudioData();
-      } catch (err) {
-        alert('Voice cloning failed: ' + err);
-      } finally {
-        setTimeout(() => {
-          btnSubmitClone.disabled = false;
-          btnSubmitClone.textContent = 'Save Voice';
-        }, 2000);
-      }
+      listEl.appendChild(card);
     });
   }
 
@@ -6849,5 +7327,2018 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
   }
   loadVoiceStudioData();
 })();
+
+// =========================================================================
+// Video Downloader Pro Studio & History Management (Milestone 4)
+// =========================================================================
+let globalVideoDlHistory = [];
+let activeVideoDlTasks = new Map();
+let deleteCandidateItem = null;
+
+function formatVideoDlBytes(b) {
+  if (!b || b <= 0) return '0 B';
+  if (b < 1024) return b + ' B';
+  const u = ['KB', 'MB', 'GB', 'TB'];
+  let v = b / 1024, i = 0;
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return v.toFixed(1) + ' ' + u[i];
+}
+
+function formatVideoDlDate(isoStr) {
+  if (!isoStr) return '';
+  try {
+    const d = new Date(isoStr);
+    return isNaN(d.getTime()) ? isoStr : d.toLocaleString();
+  } catch {
+    return isoStr;
+  }
+}
+
+function extractFirstVideoDlHttpUrl(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  const m = raw.trim().match(/https?:\/\/[^\s"'<>]+/i);
+  if (!m) return raw.trim();
+  return m[0].replace(/[)\]},;.]+$/, '');
+}
+
+function needsVideoDlRedirectResolve(url) {
+  if (!url || typeof url !== 'string') return false;
+  const lower = url.trim().toLowerCase();
+  return (
+    lower.includes('facebook.com/share/') ||
+    lower.includes('facebook.com/l.php') ||
+    lower.includes('fb.watch/') ||
+    lower.includes('fb.gg/') ||
+    lower.includes('vt.tiktok.com/') ||
+    lower.includes('vm.tiktok.com/') ||
+    lower.includes('tiktok.com/t/') ||
+    lower.includes('m.tiktok.com/v/') ||
+    lower.includes('instagram.com/share/') ||
+    lower.includes('instagr.am/') ||
+    lower.includes('://t.co/') ||
+    lower.includes('rdid=') ||
+    lower.includes('share_url=') ||
+    /^https?:\/\/(?:bit\.ly|tinyurl\.com|is\.gd|ow\.ly|buff\.ly|rb\.gy|cutt\.ly|shorturl\.at)\//i.test(lower)
+  );
+}
+
+function classifyVideoDlUrl(url) {
+  if (!url) return { platform: 'generic', label: 'Ready', badgeClass: 'badge-generic', isChannel: false };
+  const u = extractFirstVideoDlHttpUrl(url).toLowerCase();
+  if (u.includes('youtube.com') || u.includes('youtu.be')) {
+    const isChan = u.includes('/playlist') || u.includes('/@') || u.includes('/channel/') || u.includes('/c/');
+    return { platform: 'youtube', label: isChan ? 'YouTube Channel' : 'YouTube', badgeClass: 'badge-youtube', isChannel: isChan };
+  }
+  if (u.includes('tiktok.com')) {
+    const isChan = u.includes('/@') && !u.includes('/video/');
+    return { platform: 'tiktok', label: isChan ? 'TikTok Profile' : 'TikTok', badgeClass: 'badge-tiktok', isChannel: isChan };
+  }
+  if (u.includes('facebook.com') || u.includes('fb.watch') || u.includes('fb.gg')) {
+    return { platform: 'facebook', label: 'Facebook', badgeClass: 'badge-facebook', isChannel: false };
+  }
+  if (u.includes('instagram.com') || u.includes('instagr.am')) {
+    const isChan = !u.includes('/p/') && !u.includes('/reel/') && !u.includes('/reels/') && !u.includes('/tv/') && !u.includes('/share/');
+    return { platform: 'instagram', label: isChan ? 'Instagram Profile' : 'Instagram', badgeClass: 'badge-instagram', isChannel: isChan };
+  }
+  if (u.includes('twitter.com') || u.includes('x.com') || u.includes('://t.co/')) {
+    return { platform: 'twitter', label: 'X / Twitter', badgeClass: 'badge-twitter', isChannel: false };
+  }
+  if (u.startsWith('http://') || u.startsWith('https://')) {
+    return { platform: 'generic', label: 'Web Video', badgeClass: 'badge-generic', isChannel: false };
+  }
+  return { platform: 'generic', label: 'Ready', badgeClass: 'badge-generic', isChannel: false };
+}
+
+async function refreshVideoDlEnvStatus() {
+  const ytdlpPill = document.getElementById('videodl-ytdlp-pill');
+  const ffmpegPill = document.getElementById('videodl-ffmpeg-pill');
+  const overallPill = document.getElementById('videodl-overall-env-pill');
+  const ytdlpPath = document.getElementById('videodl-ytdlp-path');
+  const ffmpegPath = document.getElementById('videodl-ffmpeg-path');
+  const btnInstallYtdlp = document.getElementById('btn-install-ytdlp');
+  const btnInstallFfmpeg = document.getElementById('btn-install-ffmpeg');
+  const dotYtdlp = document.getElementById('dot-ytdlp');
+  const dotFfmpeg = document.getElementById('dot-ffmpeg');
+
+  let env = null;
+  try {
+    env = await invoke('video_dl_check_env');
+    if (!env) return;
+
+    if (env.ytdlp_found) {
+      if (ytdlpPill) {
+        ytdlpPill.textContent = env.ytdlp_version ? `v${env.ytdlp_version}` : 'Installed';
+        ytdlpPill.className = 'cai-status-pill ok';
+      }
+      if (dotYtdlp) dotYtdlp.className = 'videodl-env-dot ok';
+      if (ytdlpPath) ytdlpPath.textContent = env.ytdlp_path || 'Found in system PATH';
+      if (btnInstallYtdlp) btnInstallYtdlp.classList.add('hidden');
+    } else {
+      if (ytdlpPill) {
+        ytdlpPill.textContent = 'Not Found';
+        ytdlpPill.className = 'cai-status-pill err';
+      }
+      if (dotYtdlp) dotYtdlp.className = 'videodl-env-dot err';
+      if (ytdlpPath) ytdlpPath.textContent = 'Not detected in PATH or standard directories';
+      if (btnInstallYtdlp) btnInstallYtdlp.classList.remove('hidden');
+    }
+
+    if (env.ffmpeg_found) {
+      if (ffmpegPill) {
+        ffmpegPill.textContent = env.ffmpeg_version ? `v${env.ffmpeg_version}` : 'Installed';
+        ffmpegPill.className = 'cai-status-pill ok';
+      }
+      if (dotFfmpeg) dotFfmpeg.className = 'videodl-env-dot ok';
+      if (ffmpegPath) ffmpegPath.textContent = env.ffmpeg_path || 'Found in system PATH';
+      if (btnInstallFfmpeg) btnInstallFfmpeg.classList.add('hidden');
+    } else {
+      if (ffmpegPill) {
+        ffmpegPill.textContent = 'Not Found';
+        ffmpegPill.className = 'cai-status-pill err';
+      }
+      if (dotFfmpeg) dotFfmpeg.className = 'videodl-env-dot err';
+      if (ffmpegPath) ffmpegPath.textContent = 'Not detected in PATH or standard directories';
+      if (btnInstallFfmpeg) btnInstallFfmpeg.classList.remove('hidden');
+    }
+
+    if (overallPill) {
+      if (env.ytdlp_found && env.ffmpeg_found) {
+        overallPill.textContent = 'All Dependencies Ready';
+        overallPill.className = 'cai-status-pill ok';
+      } else {
+        overallPill.textContent = 'Dependencies Missing';
+        overallPill.className = 'cai-status-pill err';
+      }
+    }
+
+    // Automatically hide technical engine card if all dependencies are ready
+    const envCard = document.getElementById('videodl-env-card');
+    if (envCard) {
+      if (env.ytdlp_found && env.ffmpeg_found) {
+        if (!envCard.dataset.userOpened) {
+          envCard.classList.add('hidden');
+        }
+      } else {
+        envCard.classList.remove('hidden');
+      }
+    }
+  } catch (err) {
+    console.error('video_dl_check_env failed:', err);
+  }
+
+  // Populate default output directory if needed
+  try {
+    const outDisplay = document.getElementById('videodl-output-dir-display');
+    if (outDisplay) {
+      const cfg = await invoke('get_config').catch(() => ({}));
+      if (cfg && cfg.video_dl_output_dir && String(cfg.video_dl_output_dir).trim()) {
+        outDisplay.textContent = cfg.video_dl_output_dir;
+      } else if (cfg && cfg.output_dir) {
+        outDisplay.textContent = cfg.output_dir;
+      } else if (env && env.default_output_dir) {
+        outDisplay.textContent = env.default_output_dir;
+      }
+    }
+  } catch {}
+}
+
+async function installVideoDlTool(toolName, btnElement) {
+  if (btnElement) {
+    btnElement.disabled = true;
+    btnElement.textContent = `Installing ${toolName}...`;
+  }
+  const feedbackBar = document.getElementById('videodl-env-feedback-bar');
+  const msgEl = document.getElementById('videodl-env-message');
+  if (feedbackBar) feedbackBar.classList.remove('hidden');
+  if (msgEl) msgEl.textContent = `Launching automated installation for ${toolName}... Please wait.`;
+
+  try {
+    const result = await invoke('video_dl_install_tool', { tool: toolName });
+    if (msgEl) msgEl.textContent = result || `Installation command completed for ${toolName}.`;
+  } catch (err) {
+    if (msgEl) msgEl.textContent = `Installation error for ${toolName}: ${err}`;
+  } finally {
+    if (btnElement) {
+      btnElement.disabled = false;
+      btnElement.textContent = `Install ${toolName}`;
+    }
+    await refreshVideoDlEnvStatus();
+  }
+}
+
+function updateActiveDlCard(evt) {
+  const listEl = document.getElementById('videodl-active-list');
+  const emptyEl = document.getElementById('videodl-active-empty');
+  const countEl = document.getElementById('videodl-active-count');
+  if (!listEl) return;
+
+  activeVideoDlTasks.set(evt.task_id, evt);
+
+  if (emptyEl) emptyEl.classList.add('hidden');
+  if (countEl) {
+    countEl.classList.remove('hidden');
+    countEl.textContent = `${activeVideoDlTasks.size} active`;
+  }
+
+  let card = document.getElementById(`active-card-${evt.task_id}`);
+  if (!card) {
+    card = document.createElement('div');
+    card.id = `active-card-${evt.task_id}`;
+    card.className = 'active-dl-card';
+    card.innerHTML = `
+      <div class="active-dl-head">
+        <div class="active-dl-title-wrap">
+          <span class="platform-badge badge-generic active-dl-platform">Video</span>
+          <span class="active-dl-title">Starting download...</span>
+        </div>
+        <button class="btn-ghost-sm btn-cancel-dl" style="color:#fda4af; border-color:rgba(244,63,94,0.4);" title="Cancel active download">Cancel</button>
+      </div>
+      <div class="active-dl-progress-track">
+        <div class="active-dl-progress-fill" style="width: 0%;"></div>
+      </div>
+      <div class="active-dl-stats">
+        <span class="active-dl-metric">Status: <b class="active-dl-stage">downloading</b></span>
+        <span class="active-dl-metric">Speed: <b class="active-dl-speed">0 KiB/s</b></span>
+        <span class="active-dl-metric">Progress: <b class="active-dl-percent">0%</b></span>
+        <span class="active-dl-metric active-dl-eta-wrap">ETA: <b class="active-dl-eta">--:--</b></span>
+      </div>
+    `;
+
+    const cancelBtn = card.querySelector('.btn-cancel-dl');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', async () => {
+        cancelBtn.disabled = true;
+        cancelBtn.textContent = 'Cancelling...';
+        try {
+          await invoke('video_dl_cancel', { taskId: evt.task_id });
+        } catch (e) {
+          console.error('Cancel error:', e);
+        }
+      });
+    }
+
+    listEl.prepend(card);
+  }
+
+  // Update card content
+  const titleEl = card.querySelector('.active-dl-title');
+  const platEl = card.querySelector('.active-dl-platform');
+  const fillEl = card.querySelector('.active-dl-progress-fill');
+  const pctEl = card.querySelector('.active-dl-percent');
+  const spdEl = card.querySelector('.active-dl-speed');
+  const etaEl = card.querySelector('.active-dl-eta');
+  const stgEl = card.querySelector('.active-dl-stage');
+
+  if (titleEl) titleEl.textContent = evt.title || evt.url || 'Downloading Media';
+  const pInfo = classifyVideoDlUrl(evt.url);
+  if (platEl) {
+    platEl.textContent = pInfo.label;
+    platEl.className = `platform-badge ${pInfo.badgeClass}`;
+  }
+  const pct = Math.max(0, Math.min(100, Math.round(evt.percent || 0)));
+  if (fillEl) fillEl.style.width = `${pct}%`;
+  if (pctEl) pctEl.textContent = `${pct}%`;
+  if (spdEl) spdEl.textContent = evt.speed || '0 KiB/s';
+  if (etaEl) etaEl.textContent = evt.eta || '--:--';
+  if (stgEl) stgEl.textContent = evt.stage || evt.status || 'downloading';
+}
+
+function removeActiveDlCard(taskId) {
+  activeVideoDlTasks.delete(taskId);
+  const card = document.getElementById(`active-card-${taskId}`);
+  if (card) {
+    card.remove();
+  }
+
+  const listEl = document.getElementById('videodl-active-list');
+  const emptyEl = document.getElementById('videodl-active-empty');
+  const countEl = document.getElementById('videodl-active-count');
+
+  if (activeVideoDlTasks.size === 0) {
+    if (emptyEl) emptyEl.classList.remove('hidden');
+    if (countEl) countEl.classList.add('hidden');
+  } else if (countEl) {
+    countEl.textContent = `${activeVideoDlTasks.size} active`;
+  }
+}
+
+async function loadVideoDlHistory() {
+  try {
+    const items = await invoke('video_dl_get_history');
+    globalVideoDlHistory = Array.isArray(items) ? items : [];
+    renderVideoDlHistory();
+  } catch (err) {
+    console.error('video_dl_get_history failed:', err);
+  }
+}
+
+function renderVideoDlHistory() {
+  const container = document.getElementById('videodl-history-list');
+  const emptyEl = document.getElementById('videodl-history-empty');
+  const countBadge = document.getElementById('videodl-history-count');
+  if (!container) return;
+
+  const searchQuery = (document.getElementById('videodl-history-search')?.value || '').trim().toLowerCase();
+  const platformFilter = document.getElementById('videodl-history-platform-filter')?.value || 'all';
+  const statusFilter = document.getElementById('videodl-history-status-filter')?.value || 'all';
+
+  const filtered = globalVideoDlHistory.filter(item => {
+    if (platformFilter !== 'all' && item.platform.toLowerCase() !== platformFilter.toLowerCase()) {
+      return false;
+    }
+    if (statusFilter !== 'all' && item.status.toLowerCase() !== statusFilter.toLowerCase()) {
+      return false;
+    }
+    if (searchQuery) {
+      const matchTitle = (item.title || '').toLowerCase().includes(searchQuery);
+      const matchUrl = (item.url || '').toLowerCase().includes(searchQuery);
+      const matchChannel = (item.channel_name || '').toLowerCase().includes(searchQuery);
+      const matchFormat = (item.format || '').toLowerCase().includes(searchQuery);
+      if (!matchTitle && !matchUrl && !matchChannel && !matchFormat) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  if (countBadge) {
+    countBadge.textContent = `${globalVideoDlHistory.length} item${globalVideoDlHistory.length === 1 ? '' : 's'}`;
+  }
+
+  container.innerHTML = '';
+  if (filtered.length === 0) {
+    if (emptyEl) emptyEl.classList.remove('hidden');
+    return;
+  }
+  if (emptyEl) emptyEl.classList.add('hidden');
+
+  filtered.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'dl-hist-item';
+    row.id = `hist-item-${item.id}`;
+
+    const pClass = item.platform ? `badge-${item.platform.toLowerCase()}` : 'badge-generic';
+    const statusClass = (item.status || 'completed').toLowerCase();
+    const sizeDisplay = item.file_size_display || formatVideoDlBytes(item.file_size_bytes);
+    const dateDisplay = formatVideoDlDate(item.downloaded_at);
+
+    let thumbHtml = '';
+    if (item.thumbnail_url) {
+      thumbHtml = `<img src="${item.thumbnail_url}" alt="Thumbnail" onerror="this.onerror=null; this.parentElement.innerHTML='🎬';">`;
+    } else {
+      thumbHtml = item.format === 'mp3' ? '🎵' : '🎬';
+    }
+
+    row.innerHTML = `
+      <div class="dl-hist-thumb">${thumbHtml}</div>
+      <div class="dl-hist-content">
+        <div class="dl-hist-title" title="${item.title || item.url}">${item.title || item.url}</div>
+        <div class="dl-hist-meta">
+          <span class="platform-badge ${pClass}">${(item.platform || 'video').toUpperCase()}</span>
+          <span class="dl-hist-status-pill ${statusClass}">${(item.status || 'completed').toUpperCase()}</span>
+          <span>${item.format || 'best'}</span>
+          <span>${sizeDisplay}</span>
+          <span>${dateDisplay}</span>
+        </div>
+      </div>
+      <div class="dl-hist-actions">
+        <button class="btn-ghost-sm btn-open-file" data-path="${item.file_path || ''}" title="Open with default media player">Open File</button>
+        <button class="btn-ghost-sm btn-show-folder" data-path="${item.file_path || ''}" title="Show in folder">Show in Folder</button>
+        <button class="btn-ghost-sm btn-redownload" data-url="${item.url}" data-format="${item.format || 'best'}" title="Re-download video">Re-download</button>
+        <button class="btn-ghost-sm btn-delete-history" data-id="${item.id}" data-title="${item.title || ''}" title="Delete record">Delete</button>
+      </div>
+    `;
+
+    // Wire buttons
+    const btnOpen = row.querySelector('.btn-open-file');
+    if (btnOpen) {
+      btnOpen.addEventListener('click', async () => {
+        const p = btnOpen.dataset.path;
+        if (!p) {
+          alert('File path is unavailable for this item.');
+          return;
+        }
+        try {
+          await invoke('open_file', { path: p });
+        } catch (err) {
+          alert('Could not open file: ' + err);
+        }
+      });
+    }
+
+    const btnFolder = row.querySelector('.btn-show-folder');
+    if (btnFolder) {
+      btnFolder.addEventListener('click', async () => {
+        const p = btnFolder.dataset.path;
+        if (!p) {
+          alert('File path is unavailable for this item.');
+          return;
+        }
+        try {
+          await invoke('show_in_folder', { path: p });
+        } catch (err) {
+          alert('Could not show in folder: ' + err);
+        }
+      });
+    }
+
+    const btnRedownload = row.querySelector('.btn-redownload');
+    if (btnRedownload) {
+      btnRedownload.addEventListener('click', () => {
+        const urlInput = document.getElementById('videodl-url-input');
+        const qualitySelect = document.getElementById('videodl-quality-preset');
+        if (urlInput) {
+          urlInput.value = btnRedownload.dataset.url;
+          urlInput.dispatchEvent(new Event('input'));
+        }
+        if (qualitySelect && btnRedownload.dataset.format) {
+          qualitySelect.value = btnRedownload.dataset.format;
+        }
+        const cardManual = document.getElementById('videodl-input-card');
+        if (cardManual) cardManual.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+
+    const btnDel = row.querySelector('.btn-delete-history');
+    if (btnDel) {
+      btnDel.addEventListener('click', () => {
+        deleteCandidateItem = item;
+        const modal = document.getElementById('videodl-delete-modal');
+        const titleEl = document.getElementById('del-modal-title');
+        if (titleEl) {
+          titleEl.textContent = `Remove "${item.title || 'this item'}" from history?`;
+        }
+        const chkFile = document.getElementById('chk-del-also-file');
+        if (chkFile) chkFile.checked = false;
+        if (modal) modal.classList.remove('hidden');
+      });
+    }
+
+    container.appendChild(row);
+  });
+}
+
+function bindVideoDownloaderEvents() {
+  // Toggle technical engine card
+  const btnToggleEnv = document.getElementById('btn-videodl-toggle-env');
+  const envCard = document.getElementById('videodl-env-card');
+  if (btnToggleEnv && envCard) {
+    btnToggleEnv.addEventListener('click', () => {
+      const isHidden = envCard.classList.contains('hidden');
+      if (isHidden) {
+        envCard.classList.remove('hidden');
+        envCard.dataset.userOpened = 'true';
+      } else {
+        envCard.classList.add('hidden');
+        delete envCard.dataset.userOpened;
+      }
+    });
+  }
+
+  // Re-scan button
+  const btnRescan = document.getElementById('btn-videodl-refresh-env');
+  if (btnRescan) {
+    btnRescan.addEventListener('click', refreshVideoDlEnvStatus);
+  }
+
+  // Install buttons
+  const btnInstallYt = document.getElementById('btn-install-ytdlp');
+  if (btnInstallYt) {
+    btnInstallYt.addEventListener('click', () => installVideoDlTool('yt-dlp', btnInstallYt));
+  }
+  const btnInstallFf = document.getElementById('btn-install-ffmpeg');
+  if (btnInstallFf) {
+    btnInstallFf.addEventListener('click', () => installVideoDlTool('ffmpeg', btnInstallFf));
+  }
+
+  // Browse destination directory
+  const btnBrowse = document.getElementById('btn-browse-videodl-dir');
+  if (btnBrowse) {
+    btnBrowse.addEventListener('click', async () => {
+      const picked = await invoke('pick_dir').catch(() => null);
+      if (picked) {
+        const outDisplay = document.getElementById('videodl-output-dir-display');
+        if (outDisplay) outDisplay.textContent = picked;
+        await invoke('set_video_dl_output_dir', { dir: picked }).catch((err) => {
+          console.warn('set_video_dl_output_dir error:', err);
+        });
+      }
+    });
+  }
+
+  // Open destination directory
+  const btnOpenDir = document.getElementById('btn-open-videodl-dir');
+  if (btnOpenDir) {
+    btnOpenDir.addEventListener('click', async () => {
+      const outDisplay = document.getElementById('videodl-output-dir-display');
+      const dirPath = outDisplay ? outDisplay.textContent.trim() : '';
+      if (dirPath) {
+        try {
+          await invoke('open_file', { path: dirPath });
+        } catch {
+          await invoke('show_in_folder', { path: dirPath }).catch(() => {});
+        }
+      }
+    });
+  }
+
+  // URL Input listener
+  const urlInput = document.getElementById('videodl-url-input');
+  const clearBtn = document.getElementById('btn-videodl-clear-url');
+  const pasteBtn = document.getElementById('btn-videodl-paste-url');
+  const badgeEl = document.getElementById('videodl-platform-badge');
+
+  if (urlInput) {
+    let vdlResolveTimer = null;
+    let vdlResolveSeq = 0;
+
+    const maybeResolveShareLink = (immediate = false) => {
+      const rawVal = urlInput.value;
+      const extracted = extractFirstVideoDlHttpUrl(rawVal);
+      if (!extracted) return;
+      if (extracted !== rawVal.trim()) {
+        urlInput.value = extracted;
+      }
+      if (!needsVideoDlRedirectResolve(extracted)) return;
+
+      const seq = ++vdlResolveSeq;
+      const runResolve = async () => {
+        if (seq !== vdlResolveSeq) return;
+        if (badgeEl) {
+          badgeEl.textContent = 'Resolving Link...';
+          badgeEl.className = 'platform-badge badge-generic';
+        }
+        try {
+          const res = await invoke('video_dl_resolve_url', { url: extracted });
+          if (seq !== vdlResolveSeq) return;
+          const curClean = extractFirstVideoDlHttpUrl(urlInput.value);
+          if (res && res.resolved_url && res.changed && curClean === extracted) {
+            urlInput.value = res.resolved_url;
+            handleUrlChange(false);
+            return;
+          }
+        } catch (_) {}
+        if (seq === vdlResolveSeq) {
+          handleUrlChange(false);
+        }
+      };
+
+      if (vdlResolveTimer) clearTimeout(vdlResolveTimer);
+      if (immediate) {
+        runResolve();
+      } else {
+        vdlResolveTimer = setTimeout(runResolve, 280);
+      }
+    };
+
+    const handleUrlChange = (triggerResolve = true) => {
+      const val = urlInput.value.trim();
+      if (clearBtn) {
+        if (val) clearBtn.classList.remove('hidden');
+        else clearBtn.classList.add('hidden');
+      }
+      const p = classifyVideoDlUrl(val);
+      if (badgeEl) {
+        badgeEl.textContent = p.label;
+        badgeEl.className = `platform-badge ${p.badgeClass}`;
+      }
+      if (p.isChannel) {
+        const chkFull = document.getElementById('videodl-full-channel');
+        if (chkFull && !chkFull.checked) {
+          const limitInp = document.getElementById('videodl-channel-limit');
+          if (limitInp && (!limitInp.value || limitInp.value === '1')) limitInp.value = '50';
+        }
+      }
+      if (triggerResolve) {
+        maybeResolveShareLink(false);
+      }
+    };
+
+    urlInput.addEventListener('input', () => handleUrlChange(true));
+    urlInput.addEventListener('paste', () => setTimeout(() => {
+      handleUrlChange(false);
+      maybeResolveShareLink(true);
+    }, 30));
+    urlInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const startBtn = document.getElementById('btn-start-videodl');
+        if (startBtn) startBtn.click();
+      }
+    });
+  }
+
+  if (clearBtn && urlInput) {
+    clearBtn.addEventListener('click', () => {
+      urlInput.value = '';
+      urlInput.dispatchEvent(new Event('input'));
+      urlInput.focus();
+    });
+  }
+
+  if (pasteBtn && urlInput) {
+    pasteBtn.addEventListener('click', async () => {
+      let clipText = '';
+      try {
+        clipText = await invoke('get_clipboard_url_cmd');
+      } catch {}
+      if (!clipText) {
+        try {
+          clipText = await navigator.clipboard.readText();
+        } catch {}
+      }
+      const extracted = extractFirstVideoDlHttpUrl(clipText || '');
+      if (extracted && (extracted.startsWith('http://') || extracted.startsWith('https://'))) {
+        urlInput.value = extracted;
+        urlInput.dispatchEvent(new Event('input'));
+      } else {
+        alert('No valid HTTP/HTTPS video URL found on the clipboard.');
+      }
+    });
+  }
+
+  // Full channel checkbox toggle warning
+  const chkFull = document.getElementById('videodl-full-channel');
+  const warnBanner = document.getElementById('videodl-channel-warning');
+  const limitInput = document.getElementById('videodl-channel-limit');
+  if (chkFull) {
+    chkFull.addEventListener('change', () => {
+      if (chkFull.checked) {
+        if (warnBanner) warnBanner.classList.remove('hidden');
+        if (limitInput) limitInput.disabled = true;
+      } else {
+        if (warnBanner) warnBanner.classList.add('hidden');
+        if (limitInput) limitInput.disabled = false;
+      }
+    });
+  }
+
+  // Start Download Button
+  const btnStart = document.getElementById('btn-start-videodl');
+  if (btnStart) {
+    btnStart.addEventListener('click', async () => {
+      const url = urlInput ? extractFirstVideoDlHttpUrl(urlInput.value) : '';
+      if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+        alert('Please enter a valid video or channel URL starting with http:// or https://');
+        if (urlInput) urlInput.focus();
+        return;
+      }
+
+      const qualitySelect = document.getElementById('videodl-quality-preset');
+      const quality = qualitySelect ? qualitySelect.value : 'best';
+
+      const outDisplay = document.getElementById('videodl-output-dir-display');
+      let targetDir = outDisplay ? outDisplay.textContent.trim() : null;
+      if (!targetDir || targetDir === 'Downloads/Pizza-Converter') targetDir = null;
+
+      const isFull = chkFull ? chkFull.checked : true;
+      let channelLimit = null;
+      if (!isFull) {
+        channelLimit = limitInput ? (parseInt(limitInput.value) || 50) : 50;
+      }
+
+      const tglSub = document.getElementById('tgl-videodl-embed-subtitles');
+      const embedSubtitles = (tglSub && tglSub.getAttribute('aria-pressed') === 'true') || quality === 'subtitles';
+
+      const custNameInput = document.getElementById('videodl-custom-filename');
+      const customFilename = custNameInput && custNameInput.value.trim() ? custNameInput.value.trim() : null;
+
+      btnStart.disabled = true;
+      const startLbl = document.getElementById('btn-videodl-start-label');
+      if (startLbl) startLbl.textContent = 'Starting Download...';
+
+      try {
+        const taskId = await invoke('video_dl_start', {
+          request: {
+            url: url,
+            quality: quality,
+            target_dir: targetDir,
+            channel_limit: channelLimit,
+            embed_subtitles: embedSubtitles,
+            custom_filename: customFilename
+          }
+        });
+
+        // Initialize active download card
+        updateActiveDlCard({
+          task_id: taskId,
+          url: url,
+          status: 'downloading',
+          percent: 0,
+          speed: '0 KiB/s',
+          eta: '--:--',
+          downloaded_bytes: 0,
+          total_bytes: 0,
+          title: customFilename || url,
+          stage: 'Initializing'
+        });
+
+        // Clear URL input
+        if (urlInput) {
+          urlInput.value = '';
+          urlInput.dispatchEvent(new Event('input'));
+        }
+      } catch (err) {
+        alert('Failed to start download: ' + err);
+      } finally {
+        btnStart.disabled = false;
+        if (startLbl) startLbl.textContent = 'Download Video';
+      }
+    });
+  }
+
+  // Subtitle Toggle
+  const tglSub = document.getElementById('tgl-videodl-embed-subtitles');
+  if (tglSub) {
+    tglSub.addEventListener('click', () => {
+      const cur = tglSub.getAttribute('aria-pressed') === 'true';
+      tglSub.setAttribute('aria-pressed', (!cur).toString());
+    });
+  }
+
+  // Clear History Button
+  const btnClearHistory = document.getElementById('btn-clear-videodl-history');
+  if (btnClearHistory) {
+    btnClearHistory.addEventListener('click', async () => {
+      if (globalVideoDlHistory.length === 0) return;
+      if (confirm('Are you sure you want to clear all download history records? (This does not delete files from your disk)')) {
+        try {
+          await invoke('video_dl_clear_history');
+          await loadVideoDlHistory();
+        } catch (err) {
+          alert('Could not clear history: ' + err);
+        }
+      }
+    });
+  }
+
+  // Filter toolbar listeners
+  const histSearch = document.getElementById('videodl-history-search');
+  const clearSearchBtn = document.getElementById('btn-videodl-clear-search');
+  if (histSearch) {
+    histSearch.addEventListener('input', () => {
+      if (clearSearchBtn) {
+        if (histSearch.value) clearSearchBtn.classList.remove('hidden');
+        else clearSearchBtn.classList.add('hidden');
+      }
+      renderVideoDlHistory();
+    });
+  }
+  if (clearSearchBtn && histSearch) {
+    clearSearchBtn.addEventListener('click', () => {
+      histSearch.value = '';
+      clearSearchBtn.classList.add('hidden');
+      renderVideoDlHistory();
+      histSearch.focus();
+    });
+  }
+
+  const platFilter = document.getElementById('videodl-history-platform-filter');
+  if (platFilter) platFilter.addEventListener('change', renderVideoDlHistory);
+
+  const statusFilter = document.getElementById('videodl-history-status-filter');
+  if (statusFilter) statusFilter.addEventListener('change', renderVideoDlHistory);
+
+  // Delete modal buttons
+  const modal = document.getElementById('videodl-delete-modal');
+  const btnCloseModal = document.getElementById('btn-close-del-modal');
+  const btnCancelDel = document.getElementById('btn-cancel-del');
+  const btnConfirmDel = document.getElementById('btn-confirm-del');
+  const chkAlsoFile = document.getElementById('chk-del-also-file');
+
+  const hideDeleteModal = () => {
+    deleteCandidateItem = null;
+    if (modal) modal.classList.add('hidden');
+  };
+
+  if (btnCloseModal) btnCloseModal.addEventListener('click', hideDeleteModal);
+  if (btnCancelDel) btnCancelDel.addEventListener('click', hideDeleteModal);
+
+  if (btnConfirmDel) {
+    btnConfirmDel.addEventListener('click', async () => {
+      if (!deleteCandidateItem) {
+        hideDeleteModal();
+        return;
+      }
+      const deleteFile = chkAlsoFile ? chkAlsoFile.checked : false;
+      const itemId = deleteCandidateItem.id;
+      btnConfirmDel.disabled = true;
+      btnConfirmDel.textContent = 'Deleting...';
+      try {
+        await invoke('video_dl_delete_history', { id: itemId, deleteFile: deleteFile });
+        await loadVideoDlHistory();
+      } catch (err) {
+        alert('Could not delete history record: ' + err);
+      } finally {
+        btnConfirmDel.disabled = false;
+        btnConfirmDel.textContent = 'Delete';
+        hideDeleteModal();
+      }
+    });
+  }
+
+  // Tauri Event Listeners
+  if (window.__TAURI__ && window.__TAURI__.event && window.__TAURI__.event.listen) {
+    window.__TAURI__.event.listen('video-download-progress', (e) => {
+      if (e && e.payload) {
+        updateActiveDlCard(e.payload);
+      }
+    }).catch(() => {});
+
+    window.__TAURI__.event.listen('video-download-complete', (e) => {
+      if (e && e.payload && e.payload.task_id) {
+        removeActiveDlCard(e.payload.task_id);
+      }
+      loadVideoDlHistory();
+      if (e && e.payload && e.payload.item) {
+        const item = e.payload.item;
+        const fmt = String(item.format || 'video').toUpperCase();
+        showShortcutToast(`✓ Downloaded ${fmt}: ${item.title || ''}`, true);
+      }
+    }).catch(() => {});
+
+    window.__TAURI__.event.listen('video-download-error', (e) => {
+      if (e && e.payload && e.payload.task_id) {
+        const card = document.getElementById(`active-card-${e.payload.task_id}`);
+        if (card) {
+          const stg = card.querySelector('.active-dl-stage');
+          if (stg) {
+            stg.textContent = 'Error';
+            stg.style.color = '#f43f5e';
+          }
+          setTimeout(() => removeActiveDlCard(e.payload.task_id), 3000);
+        }
+      }
+      loadVideoDlHistory();
+    }).catch(() => {});
+  }
+}
+
+function refreshVideoDlTab() {
+  refreshVideoDlEnvStatus();
+  loadVideoDlHistory();
+}
+
+// Initialize on page load
+bindVideoDownloaderEvents();
+
+// ═════════════════════════════════════════════════════════════════════════════
+// VOICE STUDIO LOCAL REST API CONTROLLER
+// ═════════════════════════════════════════════════════════════════════════════
+
+let vapiState = {
+  status: null,
+  keys: [],
+  activeDocTab: 'curl'
+};
+
+async function refreshVoiceApiTab() {
+  await loadVoiceApiStatus();
+  await loadVoiceApiKeys();
+  await populatePlaygroundVoices();
+  updateDocSnippet();
+}
+
+async function loadVoiceApiStatus() {
+  try {
+    const status = await window.__TAURI__.core.invoke('voice_api_get_status');
+    vapiState.status = status;
+
+    const badge = document.getElementById('vapi-status-badge');
+    const toggle = document.getElementById('vapi-toggle-server');
+    const hostSelect = document.getElementById('vapi-select-host');
+    const portInput = document.getElementById('vapi-input-port');
+    const labelBaseUrl = document.getElementById('vapi-label-base-url');
+    const linkHealth = document.getElementById('vapi-link-health-test');
+    const toggleAuth = document.getElementById('vapi-toggle-require-auth');
+
+    if (badge) {
+      if (status.running) {
+        badge.textContent = `● ONLINE (${status.base_url})`;
+        badge.style.background = 'rgba(45,212,191,0.18)';
+        badge.style.borderColor = 'rgba(45,212,191,0.5)';
+        badge.style.color = '#5eead4';
+      } else {
+        badge.textContent = '○ STOPPED';
+        badge.style.background = 'rgba(255,255,255,0.08)';
+        badge.style.borderColor = 'rgba(255,255,255,0.18)';
+        badge.style.color = '#94a3b8';
+      }
+    }
+
+    if (toggle) toggle.setAttribute('aria-pressed', status.enabled ? 'true' : 'false');
+    if (hostSelect && status.host) hostSelect.value = status.host;
+    if (portInput && status.port) portInput.value = status.port;
+    if (labelBaseUrl) labelBaseUrl.textContent = status.base_url;
+    if (linkHealth) linkHealth.href = `${status.base_url}/health`;
+    if (toggleAuth) toggleAuth.setAttribute('aria-pressed', status.require_auth ? 'true' : 'false');
+
+    updateDocSnippet();
+  } catch (err) {
+    console.error('Failed to load voice API status:', err);
+  }
+}
+
+async function loadVoiceApiKeys() {
+  try {
+    const keys = await window.__TAURI__.core.invoke('voice_api_get_keys');
+    vapiState.keys = keys || [];
+    renderVoiceApiKeys(vapiState.keys);
+    updateDocSnippet();
+  } catch (err) {
+    console.error('Failed to load voice API keys:', err);
+  }
+}
+
+function renderVoiceApiKeys(keys) {
+  const container = document.getElementById('vapi-keys-list');
+  if (!container) return;
+
+  if (!keys || !keys.length) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 18px 10px; color: #64748b; font-size: 11.5px; background: rgba(0,0,0,0.18); border-radius: 9px; border: 1px dashed rgba(255,255,255,0.1);">
+        No secret API keys generated yet. Click "➕ Generate New Key" above to create an authentication token.
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = keys.map(k => {
+    const masked = k.key.length > 14 ? `${k.key.slice(0, 11)}...${k.key.slice(-4)}` : k.key;
+    const lastUsedStr = k.last_used ? `Last used: ${k.last_used}` : 'Never used';
+    return `
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(15,23,42,0.65); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; transition: border-color .15s ease;">
+        <div style="display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1;">
+          <span style="font-size: 14px;">🔑</span>
+          <div style="min-width: 0;">
+            <div style="font-size: 11.8px; font-weight: 700; color: #f4f6fb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              ${escapeHtml(k.name)}
+            </div>
+            <div style="font-size: 10.5px; color: #94a3b8; font-family: monospace; display: flex; gap: 8px; align-items: center; margin-top: 1px;">
+              <span style="color: #38bdf8;">${escapeHtml(masked)}</span>
+              <span style="opacity: 0.5;">•</span>
+              <span style="font-size: 9.8px; color: #64748b;">${escapeHtml(k.created_at || '')}</span>
+              <span style="opacity: 0.5;">•</span>
+              <span style="font-size: 9.8px; color: #5eead4;">${escapeHtml(lastUsedStr)}</span>
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <button class="vapi-btn-copy-item sidebar-action-btn" data-key="${escapeHtml(k.key)}" style="padding: 3.5px 9px; font-size: 10.5px;" title="Copy Secret Token">
+            📋 Copy
+          </button>
+          <button class="vapi-btn-delete-item sidebar-action-btn" data-id="${escapeHtml(k.id)}" style="padding: 3.5px 9px; font-size: 10.5px; color: #f87171; border-color: rgba(248,113,113,0.3); background: rgba(248,113,113,0.1);" title="Revoke Key">
+            🗑️ Revoke
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.querySelectorAll('.vapi-btn-copy-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const keyVal = btn.dataset.key;
+      if (keyVal) {
+        navigator.clipboard.writeText(keyVal).then(() => {
+          showShortcutToast('✓ API Key copied to clipboard', true);
+        }).catch(() => {});
+      }
+    });
+  });
+
+  container.querySelectorAll('.vapi-btn-delete-item').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const keyId = btn.dataset.id;
+      if (!keyId) return;
+      try {
+        const remaining = await window.__TAURI__.core.invoke('voice_api_delete_key', { id: keyId });
+        vapiState.keys = remaining || [];
+        renderVoiceApiKeys(vapiState.keys);
+        showShortcutToast('✓ API Key revoked successfully', true);
+        updateDocSnippet();
+      } catch (err) {
+        showShortcutToast(`Failed to delete key: ${err}`, false);
+      }
+    });
+  });
+}
+
+async function populatePlaygroundVoices() {
+  const sel = document.getElementById('vapi-test-voice-select');
+  if (!sel) return;
+
+  try {
+    const profiles = await window.__TAURI__.core.invoke('voice_studio_get_profiles');
+    if (!profiles || !profiles.length) return;
+
+    const cloned = profiles.filter(p => p.type === 'cloned');
+    const curated = profiles.filter(p => p.type !== 'cloned');
+
+    let html = '';
+    if (cloned.length) {
+      html += `<optgroup label="🧬 Custom Voice Clones">`;
+      cloned.forEach(p => {
+        html += `<option value="${escapeHtml(p.id)}">🧬 ${escapeHtml(p.name)} (${escapeHtml(p.lang || 'vi')})</option>`;
+      });
+      html += `</optgroup>`;
+    }
+
+    if (curated.length) {
+      html += `<optgroup label="🎙️ Studio Neural Voices">`;
+      curated.forEach(p => {
+        html += `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`;
+      });
+      html += `</optgroup>`;
+    }
+
+    const prevVal = sel.value;
+    sel.innerHTML = html;
+    if (prevVal && sel.querySelector(`option[value="${prevVal}"]`)) {
+      sel.value = prevVal;
+    }
+  } catch (err) {
+    console.error('Failed to populate voices for playground:', err);
+  }
+}
+
+function updateDocSnippet() {
+  const codeEl = document.getElementById('vapi-code-snippet');
+  if (!codeEl) return;
+
+  const status = vapiState.status || { host: '127.0.0.1', port: 8933, base_url: 'http://127.0.0.1:8933' };
+  const firstKey = vapiState.keys && vapiState.keys.length ? vapiState.keys[0].key : 'pizza_live_your_secret_key';
+  const tab = vapiState.activeDocTab || 'curl';
+
+  let code = '';
+  if (tab === 'curl') {
+    code = `# 1. OpenAI-Compatible Audio Speech (Drop-in Replacement)
+curl -X POST ${status.base_url}/v1/audio/speech \\
+  -H "Authorization: Bearer ${firstKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "tts-1",
+    "voice": "Cuong",
+    "input": "Speech synthesis directly from Pizza Converter Voice API.",
+    "response_format": "mp3",
+    "speed": 1.0
+  }' \\
+  --output speech.mp3`;
+  } else if (tab === 'python') {
+    code = `# Requires official 'openai' library: pip install openai
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="${status.base_url}/v1",
+    api_key="${firstKey}"  # Or any key if auth is disabled
+)
+
+# Streams audio directly into output.mp3
+response = client.audio.speech.create(
+    model="tts-1",
+    voice="Cuong",  # Use any cloned voice or neural voice name
+    input="Hello from Pizza Voice Studio Local REST API!",
+    response_format="mp3",
+    speed=1.0
+)
+response.stream_to_file("speech.mp3")
+print("Saved speech.mp3 successfully!")`;
+  } else if (tab === 'nodejs') {
+    code = `// Requires official 'openai' library: npm install openai
+import fs from "fs";
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  baseURL: "${status.base_url}/v1",
+  apiKey: "${firstKey}",
+});
+
+async function main() {
+  const mp3 = await openai.audio.speech.create({
+    model: "tts-1",
+    voice: "Cuong",
+    input: "Speech generated via local Pizza Converter REST API.",
+    response_format: "mp3",
+  });
+  const buffer = Buffer.from(await mp3.arrayBuffer());
+  await fs.promises.writeFile("speech.mp3", buffer);
+  console.log("Saved speech.mp3 successfully!");
+}
+main();`;
+  } else if (tab === 'voices') {
+    code = `# List all available curated & custom cloned voice profiles
+curl -X GET ${status.base_url}/v1/models \\
+  -H "Authorization: Bearer ${firstKey}"
+
+# Or direct Pizza voices endpoint:
+curl -X GET ${status.base_url}/api/voices`;
+  }
+
+  codeEl.textContent = code;
+}
+
+function bindVoiceApiEvents() {
+  // Toggle Server
+  const toggleServer = document.getElementById('vapi-toggle-server');
+  if (toggleServer) {
+    toggleServer.addEventListener('click', async () => {
+      const cur = toggleServer.getAttribute('aria-pressed') === 'true';
+      const next = !cur;
+      toggleServer.setAttribute('aria-pressed', next ? 'true' : 'false');
+      try {
+        const status = await window.__TAURI__.core.invoke('voice_api_set_enabled', { enabled: next });
+        vapiState.status = status;
+        await loadVoiceApiStatus();
+        showShortcutToast(next ? '✓ Voice API server started' : 'Voice API server stopped', true);
+      } catch (err) {
+        showShortcutToast(`Server toggle error: ${err}`, false);
+      }
+    });
+  }
+
+  // Apply Server Host & Port
+  const btnApplyServer = document.getElementById('vapi-btn-apply-server');
+  if (btnApplyServer) {
+    btnApplyServer.addEventListener('click', async () => {
+      const host = document.getElementById('vapi-select-host').value;
+      const portVal = parseInt(document.getElementById('vapi-input-port').value, 10) || 8933;
+      try {
+        const status = await window.__TAURI__.core.invoke('voice_api_set_config', {
+          host: host,
+          port: portVal,
+          requireAuth: null
+        });
+        vapiState.status = status;
+        await loadVoiceApiStatus();
+        showShortcutToast(`✓ Applied: ${status.base_url}`, true);
+      } catch (err) {
+        showShortcutToast(`Failed to update config: ${err}`, false);
+      }
+    });
+  }
+
+  // Toggle Require Auth
+  const toggleAuth = document.getElementById('vapi-toggle-require-auth');
+  if (toggleAuth) {
+    toggleAuth.addEventListener('click', async () => {
+      const cur = toggleAuth.getAttribute('aria-pressed') === 'true';
+      const next = !cur;
+      toggleAuth.setAttribute('aria-pressed', next ? 'true' : 'false');
+      try {
+        const status = await window.__TAURI__.core.invoke('voice_api_set_config', {
+          host: null,
+          port: null,
+          requireAuth: next
+        });
+        vapiState.status = status;
+        showShortcutToast(next ? '✓ Authentication required (Bearer token)' : 'Authentication disabled (open local access)', true);
+      } catch (err) {
+        showShortcutToast(`Failed to update auth: ${err}`, false);
+      }
+    });
+  }
+
+  // Copy Base URL
+  const btnCopyBase = document.getElementById('vapi-btn-copy-base-url');
+  if (btnCopyBase) {
+    btnCopyBase.addEventListener('click', () => {
+      const u = vapiState.status ? vapiState.status.base_url : 'http://127.0.0.1:8933';
+      navigator.clipboard.writeText(u).then(() => {
+        showShortcutToast(`✓ Copied ${u}`, true);
+      }).catch(() => {});
+    });
+  }
+
+  // Show / Hide Key Drawer
+  const btnShowCreate = document.getElementById('vapi-btn-show-create-key');
+  const drawer = document.getElementById('vapi-create-key-drawer');
+  const btnCancelKey = document.getElementById('vapi-btn-cancel-new-key');
+  const btnSubmitKey = document.getElementById('vapi-btn-submit-new-key');
+  const keyNameInput = document.getElementById('vapi-new-key-name');
+  const revealBox = document.getElementById('vapi-key-reveal-box');
+  const revealInput = document.getElementById('vapi-reveal-token-input');
+  const btnCopyReveal = document.getElementById('vapi-btn-copy-reveal-token');
+
+  if (btnShowCreate && drawer) {
+    btnShowCreate.addEventListener('click', () => {
+      drawer.style.display = drawer.style.display === 'none' ? 'block' : 'none';
+      if (keyNameInput) {
+        keyNameInput.value = '';
+        keyNameInput.focus();
+      }
+    });
+  }
+
+  if (btnCancelKey && drawer) {
+    btnCancelKey.addEventListener('click', () => {
+      drawer.style.display = 'none';
+    });
+  }
+
+  if (btnSubmitKey && keyNameInput) {
+    btnSubmitKey.addEventListener('click', async () => {
+      const name = keyNameInput.value.trim();
+      try {
+        const newKey = await window.__TAURI__.core.invoke('voice_api_create_key', { name });
+        if (drawer) drawer.style.display = 'none';
+        if (revealBox && revealInput) {
+          revealInput.value = newKey.key;
+          revealBox.style.display = 'block';
+        }
+        await loadVoiceApiKeys();
+        showShortcutToast('✓ API Key created!', true);
+      } catch (err) {
+        showShortcutToast(`Key creation failed: ${err}`, false);
+      }
+    });
+  }
+
+  if (btnCopyReveal && revealInput) {
+    btnCopyReveal.addEventListener('click', () => {
+      if (revealInput.value) {
+        navigator.clipboard.writeText(revealInput.value).then(() => {
+          showShortcutToast('✓ Copied secret key to clipboard', true);
+        }).catch(() => {});
+      }
+    });
+  }
+
+  // Doc Tabs
+  const docTabs = document.getElementById('vapi-doc-tabs');
+  if (docTabs) {
+    docTabs.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        docTabs.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        vapiState.activeDocTab = btn.dataset.tab;
+        updateDocSnippet();
+      });
+    });
+  }
+
+  // Copy Code
+  const btnCopyCode = document.getElementById('vapi-btn-copy-code');
+  if (btnCopyCode) {
+    btnCopyCode.addEventListener('click', () => {
+      const codeEl = document.getElementById('vapi-code-snippet');
+      if (codeEl) {
+        navigator.clipboard.writeText(codeEl.textContent).then(() => {
+          showShortcutToast('✓ Code snippet copied to clipboard', true);
+        }).catch(() => {});
+      }
+    });
+  }
+
+  // Live Playground Test Run
+  const btnTestRun = document.getElementById('vapi-btn-run-test');
+  const testText = document.getElementById('vapi-test-text');
+  const testVoice = document.getElementById('vapi-test-voice-select');
+  const testFormat = document.getElementById('vapi-test-format');
+  const testStatus = document.getElementById('vapi-test-status-pill');
+  const testAudio = document.getElementById('vapi-test-audio-player');
+
+  if (btnTestRun) {
+    btnTestRun.addEventListener('click', async () => {
+      const text = testText ? testText.value.trim() : '';
+      if (!text) {
+        showShortcutToast('Please enter text to test', false);
+        return;
+      }
+      const voice = testVoice ? testVoice.value : '';
+      const fmt = testFormat ? testFormat.value : 'mp3';
+      const status = vapiState.status || { base_url: 'http://127.0.0.1:8933' };
+
+      btnTestRun.disabled = true;
+      if (testStatus) {
+        testStatus.textContent = 'Synthesizing...';
+        testStatus.style.color = '#38bdf8';
+      }
+
+      const t0 = performance.now();
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (vapiState.status && vapiState.status.require_auth && vapiState.keys && vapiState.keys.length) {
+          headers['Authorization'] = `Bearer ${vapiState.keys[0].key}`;
+        }
+
+        const res = await fetch(`${status.base_url}/v1/audio/speech`, {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify({
+            model: 'tts-1',
+            input: text,
+            voice: voice,
+            response_format: fmt,
+            speed: 1.0
+          })
+        });
+
+        const elapsed = Math.round(performance.now() - t0);
+        if (!res.ok) {
+          const errJson = await res.json().catch(() => ({}));
+          const errMsg = errJson && errJson.error ? errJson.error.message : `HTTP ${res.status}`;
+          if (testStatus) {
+            testStatus.textContent = `Error ${res.status}: ${errMsg}`;
+            testStatus.style.color = '#f87171';
+          }
+          return;
+        }
+
+        const blob = await res.blob();
+        const objUrl = URL.createObjectURL(blob);
+        if (testAudio) {
+          testAudio.src = objUrl;
+          testAudio.style.display = 'block';
+          testAudio.play().catch(() => {});
+        }
+        if (testStatus) {
+          testStatus.textContent = `✓ 200 OK (${elapsed}ms · ${(blob.size / 1024).toFixed(1)} KB)`;
+          testStatus.style.color = '#5eead4';
+        }
+      } catch (err) {
+        if (testStatus) {
+          testStatus.textContent = `Request failed: ${err.message || err}`;
+          testStatus.style.color = '#f87171';
+        }
+      } finally {
+        btnTestRun.disabled = false;
+      }
+    });
+  }
+}
+
+// Bind Voice API listeners on load
+bindVoiceApiEvents();
+
+// ==========================================
+// AI AUTO MONTAGE & SMART CUT STUDIO ENGINE
+// ==========================================
+let montageState = {
+  aspect: '16:9',
+  cut_fillers: true,
+  cut_stutters: true,
+  max_silence: 0.35,
+  logo_enabled: false,
+  logo_path: '',
+  logo_pos: 'top-right',
+  logo_scale: 14,
+  logo_opacity: 85,
+  caption_enabled: true,
+  caption_style: 'beasty',
+  srt_path: '',
+  director_mode: 'smart_story',
+  story_arc: 'viral_reel',
+  ai_provider: 'gemini',
+  ai_api_key: '',
+  intro_enabled: false,
+  intro_path: '',
+  outro_enabled: false,
+  outro_path: ''
+};
+
+function getMontageHistory() {
+  try {
+    const raw = localStorage.getItem('pizza_montage_history');
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function addMontageHistoryItem(item) {
+  try {
+    if (!item || !item.path) return;
+    const list = getMontageHistory().filter(h => h.path !== item.path);
+    list.unshift(item);
+    if (list.length > 50) list.pop();
+    localStorage.setItem('pizza_montage_history', JSON.stringify(list));
+  } catch (e) {
+    console.warn('addMontageHistoryItem error:', e);
+  }
+}
+
+function renderMontageHistory() {
+  const listEl = document.getElementById('montage-hist-list');
+  const countEl = document.getElementById('montage-hist-count');
+  const history = getMontageHistory();
+  if (countEl) countEl.textContent = history.length;
+  if (!listEl) return;
+
+  if (history.length === 0) {
+    listEl.innerHTML = `
+      <div class="montage-hist-empty">
+        <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.6" style="opacity:0.35; margin-bottom:6px;"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>
+        <div>No rendered montages yet.</div>
+        <div style="font-size: 10px; opacity:0.6; margin-top:2px;">Rendered videos will appear here with quick playback & folder shortcuts.</div>
+      </div>
+    `;
+    return;
+  }
+
+  listEl.innerHTML = history.map((item, idx) => {
+    const dateStr = item.time ? new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' }) : '';
+    const safePath = (item.path || '').replace(/"/g, '&quot;');
+    return `
+      <div class="montage-hist-item" data-idx="${idx}">
+        <div class="montage-hist-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </div>
+        <div class="montage-hist-info">
+          <div class="montage-hist-name" title="${safePath}">${item.name || 'Montage Output.mp4'}</div>
+          <div class="montage-hist-meta">
+            <span class="montage-hist-aspect-pill">${item.aspect || '16:9'}</span>
+            <span>${dateStr}</span>
+          </div>
+        </div>
+        <div class="montage-hist-actions">
+          <button class="btn-hist-action btn-play" title="Play Video" data-path="${safePath}">▶ Play</button>
+          <button class="btn-hist-action btn-folder" title="Show in Folder" data-path="${safePath}">📁</button>
+          <button class="btn-hist-action btn-del" title="Remove from History" data-idx="${idx}">✕</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  listEl.querySelectorAll('.btn-play').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = btn.dataset.path;
+      if (p) invoke('open_file', { path: p }).catch(e => console.warn('open_file error:', e));
+    });
+  });
+  listEl.querySelectorAll('.btn-folder').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = btn.dataset.path;
+      if (p) invoke('show_in_folder', { path: p }).catch(e => console.warn('show_in_folder error:', e));
+    });
+  });
+  listEl.querySelectorAll('.btn-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx, 10);
+      const list = getMontageHistory();
+      list.splice(idx, 1);
+      localStorage.setItem('pizza_montage_history', JSON.stringify(list));
+      renderMontageHistory();
+    });
+  });
+}
+
+async function refreshAutoMontageTab() {
+  try {
+    const cfg = await invoke('get_config').catch(() => ({}));
+    montageState.aspect = cfg.montage_aspect || '16:9';
+    montageState.cut_fillers = cfg.montage_clean_fillers !== false;
+    montageState.cut_stutters = cfg.montage_remove_repetition !== false;
+    montageState.max_silence = typeof cfg.montage_max_silence === 'number' ? cfg.montage_max_silence : 0.35;
+    montageState.logo_enabled = !!cfg.montage_logo_enabled;
+    montageState.logo_path = cfg.montage_logo_path || '';
+    montageState.logo_pos = cfg.montage_logo_position || 'top-right';
+    montageState.logo_scale = cfg.montage_logo_scale || 14;
+    montageState.logo_opacity = typeof cfg.montage_logo_opacity === 'number' ? cfg.montage_logo_opacity : 85;
+    montageState.caption_enabled = cfg.montage_captions_enabled !== false;
+    montageState.caption_style = cfg.montage_cap_style || 'beasty';
+    montageState.srt_path = cfg.montage_caption_path || '';
+    montageState.director_mode = cfg.montage_director_mode || 'smart_story';
+    montageState.story_arc = cfg.montage_story_arc || 'viral_reel';
+    montageState.ai_provider = cfg.montage_ai_provider || 'gemini';
+    montageState.ai_api_key = cfg.montage_ai_api_key || '';
+    montageState.intro_enabled = !!cfg.montage_intro_enabled;
+    montageState.intro_path = cfg.montage_intro_path || '';
+    montageState.outro_enabled = !!cfg.montage_outro_enabled;
+    montageState.outro_path = cfg.montage_outro_path || '';
+
+    // Update UI Form Controls
+    document.querySelectorAll('#montage-aspect-segmented .seg-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.aspect === montageState.aspect);
+    });
+
+    // Director & Sequencing Controls
+    document.querySelectorAll('#montage-director-mode-segmented .seg-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === montageState.director_mode);
+    });
+    const selStoryArc = document.getElementById('sel-montage-story-arc');
+    if (selStoryArc) selStoryArc.value = montageState.story_arc;
+    const selAiProvider = document.getElementById('sel-montage-ai-provider');
+    if (selAiProvider) selAiProvider.value = montageState.ai_provider;
+
+    // Dynamically show/hide fields based on mode
+    const rowStoryArc = document.getElementById('row-montage-story-arc');
+    const rowAiProvider = document.getElementById('row-montage-ai-provider');
+    const rowAiKey = document.getElementById('row-montage-ai-key');
+    if (rowStoryArc) rowStoryArc.style.display = (montageState.director_mode === 'smart_story') ? 'flex' : 'none';
+    if (rowAiProvider) rowAiProvider.style.display = (montageState.director_mode === 'smart_story') ? 'flex' : 'none';
+    if (rowAiKey) rowAiKey.style.display = (montageState.director_mode === 'smart_story' && montageState.ai_provider !== 'local_offline') ? 'flex' : 'none';
+    if (typeof window.refreshMontageVaultPill === 'function') window.refreshMontageVaultPill();
+
+    const tglFillers = document.getElementById('tgl-montage-cut-fillers');
+    if (tglFillers) setToggle(tglFillers, montageState.cut_fillers);
+    const tglStutters = document.getElementById('tgl-montage-cut-stutters');
+    if (tglStutters) setToggle(tglStutters, montageState.cut_stutters);
+    const inpSilence = document.getElementById('inp-montage-max-silence');
+    if (inpSilence) inpSilence.value = montageState.max_silence;
+
+    const tglLogo = document.getElementById('tgl-montage-logo-enable');
+    if (tglLogo) setToggle(tglLogo, montageState.logo_enabled);
+    const inpLogoPath = document.getElementById('inp-montage-logo-path');
+    if (inpLogoPath) inpLogoPath.value = montageState.logo_path;
+    const selLogoPos = document.getElementById('sel-montage-logo-pos');
+    if (selLogoPos) selLogoPos.value = montageState.logo_pos;
+    const rngLogoScale = document.getElementById('rng-montage-logo-scale');
+    if (rngLogoScale) rngLogoScale.value = montageState.logo_scale;
+    const lblLogoScale = document.getElementById('lbl-montage-logo-scale');
+    if (lblLogoScale) lblLogoScale.textContent = `${montageState.logo_scale}%`;
+    const rngLogoOpacity = document.getElementById('rng-montage-logo-opacity');
+    if (rngLogoOpacity) rngLogoOpacity.value = montageState.logo_opacity;
+    const lblLogoOpacity = document.getElementById('lbl-montage-logo-opacity');
+    if (lblLogoOpacity) lblLogoOpacity.textContent = `${montageState.logo_opacity}%`;
+
+    const tglCap = document.getElementById('tgl-montage-caption-enable');
+    if (tglCap) setToggle(tglCap, montageState.caption_enabled);
+    
+    // Update caption chips
+    document.querySelectorAll('#montage-cap-chips .montage-cap-chip').forEach(chip => {
+      chip.classList.toggle('active', chip.dataset.style === montageState.caption_style);
+    });
+
+    const inpSrtPath = document.getElementById('inp-montage-srt-path');
+    if (inpSrtPath) inpSrtPath.value = montageState.srt_path;
+
+    const tglIntro = document.getElementById('tgl-montage-intro-enable');
+    if (tglIntro) setToggle(tglIntro, montageState.intro_enabled);
+    const inpIntroPath = document.getElementById('inp-montage-intro-path');
+    if (inpIntroPath) inpIntroPath.value = montageState.intro_path;
+
+    const tglOutro = document.getElementById('tgl-montage-outro-enable');
+    if (tglOutro) setToggle(tglOutro, montageState.outro_enabled);
+    const inpOutroPath = document.getElementById('inp-montage-outro-path');
+    if (inpOutroPath) inpOutroPath.value = montageState.outro_path;
+
+    updateMontageLivePreview();
+    renderMontageHistory();
+  } catch (err) {
+    console.warn('refreshAutoMontageTab error:', err);
+  }
+}
+
+function updateMontageLivePreview() {
+  const frame = document.getElementById('montage-canvas-frame');
+  if (frame) frame.dataset.aspect = montageState.aspect;
+
+  // Watermark Logo via Base64 data URL
+  const logoBox = document.getElementById('montage-preview-logo-box');
+  const logoImg = document.getElementById('montage-preview-logo-img');
+  const logoPlaceholder = document.getElementById('montage-preview-logo-placeholder');
+  if (logoBox) {
+    if (montageState.logo_enabled) {
+      logoBox.style.display = 'flex';
+      logoBox.style.top = montageState.logo_pos.includes('top') ? '12px' : 'auto';
+      logoBox.style.bottom = montageState.logo_pos.includes('bottom') ? '12px' : 'auto';
+      logoBox.style.left = montageState.logo_pos.includes('left') ? '12px' : 'auto';
+      logoBox.style.right = montageState.logo_pos.includes('right') ? '12px' : 'auto';
+      logoBox.style.opacity = (montageState.logo_opacity / 100).toString();
+      
+      const scalePct = montageState.logo_scale || 14;
+      logoBox.style.maxWidth = `${Math.max(12, scalePct * 1.5)}%`;
+
+      if (montageState.logo_path && montageState.logo_path.trim().length > 0) {
+        invoke('get_image_data_url_cmd', { path: montageState.logo_path })
+          .then(dataUrl => {
+            if (dataUrl && logoImg) {
+              logoImg.src = dataUrl;
+              logoImg.style.display = 'block';
+              if (logoPlaceholder) logoPlaceholder.style.display = 'none';
+            }
+          })
+          .catch(() => {
+            if (logoImg) logoImg.style.display = 'none';
+            if (logoPlaceholder) logoPlaceholder.style.display = 'block';
+          });
+      } else {
+        if (logoImg) logoImg.style.display = 'none';
+        if (logoPlaceholder) logoPlaceholder.style.display = 'block';
+      }
+    } else {
+      logoBox.style.display = 'none';
+    }
+  }
+
+  // Caption Styling (All 8 Styles)
+  const capBox = document.getElementById('montage-preview-caption-box');
+  const capText = document.getElementById('montage-preview-caption-text');
+  if (capBox && capText) {
+    if (montageState.caption_enabled) {
+      capBox.style.display = 'flex';
+      const styleName = montageState.caption_style || 'beasty';
+      capText.className = `montage-caption-text style-${styleName}`;
+    } else {
+      capBox.style.display = 'none';
+    }
+  }
+
+  // Bumper Badges & Timeline Strip
+  const badgeIntro = document.getElementById('montage-badge-intro');
+  const badgeOutro = document.getElementById('montage-badge-outro');
+  const tlBlockIntro = document.getElementById('tl-block-intro');
+  const tlIntroStatus = document.getElementById('tl-intro-status');
+  const tlBlockOutro = document.getElementById('tl-block-outro');
+  const tlOutroStatus = document.getElementById('tl-outro-status');
+  const tlMainSub = document.getElementById('tl-main-sub');
+
+  const hasIntro = montageState.intro_enabled && montageState.intro_path.trim().length > 0;
+  const hasOutro = montageState.outro_enabled && montageState.outro_path.trim().length > 0;
+
+  if (badgeIntro) badgeIntro.style.display = hasIntro ? 'block' : 'none';
+  if (badgeOutro) badgeOutro.style.display = hasOutro ? 'block' : 'none';
+
+  if (tlBlockIntro) tlBlockIntro.classList.toggle('active', hasIntro);
+  if (tlIntroStatus) {
+    if (hasIntro) {
+      const parts = montageState.intro_path.replace(/\\/g, '/').split('/');
+      tlIntroStatus.textContent = parts[parts.length - 1];
+    } else {
+      tlIntroStatus.textContent = 'Disabled';
+    }
+  }
+
+  if (tlBlockOutro) tlBlockOutro.classList.toggle('active', hasOutro);
+  if (tlOutroStatus) {
+    if (hasOutro) {
+      const parts = montageState.outro_path.replace(/\\/g, '/').split('/');
+      tlOutroStatus.textContent = parts[parts.length - 1];
+    } else {
+      tlOutroStatus.textContent = 'Disabled';
+    }
+  }
+
+  if (tlMainSub) {
+    tlMainSub.textContent = `${montageState.aspect} · ${montageState.cut_fillers ? 'No Fillers' : 'Keep Fillers'} · ${montageState.max_silence}s Max Gap`;
+  }
+}
+
+async function saveMontageConfig() {
+  try {
+    const rowStoryArc = document.getElementById('row-montage-story-arc');
+    const rowAiProvider = document.getElementById('row-montage-ai-provider');
+    const rowAiKey = document.getElementById('row-montage-ai-key');
+    if (rowStoryArc) rowStoryArc.style.display = (montageState.director_mode === 'smart_story') ? 'flex' : 'none';
+    if (rowAiProvider) rowAiProvider.style.display = (montageState.director_mode === 'smart_story') ? 'flex' : 'none';
+    if (rowAiKey) rowAiKey.style.display = (montageState.director_mode === 'smart_story' && montageState.ai_provider !== 'local_offline') ? 'flex' : 'none';
+
+    await invoke('set_montage_config', {
+      aspect: montageState.aspect,
+      cleanFillers: montageState.cut_fillers,
+      removeRepetition: montageState.cut_stutters,
+      maxSilence: montageState.max_silence,
+      logoEnabled: montageState.logo_enabled,
+      logoPath: montageState.logo_path,
+      logoPosition: montageState.logo_pos,
+      logoScale: montageState.logo_scale,
+      logoOpacity: montageState.logo_opacity,
+      captionsEnabled: montageState.caption_enabled,
+      capStyle: montageState.caption_style,
+      captionPath: montageState.srt_path,
+      directorMode: montageState.director_mode,
+      storyArc: montageState.story_arc,
+      aiProvider: montageState.ai_provider,
+      aiApiKey: montageState.ai_api_key,
+      introEnabled: montageState.intro_enabled,
+      introPath: montageState.intro_path,
+      outroEnabled: montageState.outro_enabled,
+      outroPath: montageState.outro_path
+    });
+    updateMontageLivePreview();
+  } catch (err) {
+    console.warn('saveMontageConfig error:', err);
+  }
+}
+
+function bindAutoMontageEvents() {
+  // Aspect buttons
+  document.querySelectorAll('#montage-aspect-segmented .seg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#montage-aspect-segmented .seg-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      montageState.aspect = btn.dataset.aspect || '16:9';
+      saveMontageConfig();
+    });
+  });
+
+  // Story Director mode buttons
+  document.querySelectorAll('#montage-director-mode-segmented .seg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#montage-director-mode-segmented .seg-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      montageState.director_mode = btn.dataset.mode || 'smart_story';
+      saveMontageConfig();
+    });
+  });
+
+  const selStoryArc = document.getElementById('sel-montage-story-arc');
+  if (selStoryArc) {
+    selStoryArc.addEventListener('change', () => {
+      montageState.story_arc = selStoryArc.value;
+      saveMontageConfig();
+    });
+  }
+
+  const selAiProv = document.getElementById('sel-montage-ai-provider');
+  if (selAiProv) {
+    selAiProv.addEventListener('change', () => {
+      montageState.ai_provider = selAiProv.value;
+      saveMontageConfig();
+      if (typeof window.refreshMontageVaultPill === 'function') window.refreshMontageVaultPill();
+    });
+  }
+
+  window.refreshMontageVaultPill = async function refreshMontageVaultPill() {
+    const pill = document.getElementById('montage-vault-status-pill');
+    if (!pill) return;
+    const prov = montageState.ai_provider || 'gemini';
+    if (prov === 'local_offline') {
+      pill.className = 'cai-status-pill ok';
+      pill.textContent = '✓ Local Offline Ready';
+      return;
+    }
+    try {
+      const st = await invoke('cloud_ai_get_state');
+      const pInfo = st && st.providers && st.providers[prov];
+      const provLabel = prov.toUpperCase();
+      if (pInfo && pInfo.has_key && pInfo.verified) {
+        pill.className = 'cai-status-pill ok';
+        pill.textContent = `✓ ${provLabel} Vault Key Active`;
+      } else if (pInfo && pInfo.has_key) {
+        pill.className = 'cai-status-pill saved';
+        pill.textContent = `● ${provLabel} Key Saved in Vault`;
+      } else {
+        pill.className = 'cai-status-pill none';
+        pill.textContent = `○ No ${provLabel} Key (Fallback: Offline)`;
+      }
+    } catch {
+      pill.className = 'cai-status-pill none';
+      pill.textContent = '○ OS Vault Ready';
+    }
+  };
+  window.refreshMontageVaultPill();
+
+  const btnGotoCloudAi = document.getElementById('btn-montage-goto-cloudai');
+  if (btnGotoCloudAi) {
+    btnGotoCloudAi.addEventListener('click', () => {
+      const navCloudAi = document.querySelector('.nav-item[data-view="cloudai"]');
+      if (navCloudAi) navCloudAi.click();
+    });
+  }
+
+  // Toggles
+  const bindTgl = (id, key) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('click', () => {
+      const cur = el.getAttribute('aria-pressed') === 'true';
+      setToggle(el, !cur);
+      montageState[key] = !cur;
+      saveMontageConfig();
+    });
+  };
+  bindTgl('tgl-montage-cut-fillers', 'cut_fillers');
+  bindTgl('tgl-montage-cut-stutters', 'cut_stutters');
+  bindTgl('tgl-montage-logo-enable', 'logo_enabled');
+  bindTgl('tgl-montage-caption-enable', 'caption_enabled');
+  bindTgl('tgl-montage-intro-enable', 'intro_enabled');
+  bindTgl('tgl-montage-outro-enable', 'outro_enabled');
+
+  // Max silence
+  const inpSilence = document.getElementById('inp-montage-max-silence');
+  if (inpSilence) {
+    inpSilence.addEventListener('change', () => {
+      let val = parseFloat(inpSilence.value);
+      if (isNaN(val) || val < 0.1) val = 0.35;
+      montageState.max_silence = val;
+      saveMontageConfig();
+    });
+  }
+
+  // Logo position & sliders
+  const selLogoPos = document.getElementById('sel-montage-logo-pos');
+  if (selLogoPos) {
+    selLogoPos.addEventListener('change', () => {
+      montageState.logo_pos = selLogoPos.value;
+      saveMontageConfig();
+    });
+  }
+  const rngLogoScale = document.getElementById('rng-montage-logo-scale');
+  const lblLogoScale = document.getElementById('lbl-montage-logo-scale');
+  if (rngLogoScale) {
+    rngLogoScale.addEventListener('input', () => {
+      const val = parseInt(rngLogoScale.value, 10);
+      montageState.logo_scale = val;
+      if (lblLogoScale) lblLogoScale.textContent = `${val}%`;
+      updateMontageLivePreview();
+    });
+    rngLogoScale.addEventListener('change', () => saveMontageConfig());
+  }
+  const rngLogoOpacity = document.getElementById('rng-montage-logo-opacity');
+  const lblLogoOpacity = document.getElementById('lbl-montage-logo-opacity');
+  if (rngLogoOpacity) {
+    rngLogoOpacity.addEventListener('input', () => {
+      const val = parseInt(rngLogoOpacity.value, 10);
+      montageState.logo_opacity = val;
+      if (lblLogoOpacity) lblLogoOpacity.textContent = `${val}%`;
+      updateMontageLivePreview();
+    });
+    rngLogoOpacity.addEventListener('change', () => saveMontageConfig());
+  }
+
+  // Caption chips (8 styles)
+  document.querySelectorAll('#montage-cap-chips .montage-cap-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('#montage-cap-chips .montage-cap-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      montageState.caption_style = chip.dataset.style || 'beasty';
+      saveMontageConfig();
+    });
+  });
+
+  // Sub-tabs: Preview vs History
+  const tabBtnPrev = document.getElementById('tab-btn-montage-preview');
+  const tabBtnHist = document.getElementById('tab-btn-montage-history');
+  const panePrev = document.getElementById('montage-pane-preview');
+  const paneHist = document.getElementById('montage-pane-history');
+
+  if (tabBtnPrev && tabBtnHist && panePrev && paneHist) {
+    tabBtnPrev.addEventListener('click', () => {
+      tabBtnPrev.classList.add('active');
+      tabBtnHist.classList.remove('active');
+      panePrev.style.display = 'block';
+      paneHist.style.display = 'none';
+    });
+    tabBtnHist.addEventListener('click', () => {
+      tabBtnHist.classList.add('active');
+      tabBtnPrev.classList.remove('active');
+      panePrev.style.display = 'none';
+      paneHist.style.display = 'block';
+      renderMontageHistory();
+    });
+  }
+
+  // Clear History
+  const btnClearHist = document.getElementById('btn-montage-clear-history');
+  if (btnClearHist) {
+    btnClearHist.addEventListener('click', () => {
+      localStorage.removeItem('pizza_montage_history');
+      renderMontageHistory();
+    });
+  }
+
+  // File pickers
+  const bindPicker = (btnId, clearBtnId, inpId, key, enableKey, filters) => {
+    const btn = document.getElementById(btnId);
+    const clearBtn = document.getElementById(clearBtnId);
+    const inp = document.getElementById(inpId);
+    if (btn) {
+      btn.addEventListener('click', async () => {
+        try {
+          const picked = await invoke('pick_file', { filters });
+          if (picked) {
+            montageState[key] = picked;
+            if (inp) inp.value = picked;
+            if (enableKey) {
+              montageState[enableKey] = true;
+              const tgl = document.getElementById(`tgl-montage-${enableKey.replace('_enabled', '-enable')}`);
+              if (tgl) setToggle(tgl, true);
+            }
+            saveMontageConfig();
+          }
+        } catch (e) {
+          console.warn('pick_file error:', e);
+        }
+      });
+    }
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        montageState[key] = '';
+        if (inp) inp.value = '';
+        saveMontageConfig();
+      });
+    }
+  };
+
+  bindPicker('btn-montage-browse-logo', 'btn-montage-clear-logo', 'inp-montage-logo-path', 'logo_path', 'logo_enabled', [{ name: 'Image', extensions: ['png', 'jpg', 'jpeg', 'webp', 'svg'] }]);
+  bindPicker('btn-montage-browse-srt', 'btn-montage-clear-srt', 'inp-montage-srt-path', 'srt_path', null, [{ name: 'Subtitles', extensions: ['srt', 'vtt'] }]);
+  bindPicker('btn-montage-browse-intro', 'btn-montage-clear-intro', 'inp-montage-intro-path', 'intro_path', 'intro_enabled', [{ name: 'Video', extensions: ['mp4', 'mov', 'mkv', 'webm', 'avi', 'm4v'] }]);
+  bindPicker('btn-montage-browse-outro', 'btn-montage-clear-outro', 'inp-montage-outro-path', 'outro_path', 'outro_enabled', [{ name: 'Video', extensions: ['mp4', 'mov', 'mkv', 'webm', 'avi', 'm4v'] }]);
+
+  // Action Buttons: Select Source Videos & Render
+  const handleRenderMontage = async () => {
+    try {
+      const selected = await invoke('pick_files', {
+        filters: [{ name: 'Video Files', extensions: ['mp4', 'mov', 'mkv', 'avi', 'webm', 'ts', 'm4v'] }]
+      });
+      if (!selected || selected.length === 0) return;
+      
+      const toastEl = document.getElementById('settings-floating-toast');
+      if (toastEl) {
+        toastEl.textContent = `🎬 Starting Smart Cut Montage for ${selected.length} video(s)...`;
+        toastEl.className = 'show ok';
+        setTimeout(() => { toastEl.className = 'hidden'; }, 3500);
+      }
+
+      const res = await invoke('run_auto_montage_cmd', {
+        inputs: selected,
+        aspect: montageState.aspect
+      });
+
+      if (res) {
+        addMontageHistoryItem({
+          path: res,
+          name: res.replace(/\\/g, '/').split('/').pop(),
+          aspect: montageState.aspect,
+          time: Date.now()
+        });
+        renderMontageHistory();
+        if (toastEl) {
+          toastEl.textContent = `✓ Montage rendered successfully!`;
+          toastEl.className = 'show ok';
+          setTimeout(() => { toastEl.className = 'hidden'; }, 4000);
+        }
+      }
+    } catch (err) {
+      console.error('run_auto_montage_cmd error:', err);
+      const toastEl = document.getElementById('settings-floating-toast');
+      if (toastEl) {
+        toastEl.textContent = `Montage error: ${err}`;
+        toastEl.className = 'show warn';
+        setTimeout(() => { toastEl.className = 'hidden'; }, 4000);
+      }
+    }
+  };
+
+  const btnRenderBatch = document.getElementById('btn-montage-start-batch');
+  if (btnRenderBatch) btnRenderBatch.addEventListener('click', handleRenderMontage);
+  const btnQuickRender = document.getElementById('btn-montage-quick-render');
+  if (btnQuickRender) btnQuickRender.addEventListener('click', handleRenderMontage);
+
+  const btnPickFolder = document.getElementById('btn-montage-pick-folder');
+  if (btnPickFolder) {
+    btnPickFolder.addEventListener('click', async () => {
+      try {
+        const picked = await invoke('pick_folder');
+        if (!picked) return;
+        const toastEl = document.getElementById('settings-floating-toast');
+        if (toastEl) {
+          toastEl.textContent = `📁 Auto-Directing Folder: ${picked.replace(/\\/g, '/').split('/').pop()}...`;
+          toastEl.className = 'show ok';
+          setTimeout(() => { toastEl.className = 'hidden'; }, 3500);
+        }
+        const res = await invoke('run_auto_montage_cmd', {
+          inputs: [picked],
+          aspect: montageState.aspect
+        });
+        if (res) {
+          addMontageHistoryItem({
+            path: res,
+            name: res.replace(/\\/g, '/').split('/').pop(),
+            aspect: montageState.aspect,
+            time: Date.now()
+          });
+          renderMontageHistory();
+          if (toastEl) {
+            toastEl.textContent = `✓ Folder Montage rendered successfully!`;
+            toastEl.className = 'show ok';
+            setTimeout(() => { toastEl.className = 'hidden'; }, 4000);
+          }
+        }
+      } catch (err) {
+        console.error('run_auto_montage_cmd folder error:', err);
+        const toastEl = document.getElementById('settings-floating-toast');
+        if (toastEl) {
+          toastEl.textContent = `Folder Montage error: ${err}`;
+          toastEl.className = 'show warn';
+          setTimeout(() => { toastEl.className = 'hidden'; }, 4000);
+        }
+      }
+    });
+  }
+
+  // Global listener for convert-progress events to capture radial menu montage completions
+  if (window.__TAURI__?.event?.listen) {
+    window.__TAURI__.event.listen('convert-progress', (e) => {
+      const p = e?.payload;
+      if (p && p.target === 'auto_montage' && p.state === 'done' && p.out_path) {
+        addMontageHistoryItem({
+          path: p.out_path,
+          name: p.out_path.replace(/\\/g, '/').split('/').pop(),
+          aspect: montageState.aspect,
+          time: Date.now()
+        });
+        renderMontageHistory();
+      }
+    }).catch(() => {});
+  }
+}
+
+// Bind Auto Montage listeners on load
+bindAutoMontageEvents();
+refreshAutoMontageTab();
+
+
+
+
 
 

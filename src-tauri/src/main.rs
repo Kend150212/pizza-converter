@@ -6,10 +6,5 @@ fn main() {
         let _ = std::fs::write(&log_p, format!("PANIC: {:?}\n", info));
     }));
 
-    let args: Vec<String> = std::env::args().collect();
-    if args.iter().any(|a| a == "--mcp") {
-        convertx_lib::mcp_hub::run_stdio_server();
-        return;
-    }
     convertx_lib::run();
 }

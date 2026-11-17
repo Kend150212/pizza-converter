@@ -2,7 +2,10 @@
 //! Protects application binary against reverse engineering, attached debuggers,
 //! dynamic process hooks, and unauthorized bot manipulation.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(not(debug_assertions))]
+use std::sync::atomic::Ordering;
+use std::sync::atomic::AtomicBool;
+#[cfg(not(debug_assertions))]
 use std::time::Duration;
 
 #[allow(dead_code)]

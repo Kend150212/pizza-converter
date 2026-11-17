@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quick Video Download</title>
+  <link rel="stylesheet" href="quick-download.css">
+</head>
+<body>
+  <div class="quick-container" id="quick-container">
+    <div class="quick-card" id="quick-card">
+      <!-- Header Bar -->
+      <div class="card-header">
+        <div class="header-left">
+          <div class="header-icon-box">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          </div>
+          <span class="header-title">Quick Video Download</span>
+          <span id="platform-badge" class="platform-badge badge-generic">Ready</span>
+        </div>
+        <button id="btn-close" class="btn-icon" title="Dismiss (Esc)" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="6"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- URL Input Field -->
+      <div class="input-wrapper" id="input-wrapper">
+        <div class="input-prefix-icon">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+        </div>
+        <input 
+          type="text" 
+          id="url-input" 
+          class="url-input" 
+          placeholder="Paste video URL here (YouTube, TikTok, Facebook, Instagram, X)..." 
+          autocomplete="off" 
+          spellcheck="false"
+          autofocus 
+        />
+        <button id="btn-paste" class="btn-paste" title="Paste from Clipboard">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          <span>Paste</span>
+        </button>
+      </div>
+
+      <!-- Controls & Download Action Bar -->
+      <div class="card-footer">
+        <div class="quality-selector" id="quality-selector">
+          <button class="quality-btn active" data-quality="best" title="Download highest available resolution">Best</button>
+          <button class="quality-btn" data-quality="720p" title="Download standard HD 720p">720p</button>
+          <button class="quality-btn" data-quality="mp3" title="Extract audio track as MP3">MP3</button>
+          <button class="quality-btn" data-quality="srt" title="Download Transcript / Subtitles (.srt with timestamps)">SRT</button>
+          <button class="quality-btn" data-quality="txt" title="Download Plain Text Transcript (.txt)">TXT</button>
+        </div>
+
+        <div class="action-cluster">
+          <div class="shortcut-hints">
+            <span class="key-badge">Enter ↵</span>
+            <span class="hint-label">Download</span>
+            <span class="key-badge">Esc</span>
+          </div>
+          <button id="btn-download" class="btn-download" title="Start background download">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span id="btn-download-text">Download</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Toast Feedback -->
+      <div id="status-toast" class="status-toast hidden">
+        <span id="status-icon" class="status-icon">✓</span>
+        <span id="status-text" class="status-text">Download started in background...</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="tauri-bridge.js"></script>
+  <script src="quick-download.js"></script>
+</body>
+</html>

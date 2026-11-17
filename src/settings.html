@@ -21,21 +21,53 @@ html, body { width:100%; height:100%; background:#141828; overflow:hidden;
 #close:hover { background:rgba(251,113,133,.35); }
 #body { display:flex; height:calc(100% - 50px); }
 /* sidebar — sleek & compact */
-#sidebar { width:196px; padding:10px 10px 12px; display:flex; flex-direction:column; justify-content:space-between; height:100%; border-right:1px solid rgba(255,255,255,.08); }
-.nav-top, .nav-bottom { display:flex; flex-direction:column; gap:3px; }
-.nav-bottom { padding-top:8px; border-top:1px solid rgba(255,255,255,.09); }
-.nav-item { display:flex; align-items:center; gap:8px; padding:8px 11px; border-radius:10px;
-  border:1px solid transparent; background:transparent; color:#f4f6fb; font-size:12.2px; font-weight:600; cursor:pointer; text-align:left; transition:all .14s ease; }
+#sidebar { width:202px; padding:8px 8px 8px; display:flex; flex-direction:column; justify-content:space-between; height:100%; border-right:1px solid rgba(255,255,255,.08); flex-shrink:0; }
+.nav-scrollable { flex:1; overflow-y:auto; overflow-x:hidden; padding-right:2px; display:flex; flex-direction:column; gap:1.5px; }
+.nav-scrollable::-webkit-scrollbar { width:3.5px; }
+.nav-scrollable::-webkit-scrollbar-track { background:transparent; }
+.nav-scrollable::-webkit-scrollbar-thumb { background:rgba(255,255,255,.12); border-radius:999px; }
+.nav-scrollable::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,.24); }
+
+.nav-group-header {
+  font-size: 9.2px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  color: rgba(235,238,248,.38); padding: 8px 8px 3px; user-select: none;
+}
+.nav-group-header:first-child { padding-top: 1px; }
+
+.nav-item { display:flex; align-items:center; gap:8px; padding:6px 9px; border-radius:8px;
+  border:1px solid transparent; background:transparent; color:#f4f6fb; font-size:11.8px; font-weight:600; cursor:pointer; text-align:left; transition:all .14s ease; }
 .nav-item:hover { background:rgba(255,255,255,.07); }
 .nav-item.active { background:linear-gradient(155deg, rgba(255,255,255,.18), rgba(255,255,255,.07));
   border:1px solid rgba(255,255,255,.22);
-  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
-.nav-item-sub { font-size:11.4px; padding:6px 10px; opacity:0.78; }
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); color:#fff; }
+.nav-item-sub { font-size:11.2px; padding:5px 8px; opacity:0.75; }
 .nav-item-sub:hover, .nav-item-sub.active { opacity:1; }
-.nav-ico { width:17px; text-align:center; opacity:.9; font-size:13px; }
-.pro-badge { margin-left:auto; font-size:9px; font-weight:800; letter-spacing:.06em; color:#fbbf24;
-  border:1px solid rgba(251,191,36,.5); background:rgba(251,191,36,.12);
-  padding:1.5px 6px; border-radius:999px; }
+.nav-ico { width:16px; text-align:center; opacity:.9; font-size:13px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+.nav-ico svg { width:14.5px; height:14.5px; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; fill:none; }
+
+/* Subtle Pro Crown vector mark */
+.pro-crown-ico {
+  margin-left: auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; flex-shrink: 0; opacity: 0.78; transition: opacity .15s ease, transform .15s ease;
+}
+.nav-item:hover .pro-crown-ico, .nav-item.active .pro-crown-ico { opacity: 1; transform: scale(1.1); }
+.pro-crown-ico svg { width: 11px; height: 11px; stroke: #fbbf24; fill: rgba(251,191,36,.22); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Nav Bottom Footer */
+.nav-bottom { padding-top: 6px; border-top: 1px solid rgba(255,255,255,.08); display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+.sidebar-tour-btn { width: 100%; padding: 5px 8px; font-size: 10.5px; font-weight: 700; color: #042f2e; background: linear-gradient(135deg, #2dd4bf, #38bdf8); border: none; border-radius: 7px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; box-shadow: 0 2px 8px rgba(45,212,191,0.20); transition: all .15s ease; }
+.sidebar-tour-btn:hover { filter: brightness(1.08); }
+.sidebar-status-card { display: flex; align-items: center; justify-content: space-between; padding: 4px 7px; border-radius: 7px; background: rgba(0,0,0,0.22); border: 1px solid rgba(255,255,255,0.08); font-size: 10px; }
+.sidebar-status-left { display: flex; align-items: center; gap: 5px; color: #5eead4; font-weight: 700; letter-spacing: .02em; }
+.sidebar-status-dot { width: 5px; height: 5px; border-radius: 50%; background: #2dd4bf; box-shadow: 0 0 5px #2dd4bf; flex-shrink: 0; }
+.sidebar-action-btn { padding: 2.5px 7px; border-radius: 5px; font-size: 9.5px; font-weight: 700; background: rgba(56,189,248,.12); border: 1px solid rgba(56,189,248,.25); color: #7dd3fc; cursor: pointer; display: flex; align-items: center; gap: 3px; transition: all .15s ease; }
+.sidebar-action-btn:hover { background: rgba(56,189,248,.25); color: #fff; }
+.sidebar-theme-btn { padding: 2.5px 6px; border-radius: 5px; font-size: 9.5px; font-weight: 600; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); color: #cbd5e1; cursor: pointer; display: flex; align-items: center; gap: 3px; }
+.sidebar-theme-btn:hover { background: rgba(255,255,255,.14); color: #fff; }
+.nav-legal-row { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 2px 0 1px; font-size: 9.5px; color: rgba(235,238,248,.4); }
+.nav-item-legal { background: transparent !important; border: none !important; padding: 0 !important; font-size: 9.5px !important; color: rgba(235,238,248,.45) !important; font-weight: 500 !important; cursor: pointer; transition: color .15s ease; }
+.nav-item-legal:hover, .nav-item-legal.active { color: #5eead4 !important; text-decoration: underline; }
+.nav-legal-sep { opacity: .4; font-size: 8px; }
 /* main */
 main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
 .view.hidden { display:none; }
@@ -524,42 +556,135 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
 </head>
 <body>
 <div id="window">
-  <div id="titlebar" data-tauri-drag-region><span id="title-text" data-i18n="settings_title">Settings</span><span id="app-version-badge" style="font-size: 10px; margin-left: 8px; color: #5eead4; background: rgba(45,212,191,0.14); border: 1px solid rgba(45,212,191,0.35); padding: 1.5px 8px; border-radius: 999px; font-weight: 700; letter-spacing: 0.04em;">v1.0.6.0</span><button id="close">✕</button></div>
+  <div id="titlebar" data-tauri-drag-region>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span id="title-text" data-i18n="settings_title">Settings</span>
+      <span id="app-version-badge" style="font-size: 10px; color: #5eead4; background: rgba(45,212,191,0.14); border: 1px solid rgba(45,212,191,0.35); padding: 1.5px 8px; border-radius: 999px; font-weight: 700; letter-spacing: 0.04em;">v1.0.7.0</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <button type="button" id="btn-theme-toggle" class="theme-toggle-btn" title="Toggle Light / Dark Mode">
+        <span id="theme-toggle-icon">☀️</span>
+        <span id="theme-toggle-text">Light</span>
+      </button>
+      <button id="close" title="Close Settings">✕</button>
+    </div>
+  </div>
   <div id="body">
     <nav id="sidebar">
-      <div class="nav-top">
-        <button class="nav-item active" data-view="general"><span class="nav-ico"><svg viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></span><span data-i18n="nav_general">General</span></button>
-        <button class="nav-item" data-view="design"><span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.5 7.5"/><circle cx="11" cy="11" r="2"/></svg></span><span data-i18n="nav_design">Design Studio</span><span class="pro-badge">PRO</span></button>
-        <button class="nav-item" data-view="templates"><span class="nav-ico"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.8"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.8"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.8"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.8"/></svg></span><span data-i18n="nav_templates">Template Studio</span><span class="pro-badge">PRO</span></button>
-        <button class="nav-item" data-view="ai"><span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15z"/></svg></span><span data-i18n="nav_ai">AI Studio</span><span class="pro-badge">PRO</span></button>
-        <button class="nav-item" data-view="review"><span class="nav-ico"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2.5"/><polygon points="10 7.5 15.5 10 10 12.5 10 7.5"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></span><span>AI Review</span><span class="pro-badge">PRO</span></button>
-        <button class="nav-item" data-view="voicestudio"><span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg></span><span>Voice Studio</span><span class="pro-badge" style="color:#f43f5e; border-color:rgba(244,63,94,.5); background:rgba(244,63,94,.15);">VOICE</span></button>
-        <button class="nav-item" data-view="cloudai"><span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 1 4 4v1h1a3 3 0 0 1 3 3v2a3 3 0 0 1-3 3h-1v1a4 4 0 0 1-8 0v-1H7a3 3 0 0 1-3-3v-2a3 3 0 0 1 3-3h1V6a4 4 0 0 1 4-4z"/><circle cx="9.5" cy="10" r="1"/><circle cx="14.5" cy="10" r="1"/><path d="M9.5 14a3.5 3.5 0 0 0 5 0"/></svg></span><span>Cloud AI (API Keys)</span><span class="pro-badge" style="color:#c4b5fd; border-color:rgba(167,139,250,.55); background:rgba(167,139,250,.16);">BYOK</span></button>
-        <button class="nav-item" data-view="audiogram"><span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M2 10v4"/><path d="M6 6v12"/><path d="M10 3v18"/><path d="M14 8v8"/><path d="M18 5v14"/><path d="M22 10v4"/></svg></span><span data-i18n="nav_audiogram">Audiogram</span><span class="pro-badge">PRO</span></button>
-        <button class="nav-item" data-view="cloud"><span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/><path d="M12 13v6"/><path d="m9.5 15.5 2.5-2.5 2.5 2.5"/></svg></span><span data-i18n="nav_cloud">Cloud Drop</span><span class="pro-badge">PRO</span></button>
-        <button class="nav-item" data-view="mcphub"><span class="nav-ico"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16.01"/><line x1="16" y1="16" x2="16" y2="16.01"/><path d="M9 19h6"/></svg></span><span>AI Agent Hub</span><span class="pro-badge" style="color:#38bdf8; border-color:rgba(56,189,248,.5); background:rgba(56,189,248,.15);">MCP</span></button>
-        <button class="nav-item" data-view="aiguide"><span class="nav-ico"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg></span><span data-i18n="nav_ai_guide">AI Features</span></button>
-        <button class="nav-item" data-view="guide"><span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span><span data-i18n="nav_guide">Guide</span></button>
-        <button class="nav-item" data-view="pro"><span class="nav-ico"><svg viewBox="0 0 24 24"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg></span><span data-i18n="nav_pro">Pizza Converter Pro</span><span class="pro-badge" data-i18n="pro_tag">PRO</span></button>
-        <button class="nav-item" data-view="history"><span class="nav-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg></span><span data-i18n="nav_history">History</span></button>
-        <button class="nav-item" data-view="contact"><span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span data-i18n="nav_contact">Support &amp; Feedback</span></button>
+      <div class="nav-scrollable">
+        <!-- 1. PREFERENCES -->
+        <div class="nav-group-header">Preferences</div>
+        <button class="nav-item active" data-view="general">
+          <span class="nav-ico"><svg viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></span>
+          <span data-i18n="nav_general">General</span>
+        </button>
+        <button class="nav-item" data-view="videodownloader" id="nav-btn-videodownloader">
+          <span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
+          <span data-i18n="nav_videodownloader">Video Downloader</span>
+        </button>
+        <button class="nav-item" data-view="history">
+          <span class="nav-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg></span>
+          <span data-i18n="nav_history">History</span>
+        </button>
+
+        <!-- 2. CREATIVE & AI STUDIOS -->
+        <div class="nav-group-header">Creative &amp; AI Studio</div>
+        <button class="nav-item" data-view="ai">
+          <span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15z"/></svg></span>
+          <span data-i18n="nav_ai">AI Studio</span>
+          <span class="pro-crown-ico" title="Pro Feature"><svg viewBox="0 0 24 24"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg></span>
+        </button>
+        <button class="nav-item" data-view="voicestudio">
+          <span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg></span>
+          <span>Voice Studio</span>
+          <span class="pro-crown-ico" title="Pro Feature"><svg viewBox="0 0 24 24"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg></span>
+        </button>
+        <button class="nav-item" data-view="voiceapi" id="nav-btn-voiceapi">
+          <span class="nav-ico"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+          <span>Voice Local API</span>
+          <span class="pro-crown-ico" title="Pro Feature"><svg viewBox="0 0 24 24"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg></span>
+        </button>
+        <button class="nav-item" data-view="audiogram">
+          <span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M2 10v4"/><path d="M6 6v12"/><path d="M10 3v18"/><path d="M14 8v8"/><path d="M18 5v14"/><path d="M22 10v4"/></svg></span>
+          <span data-i18n="nav_audiogram">Audiogram</span>
+          <span class="pro-crown-ico" title="Pro Feature"><svg viewBox="0 0 24 24"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg></span>
+        </button>
+        <button class="nav-item" data-view="automontage" id="nav-btn-automontage">
+          <span class="nav-ico"><svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/><circle cx="8.5" cy="12" r="2.5"/><path d="M5.5 12h-2"/><path d="M13.5 12h-2"/></svg></span>
+          <span>Smart Cut Studio</span>
+          <span class="pro-crown-ico" title="Pro Feature"><svg viewBox="0 0 24 24"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg></span>
+        </button>
+        <button class="nav-item" data-view="design">
+          <span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.5 7.5"/><circle cx="11" cy="11" r="2"/></svg></span>
+          <span data-i18n="nav_design">Design Studio</span>
+        </button>
+        <button class="nav-item" data-view="templates">
+          <span class="nav-ico"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.8"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.8"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.8"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.8"/></svg></span>
+          <span data-i18n="nav_templates">Template Studio</span>
+        </button>
+        <button class="nav-item" data-view="review">
+          <span class="nav-ico"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2.5"/><polygon points="10 7.5 15.5 10 10 12.5 10 7.5"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></span>
+          <span>AI Review</span>
+        </button>
+        <button class="nav-item" data-view="cloudai">
+          <span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 1 4 4v1h1a3 3 0 0 1 3 3v2a3 3 0 0 1-3 3h-1v1a4 4 0 0 1-8 0v-1H7a3 3 0 0 1-3-3v-2a3 3 0 0 1 3-3h1V6a4 4 0 0 1 4-4z"/><circle cx="9.5" cy="10" r="1"/><circle cx="14.5" cy="10" r="1"/><path d="M9.5 14a3.5 3.5 0 0 0 5 0"/></svg></span>
+          <span>Cloud AI (API Keys)</span>
+        </button>
+        <button class="nav-item" data-view="cloud">
+          <span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/><path d="M12 13v6"/><path d="m9.5 15.5 2.5-2.5 2.5 2.5"/></svg></span>
+          <span data-i18n="nav_cloud">Cloud Drop</span>
+        </button>
+
+        <!-- 3. RESOURCES & SUPPORT -->
+        <div class="nav-group-header">Resources &amp; Support</div>
+        <button class="nav-item" data-view="pro">
+          <span class="nav-ico"><svg viewBox="0 0 24 24"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg></span>
+          <span data-i18n="nav_pro">Pizza Converter Pro</span>
+          <span class="pro-crown-ico" title="Pro Feature"><svg viewBox="0 0 24 24"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg></span>
+        </button>
+        <button class="nav-item" data-view="guide">
+          <span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span>
+          <span data-i18n="nav_guide">Guide</span>
+        </button>
+        <button class="nav-item" data-view="aiguide">
+          <span class="nav-ico"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg></span>
+          <span data-i18n="nav_ai_guide">AI Features</span>
+        </button>
+        <button class="nav-item" data-view="contact">
+          <span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+          <span data-i18n="nav_contact">Support &amp; Feedback</span>
+        </button>
+        <button class="nav-item" data-view="about">
+          <span class="nav-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
+          <span data-i18n="nav_about">About</span>
+        </button>
       </div>
       <div class="nav-bottom">
-        <button class="nav-item nav-item-sub" data-view="about"><span class="nav-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span><span data-i18n="nav_about">About</span></button>
-        <button class="nav-item nav-item-sub" data-view="privacy"><span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><span data-i18n="nav_privacy">Privacy Policy</span></button>
-        <button class="nav-item nav-item-sub" data-view="terms"><span class="nav-ico"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span data-i18n="nav_terms">Terms of Service</span></button>
-        <button type="button" id="btn-open-interactive-tour" style="margin-top: 6px; width: 100%; padding: 6px 10px; font-size: 10.5px; font-weight: 800; color: #042f2e; background: linear-gradient(135deg, #2dd4bf, #38bdf8); border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 4px 12px rgba(45,212,191,0.28);">
+        <button type="button" id="btn-open-interactive-tour" class="sidebar-tour-btn">
           <span>🎓</span>
           <span id="lbl-sidebar-tour-btn">Interactive Guide</span>
         </button>
-        <div id="sidebar-version-badge" style="margin-top: 6px; padding: 5px 10px; font-size: 10px; font-weight: 700; color: #5eead4; background: rgba(45,212,191,.10); border: 1px solid rgba(45,212,191,.28); border-radius: 8px; text-align: center; letter-spacing: 0.05em; display: flex; align-items: center; justify-content: center; gap: 6px;">
-          <span style="display:inline-block; width: 5px; height: 5px; border-radius: 50%; background: #2dd4bf; box-shadow: 0 0 6px #2dd4bf;"></span>
-          <span id="sidebar-version-badge-text">v1.0.6.0 · VOICE STUDIO</span>
+        <div class="sidebar-status-card">
+          <div class="sidebar-status-left">
+            <span class="sidebar-status-dot"></span>
+            <span id="sidebar-version-badge-text">v1.0.7.0</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:4px;">
+            <button type="button" id="btn-check-updates" class="sidebar-action-btn" title="Check for Updates">
+              <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              <span id="lbl-check-updates-text">Update</span>
+            </button>
+            <button type="button" id="btn-sidebar-theme-toggle" class="sidebar-theme-btn" title="Toggle Light / Dark Mode">
+              <span id="sidebar-theme-icon">☀️</span>
+              <span id="sidebar-theme-text" style="display:none;">Light</span>
+            </button>
+          </div>
         </div>
-        <button type="button" id="btn-check-updates" style="margin-top: 4px; width: 100%; padding: 5px 8px; font-size: 10px; font-weight: 600; color: #38bdf8; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.22); border-radius: 7px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all .15s ease;">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-          <span id="lbl-check-updates-text">Check for Updates</span>
-        </button>
+        <div class="nav-legal-row">
+          <button class="nav-item nav-item-legal" data-view="privacy" data-i18n="nav_privacy">Privacy Policy</button>
+          <span class="nav-legal-sep">·</span>
+          <button class="nav-item nav-item-legal" data-view="terms" data-i18n="nav_terms">Terms of Service</button>
+        </div>
       </div>
     </nav>
     <main>
@@ -593,7 +718,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
                 <span>Pizza Converter Updates</span>
                 <span id="badge-update-status" style="font-size: 10px; font-weight: 700; background: rgba(56,189,248,0.12); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); padding: 1px 7px; border-radius: 999px;">Up to date</span>
               </div>
-              <div class="row-sub" id="update-status-desc">Installed: v1.0.6.0 · Distributed via Microsoft Store</div>
+              <div class="row-sub" id="update-status-desc">Installed: v1.0.7.0 · Distributed via Microsoft Store</div>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
               <button class="btn-ghost" id="btn-manual-update-check" style="font-size: 11px; padding: 6px 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
@@ -609,37 +734,178 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
         </div>
         <div class="card hidden" id="perm-banner">
           <div class="row">
-            <div><div class="row-title" data-i18n="perm_title">Keyboard permission needed</div><div class="row-sub" data-i18n="perm_sub"></div></div>
+            <div><div class="row-title" data-i18n="perm_title">Keyboard permission needed</div><div class="row-sub" data-i18n="perm_sub">Pizza Converter needs Accessibility permission to detect keyboard shortcuts. Grant it in System Settings → Privacy & Security → Accessibility.</div></div>
             <button class="btn-ghost" id="btn-perm" data-i18n="perm_btn">Open Settings…</button>
           </div>
         </div>
-        <div class="card">
+        <!-- CARD: APPEARANCE & THEME (DARK / LIGHT MODE) -->
+        <div class="card" id="card-appearance-theme">
           <div class="row">
-            <div><div class="row-title" data-i18n="enable_label">Enable Pizza Converter</div><div class="row-sub" data-i18n="enable_sub"></div></div>
+            <div>
+              <div class="row-title" style="display:flex; align-items:center; gap:8px;">
+                <span>Appearance &amp; Theme</span>
+                <span id="badge-theme-mode" class="cai-status-pill ok" style="font-size:10px;">Dark Mode</span>
+              </div>
+              <div class="row-sub">Choose between Dark Mode and Light Mode for the Settings interface</div>
+            </div>
+            <div class="segmented-control" id="theme-mode-segmented">
+              <button type="button" class="seg-btn active" id="btn-theme-dark" data-theme-val="dark">
+                <span>🌙</span> <span>Dark Mode</span>
+              </button>
+              <button type="button" class="seg-btn" id="btn-theme-light" data-theme-val="light">
+                <span>☀️</span> <span>Light Mode</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- SYSTEM & STARTUP -->
+        <div class="card" id="card-general-system">
+          <div class="row">
+            <div>
+              <div class="row-title" data-i18n="enable_label">Enable Pizza Converter</div>
+              <div class="row-sub">Master switch to enable or disable global shortcut detection in the background</div>
+            </div>
             <button class="toggle" id="tgl-enable" aria-pressed="true"><span class="knob"></span></button>
           </div>
           <div class="row">
-            <div><div class="row-title" data-i18n="trigger_label">Trigger shortcut</div><div class="row-sub" data-i18n="trigger_key_desc"></div></div>
-            <div class="shortcut-selector-box">
-              <div class="segmented-control" id="trigger-key-segmented">
-                <button class="seg-btn active" data-key="ctrl+g">Ctrl + G</button>
-                <button class="seg-btn" data-key="alt+g">Alt + G</button>
-                <button class="seg-btn" data-key="ctrl+shift">Ctrl + Shift</button>
-                <button class="seg-btn" data-key="alt+shift">Alt + Shift</button>
-                <button class="seg-btn" data-key="ctrl+space">Ctrl + Space</button>
+            <div>
+              <div class="row-title" data-i18n="autostart_label">Launch at login</div>
+              <div class="row-sub">Start Pizza Converter automatically in the background when you sign in</div>
+            </div>
+            <button class="toggle" id="tgl-autostart" aria-pressed="true"><span class="knob"></span></button>
+          </div>
+        </div>
+
+        <!-- DEDICATED CARD: GLOBAL SYSTEM SHORTCUTS -->
+        <div class="card shortcut-config-card" id="card-global-shortcuts">
+          <div style="margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <div class="row-title" style="font-size: 14px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 8px;">
+                <span>⌨️ Global System Shortcuts</span>
+                <span class="cai-status-pill ok" style="font-size: 10px; padding: 2px 7px;">Instant Trigger</span>
               </div>
-              <div class="custom-hotkey-row">
-                <span class="custom-hotkey-label" data-i18n="custom_hotkey_label">Or custom shortcut:</span>
-                <button id="btn-record-hotkey" class="btn-hotkey-input" data-i18n-title="record_hotkey_title" title="Click to record custom shortcut">
-                  <span id="record-hotkey-text">Ctrl + G</span>
-                </button>
-                <button id="btn-reset-hotkey" class="btn-ghost-sm" data-i18n="default_btn">Default</button>
+              <div class="row-sub" style="font-size: 11.5px; color: #94a3b8; margin-top: 3px;">
+                Configure global keyboard shortcuts to open each radial wheel or tool instantly from anywhere. Click presets to switch, or click custom to record your own keys.
               </div>
             </div>
           </div>
-          <div class="row">
-            <div><div class="row-title" data-i18n="autostart_label">Launch at login</div><div class="row-sub" data-i18n="autostart_sub"></div></div>
-            <button class="toggle" id="tgl-autostart" aria-pressed="true"><span class="knob"></span></button>
+
+          <!-- 1. MAIN RADIAL WHEEL (CONVERT & AI STUDIO) -->
+          <div class="shortcut-config-row" id="sc-row-convert">
+            <div style="max-width: 48%;">
+              <div class="row-title" style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 15px;">🍕</span>
+                <span>Main Radial Wheel</span>
+                <span class="tag-shortcut-scope">Convert &amp; AI Studio</span>
+              </div>
+              <div class="row-sub" style="margin-top: 3px; line-height: 1.45;">
+                Select any file(s) in Desktop or File Explorer and press this shortcut to open the conversion and AI wheel (conversions, subtitles, dubbing, audiograms, etc.).
+              </div>
+            </div>
+            <div class="shortcut-selector-box">
+              <div class="segmented-control" id="trigger-key-segmented">
+                <button type="button" class="seg-btn active" data-key="ctrl+g">Ctrl + G</button>
+                <button type="button" class="seg-btn" data-key="alt+g">Alt + G</button>
+                <button type="button" class="seg-btn" data-key="ctrl+shift">Ctrl + Shift</button>
+                <button type="button" class="seg-btn" data-key="alt+shift">Alt + Shift</button>
+                <button type="button" class="seg-btn" data-key="ctrl+space">Ctrl + Space</button>
+              </div>
+              <div class="custom-hotkey-row">
+                <span class="custom-hotkey-label">Custom:</span>
+                <button type="button" id="btn-record-hotkey" class="btn-hotkey-input" title="Click to record custom shortcut">
+                  <span id="record-hotkey-text">Ctrl + G</span>
+                </button>
+                <button type="button" id="btn-reset-hotkey" class="btn-ghost-sm">Default</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. DESIGN & PRODUCT STUDIO WHEEL -->
+          <div class="shortcut-config-row" id="sc-row-design">
+            <div style="max-width: 48%;">
+              <div class="row-title" style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 15px;">🎨</span>
+                <span>Design Studio Wheel</span>
+                <span class="tag-shortcut-scope">Images &amp; Products</span>
+              </div>
+              <div class="row-sub" style="margin-top: 3px; line-height: 1.45;">
+                Directly opens the Design Studio wheel on any selected image to apply E-Commerce product mockup templates, AI background cutouts, 3D shadows, and barcodes.
+              </div>
+            </div>
+            <div class="shortcut-selector-box">
+              <div class="segmented-control" id="design-key-segmented">
+                <button type="button" class="seg-btn active" data-dkey="ctrl+shift+d">Ctrl + Shift + D</button>
+                <button type="button" class="seg-btn" data-dkey="alt+shift+d">Alt + Shift + D</button>
+                <button type="button" class="seg-btn" data-dkey="ctrl+alt+d">Ctrl + Alt + D</button>
+                <button type="button" class="seg-btn" data-dkey="alt+d">Alt + D</button>
+              </div>
+              <div class="custom-hotkey-row">
+                <span class="custom-hotkey-label">Custom:</span>
+                <button type="button" id="btn-record-design-hotkey" class="btn-hotkey-input" title="Click to record custom Design Studio shortcut">
+                  <span id="record-design-hotkey-text">Ctrl + Shift + D</span>
+                </button>
+                <button type="button" id="btn-reset-design-hotkey" class="btn-ghost-sm">Default</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. CLOUD DROP & QUICK TRANSFER WHEEL -->
+          <div class="shortcut-config-row" id="sc-row-cloud">
+            <div style="max-width: 48%;">
+              <div class="row-title" style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 15px;">☁️</span>
+                <span>Cloud Drop Wheel</span>
+                <span class="tag-shortcut-scope">Upload &amp; Share</span>
+              </div>
+              <div class="row-sub" style="margin-top: 3px; line-height: 1.45;">
+                Directly opens the Cloud Drop wheel to 1-click upload selected files to Google Drive or Dropbox, auto-copy public download links, or transfer PC to phone.
+              </div>
+            </div>
+            <div class="shortcut-selector-box">
+              <div class="segmented-control" id="cloud-key-segmented">
+                <button type="button" class="seg-btn active" data-ckey="alt+g">Alt + G</button>
+                <button type="button" class="seg-btn" data-ckey="ctrl+shift+g">Ctrl + Shift + G</button>
+                <button type="button" class="seg-btn" data-ckey="alt+shift+g">Alt + Shift + G</button>
+                <button type="button" class="seg-btn" data-ckey="ctrl+alt+g">Ctrl + Alt + G</button>
+              </div>
+              <div class="custom-hotkey-row">
+                <span class="custom-hotkey-label">Custom:</span>
+                <button type="button" id="btn-record-cloud-hotkey" class="btn-hotkey-input" title="Click to record custom Cloud Drop shortcut">
+                  <span id="record-cloud-hotkey-text">Alt + G</span>
+                </button>
+                <button type="button" id="btn-reset-cloud-hotkey" class="btn-ghost-sm">Default</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. QUICK VIDEO DOWNLOADER DIALOG -->
+          <div class="shortcut-config-row" id="sc-row-videodl">
+            <div style="max-width: 48%;">
+              <div class="row-title" style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 15px;">📥</span>
+                <span>Quick Video Downloader</span>
+                <span class="tag-shortcut-scope">Download Dialog</span>
+              </div>
+              <div class="row-sub" style="margin-top: 3px; line-height: 1.45;">
+                Opens the floating Quick Video Download dialog from anywhere on your PC and automatically pastes &amp; downloads the video URL currently copied on your clipboard.
+              </div>
+            </div>
+            <div class="shortcut-selector-box">
+              <div class="segmented-control" id="videodl-key-segmented">
+                <button type="button" class="seg-btn active" data-vdkey="ctrl+shift+v">Ctrl + Shift + V</button>
+                <button type="button" class="seg-btn" data-vdkey="alt+shift+v">Alt + Shift + V</button>
+                <button type="button" class="seg-btn" data-vdkey="ctrl+alt+v">Ctrl + Alt + V</button>
+                <button type="button" class="seg-btn" data-vdkey="alt+v">Alt + V</button>
+              </div>
+              <div class="custom-hotkey-row">
+                <span class="custom-hotkey-label">Custom:</span>
+                <button type="button" id="btn-record-videodl" class="btn-hotkey-input" title="Click to record custom Quick Download shortcut">
+                  <span id="disp-videodl-key">Ctrl + Shift + V</span>
+                </button>
+                <button type="button" id="btn-reset-videodl" class="btn-ghost-sm">Default</button>
+              </div>
+            </div>
           </div>
         </div>
         <div class="card">
@@ -1535,8 +1801,403 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
         </div>
       </section>
 
+      <!-- SMART CUT & AUTO MONTAGE STUDIO -->
+      <section id="view-automontage" class="view hidden">
+        <div class="section-label">AI SMART CUT &amp; STORYTELLING MONTAGE STUDIO · PRO</div>
+
+        <!-- HERO HEADER -->
+        <div class="card card-montage-hero" style="background: linear-gradient(155deg, rgba(236, 72, 153, 0.09), rgba(99, 102, 241, 0.08), rgba(15, 23, 42, 0.65)); border-color: rgba(236, 72, 153, 0.35); margin-bottom: 14px;">
+          <div class="row">
+            <div>
+              <div class="row-title" style="display:flex; align-items:center; gap:8px;">
+                <span>⚡ Smart Cut &amp; Video Montage Studio</span>
+                <span class="pro-badge" style="background: linear-gradient(135deg, #ec4899, #8b5cf6);">AI PRO</span>
+              </div>
+              <div class="row-sub">Stitch multiple raw clips into a seamless master video. Neural AI removes filler words ("um, uh, er, like, you know"), false starts, and dead air while maintaining emotional voice pacing and syllable cushions.</div>
+            </div>
+            <button class="btn btn-primary" id="btn-montage-quick-render" style="padding: 10px 20px; font-weight: 700; background: linear-gradient(135deg, #ec4899, #8b5cf6); border: none; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 18px rgba(236, 72, 153, 0.35);">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span>Select Videos &amp; Build Montage</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2-COLUMN SPLIT CONTAINER -->
+        <div class="montage-split-container">
+          <!-- LEFT COLUMN: SETTINGS PIPELINE -->
+          <div class="montage-col-settings">
+            <!-- CARD 0: AI DIRECTOR & STORYLINE SEQUENCING -->
+            <div class="card" id="card-montage-director" style="border-color: rgba(168, 85, 247, 0.4); background: linear-gradient(160deg, rgba(168, 85, 247, 0.08), rgba(15, 23, 42, 0.5));">
+              <div class="card-section-title" style="display:flex; align-items:center; justify-content:space-between;">
+                <span>🤖 AI Story Director &amp; Scene Sequencing</span>
+                <span class="pro-badge" style="background: linear-gradient(135deg, #a855f7, #6366f1);">HYBRID BRAIN</span>
+              </div>
+              <div class="row-sub" style="margin-bottom: 12px; color: #cbd5e1;">
+                Intelligently analyzes clip content, transcribed speech, and local scripts to automatically arrange scenes into a logical narrative arc (Hook ➔ Journey ➔ Climax ➔ Resolution ➔ Outro) — zero manual sorting needed!
+              </div>
+
+              <!-- SEQUENCING MODE -->
+              <div class="row" style="flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 10px;">
+                <div class="row-title">Story Sequencing Mode</div>
+                <div class="segmented-control" id="montage-director-mode-segmented" style="width: 100%;">
+                  <button class="seg-btn active" data-mode="smart_story" style="flex: 1;">🤖 AI Director</button>
+                  <button class="seg-btn" data-mode="script_match" style="flex: 1;">📄 Match Script.md</button>
+                  <button class="seg-btn" data-mode="filename_order" style="flex: 1;">🔢 Sequential</button>
+                </div>
+              </div>
+
+              <!-- NARRATIVE STORY ARC PRESET -->
+              <div class="row" id="row-montage-story-arc">
+                <div>
+                  <div class="row-title">Narrative Story Arc</div>
+                  <div class="row-sub">Guiding emotional structure for the assembled storyline.</div>
+                </div>
+                <select id="sel-montage-story-arc" class="select" style="min-width: 220px; font-size: 11.5px;">
+                  <option value="viral_reel">🔥 Viral Reel / TikTok Hook (Hook ➔ Problem ➔ Climax ➔ Outro)</option>
+                  <option value="vlog_life">📹 Vlog / Day in Life (Morning ➔ Journey ➔ Event ➔ Goodbye)</option>
+                  <option value="product_unboxing">📦 Product Demo &amp; Unboxing (Teaser ➔ Unbox ➔ Setup ➔ Verdict)</option>
+                  <option value="cinematic">🎬 Cinematic Short Story (Intro ➔ Rising Tension ➔ Climax ➔ Resolve)</option>
+                </select>
+              </div>
+
+              <!-- AI BRAIN PROVIDER (HYBRID ARCHITECTURE) -->
+              <div class="row" id="row-montage-ai-provider">
+                <div>
+                  <div class="row-title">AI Director Brain</div>
+                  <div class="row-sub">Only sends ~1KB clip titles &amp; text transcripts. Heavy video rendering stays 100% local!</div>
+                </div>
+                <select id="sel-montage-ai-provider" class="select" style="min-width: 220px; font-size: 11.5px;">
+                  <option value="gemini">⚡ Google Gemini Flash (Recommended · Ultra Fast &amp; Deep IQ)</option>
+                  <option value="openai">🧠 OpenAI GPT-4o-mini</option>
+                  <option value="meta">🦙 Meta Llama 4 Maverick</option>
+                  <option value="claude">🎭 Anthropic Claude Haiku</option>
+                  <option value="openrouter">🔀 OpenRouter (300+ Models)</option>
+                  <option value="deepseek">🐋 DeepSeek V3</option>
+                  <option value="local_offline">💻 Local Heuristic (100% Offline · No API Key Required)</option>
+                </select>
+              </div>
+
+              <!-- UNIFIED CLOUD AI VAULT STATUS (READ-ONLY + NAV LINK) -->
+              <div class="row" id="row-montage-ai-key" style="margin-top: 6px;">
+                <div>
+                  <div class="row-title">Cloud AI OS Vault Status</div>
+                  <div class="row-sub">API keys are encrypted centrally in your OS Keychain / Credential Manager.</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+                  <span id="montage-vault-status-pill" class="cai-status-pill">○ Checking Vault…</span>
+                  <button type="button" class="btn-ghost-sm" id="btn-montage-goto-cloudai" style="border-color:rgba(168,85,247,.45); color:#d8b4fe; font-weight:700; cursor:pointer;">Cloud AI (API Keys) →</button>
+                </div>
+              </div>
+
+              <!-- FOLDER SCANNING NOTICE -->
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 12px; background: rgba(30, 41, 59, 0.6); border-radius: 8px; border: 1px solid rgba(148, 163, 184, 0.15); font-size: 11px; color: #94a3b8;">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="color: #38bdf8; flex-shrink: 0;"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                <span><b>Folder Drop Support:</b> Drop or select any folder containing clips; Pizza Converter will auto-recurse, ignore raw duplicates, and read <code>script.md</code> or prompt beats automatically.</span>
+              </div>
+            </div>
+
+            <!-- CARD 1: AI SMART PACING & JUMP CUTS -->
+            <div class="card">
+              <div class="card-section-title">✂️ Pacing &amp; Jump-Cut Rules</div>
+              <div class="row">
+                <div>
+                  <div class="row-title">Remove Filler Words</div>
+                  <div class="row-sub">Cleans "um, uh, er, ah, like, you know..." using Faster-Whisper alignment.</div>
+                </div>
+                <button class="toggle" id="tgl-montage-cut-fillers" aria-pressed="true"><span class="knob"></span></button>
+              </div>
+              <div class="row">
+                <div>
+                  <div class="row-title">Eliminate False Starts &amp; Stutters</div>
+                  <div class="row-sub">Cuts repeated words and hesitant sentence starts ("I... I think").</div>
+                </div>
+                <button class="toggle" id="tgl-montage-cut-stutters" aria-pressed="true"><span class="knob"></span></button>
+              </div>
+              <div class="row">
+                <div>
+                  <div class="row-title">Max Silence Gap Threshold</div>
+                  <div class="row-sub">Tightens long pauses with 80ms attack / 120ms decay cushions.</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <input type="number" id="inp-montage-max-silence" min="0.2" max="1.5" step="0.05" value="0.35" style="width: 70px; text-align: center; font-weight: 700;">
+                  <span style="font-size: 11px; color: #94a3b8;">sec</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- CARD 2: WATERMARK LOGO OVERLAY -->
+            <div class="card">
+              <div class="card-section-title">🛡️ Watermark Brand Logo</div>
+              <div class="row">
+                <div>
+                  <div class="row-title">Enable Brand Logo Overlay</div>
+                  <div class="row-sub">Burn your brand logo persistently across the whole video.</div>
+                </div>
+                <button class="toggle" id="tgl-montage-logo-enable" aria-pressed="false"><span class="knob"></span></button>
+              </div>
+              <div class="row" id="row-montage-logo-file">
+                <div>
+                  <div class="row-title">Logo Image Asset</div>
+                  <div class="row-sub">PNG, WebP, JPG, or SVG format.</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px; flex:1; max-width: 320px; justify-content: flex-end;">
+                  <input type="text" id="inp-montage-logo-path" placeholder="Select logo..." readonly style="flex:1; font-size: 11px;">
+                  <button class="btn btn-outline" id="btn-montage-browse-logo">Browse...</button>
+                  <button class="btn btn-outline" id="btn-montage-clear-logo" title="Clear logo" style="color:#f87171;">✕</button>
+                </div>
+              </div>
+              <div class="row" id="row-montage-logo-params">
+                <div>
+                  <div class="row-title">Anchor &amp; Sizing</div>
+                  <div class="row-sub">Corner position, scale size, and transparency.</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content: flex-end;">
+                  <select id="sel-montage-logo-pos" style="font-size: 11px; padding: 4px 6px;">
+                    <option value="top-right">Top Right</option>
+                    <option value="top-left">Top Left</option>
+                    <option value="bottom-right">Bottom Right</option>
+                    <option value="bottom-left">Bottom Left</option>
+                  </select>
+                  <div style="display:flex; align-items:center; gap:4px;">
+                    <span style="font-size: 10.5px; color:#94a3b8;">Scale:</span>
+                    <input type="range" id="rng-montage-logo-scale" min="5" max="40" step="1" value="14" style="width: 60px;">
+                    <span id="lbl-montage-logo-scale" style="font-size: 11px; font-weight:700; width: 30px;">14%</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:4px;">
+                    <span style="font-size: 10.5px; color:#94a3b8;">Opacity:</span>
+                    <input type="range" id="rng-montage-logo-opacity" min="10" max="100" step="5" value="85" style="width: 60px;">
+                    <span id="lbl-montage-logo-opacity" style="font-size: 11px; font-weight:700; width: 32px;">85%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- CARD 3: DYNAMIC CAPTIONS & STYLES -->
+            <div class="card">
+              <div class="card-section-title">💬 Dynamic Captions &amp; Subtitles</div>
+              <div class="row">
+                <div>
+                  <div class="row-title">Burn Dynamic Captions</div>
+                  <div class="row-sub">Overlay word-by-word stylized captions automatically.</div>
+                </div>
+                <button class="toggle" id="tgl-montage-caption-enable" aria-pressed="true"><span class="knob"></span></button>
+              </div>
+              <div class="row row-col" id="row-montage-caption-style">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;">
+                  <div>
+                    <div class="row-title">Signature Visual Style</div>
+                    <div class="row-sub">Matches signature typography &amp; effects from Burn Captions:</div>
+                  </div>
+                </div>
+                <div class="montage-cap-chips-grid" id="montage-cap-chips">
+                  <button class="montage-cap-chip active" data-style="beasty">
+                    <span class="chip-dot" style="background:#facc15;"></span>
+                    <b>Beasty</b> (Yellow Pop)
+                  </button>
+                  <button class="montage-cap-chip" data-style="roleplay">
+                    <span class="chip-dot" style="background:#38bdf8;"></span>
+                    <b>Role-Play</b> (Speaker Tag)
+                  </button>
+                  <button class="montage-cap-chip" data-style="popline">
+                    <span class="chip-dot" style="background:#ec4899;"></span>
+                    <b>Popline</b> (Pink Glow)
+                  </button>
+                  <button class="montage-cap-chip" data-style="deep_diver">
+                    <span class="chip-dot" style="background:#0284c7;"></span>
+                    <b>Deep Diver</b> (Pill Box)
+                  </button>
+                  <button class="montage-cap-chip" data-style="one_punch">
+                    <span class="chip-dot" style="background:#f97316;"></span>
+                    <b>One Punch</b> (Kinetic)
+                  </button>
+                  <button class="montage-cap-chip" data-style="glow">
+                    <span class="chip-dot" style="background:#2dd4bf;"></span>
+                    <b>Glow</b> (Cyan Neon)
+                  </button>
+                  <button class="montage-cap-chip" data-style="classic">
+                    <span class="chip-dot" style="background:#ffffff;"></span>
+                    <b>Classic</b> (Clean Shadow)
+                  </button>
+                  <button class="montage-cap-chip" data-style="netflix">
+                    <span class="chip-dot" style="background:#94a3b8;"></span>
+                    <b>Netflix</b> (Cinema Box)
+                  </button>
+                </div>
+              </div>
+              <div class="row" id="row-montage-caption-srt" style="margin-top: 6px;">
+                <div>
+                  <div class="row-title">Custom Subtitle File (Optional)</div>
+                  <div class="row-sub">Use an existing .srt/.vtt or leave empty for auto Whisper AI!</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px; flex:1; max-width: 320px; justify-content: flex-end;">
+                  <input type="text" id="inp-montage-srt-path" placeholder="Auto via Neural Whisper" readonly style="flex:1; font-size: 11px;">
+                  <button class="btn btn-outline" id="btn-montage-browse-srt">Browse...</button>
+                  <button class="btn btn-outline" id="btn-montage-clear-srt" title="Clear SRT" style="color:#f87171;">✕</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- CARD 4: INTRO & OUTRO CLIPS -->
+            <div class="card">
+              <div class="card-section-title">🎬 Intro &amp; Outro Bumper Clips</div>
+              <div class="row">
+                <div>
+                  <div class="row-title">Prepend Intro Bumper</div>
+                  <div class="row-sub">Automatically stitch intro clip at start.</div>
+                </div>
+                <button class="toggle" id="tgl-montage-intro-enable" aria-pressed="false"><span class="knob"></span></button>
+              </div>
+              <div class="row" id="row-montage-intro-file">
+                <div>
+                  <div class="row-title">Intro Video File</div>
+                  <div class="row-sub">MP4, MOV, MKV clip.</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px; flex:1; max-width: 320px; justify-content: flex-end;">
+                  <input type="text" id="inp-montage-intro-path" placeholder="Select intro video..." readonly style="flex:1; font-size: 11px;">
+                  <button class="btn btn-outline" id="btn-montage-browse-intro">Browse...</button>
+                  <button class="btn btn-outline" id="btn-montage-clear-intro" title="Clear intro" style="color:#f87171;">✕</button>
+                </div>
+              </div>
+              <div class="row">
+                <div>
+                  <div class="row-title">Append Outro Bumper</div>
+                  <div class="row-sub">Automatically stitch outro clip at end.</div>
+                </div>
+                <button class="toggle" id="tgl-montage-outro-enable" aria-pressed="false"><span class="knob"></span></button>
+              </div>
+              <div class="row" id="row-montage-outro-file">
+                <div>
+                  <div class="row-title">Outro Video File</div>
+                  <div class="row-sub">MP4, MOV, MKV clip.</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px; flex:1; max-width: 320px; justify-content: flex-end;">
+                  <input type="text" id="inp-montage-outro-path" placeholder="Select outro video..." readonly style="flex:1; font-size: 11px;">
+                  <button class="btn btn-outline" id="btn-montage-browse-outro">Browse...</button>
+                  <button class="btn btn-outline" id="btn-montage-clear-outro" title="Clear outro" style="color:#f87171;">✕</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- CARD 5: EXECUTION BUTTONS -->
+            <div class="card" style="text-align: center; padding: 18px 20px; background: linear-gradient(180deg, rgba(30, 41, 59, 0.4), rgba(15, 23, 42, 0.7)); border-color: rgba(99, 102, 241, 0.3);">
+              <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn btn-primary" id="btn-montage-start-batch" style="flex: 1.4; min-width: 200px; padding: 12px 18px; font-size: 13px; font-weight: 700; background: linear-gradient(135deg, #ec4899, #8b5cf6); border: none; box-shadow: 0 4px 20px rgba(236, 72, 153, 0.4); display: flex; align-items: center; justify-content: center; gap: 8px;">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  <span>Select Videos &amp; Render</span>
+                </button>
+                <button class="btn btn-outline" id="btn-montage-pick-folder" style="flex: 1; min-width: 170px; padding: 12px 16px; font-size: 12.5px; font-weight: 700; border-color: rgba(56, 189, 248, 0.5); color: #38bdf8; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                  <span>Auto-Direct Folder...</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT COLUMN: STICKY LIVE PREVIEW & HISTORY -->
+          <div class="montage-col-preview">
+            <div class="card montage-preview-card">
+              <!-- SUB TABS: PREVIEW VS HISTORY -->
+              <div class="montage-tab-pills">
+                <button class="montage-tab-pill active" id="tab-btn-montage-preview">
+                  <span>🎬 Live Preview</span>
+                </button>
+                <button class="montage-tab-pill" id="tab-btn-montage-history">
+                  <span>📜 Montage History</span>
+                  <span class="montage-hist-badge" id="montage-hist-count">0</span>
+                </button>
+              </div>
+
+              <!-- PANE 1: LIVE PREVIEW -->
+              <div id="montage-pane-preview">
+                <div class="montage-stage-header" style="margin-top: 10px;">
+                  <div class="montage-stage-title">
+                    <span class="montage-pulse-dot"></span>
+                    <span>Aspect Ratio:</span>
+                  </div>
+                  <div class="segmented-control" id="montage-aspect-segmented">
+                    <button class="seg-btn active" data-aspect="16:9">16:9 Wide</button>
+                    <button class="seg-btn" data-aspect="9:16">9:16 Shorts</button>
+                    <button class="seg-btn" data-aspect="1:1">1:1 Square</button>
+                  </div>
+                </div>
+
+                <!-- PREVIEW CANVAS -->
+                <div class="montage-viewport-wrapper">
+                  <div class="montage-canvas-frame" id="montage-canvas-frame" data-aspect="16:9">
+                    <!-- Video Backdrop Mockup -->
+                    <div class="montage-backdrop" id="montage-backdrop">
+                      <div class="montage-backdrop-ambient"></div>
+                      <div class="montage-backdrop-grid"></div>
+                      <div class="montage-backdrop-subject">
+                        <div class="montage-speaker-avatar">
+                          <svg viewBox="0 0 24 24" width="44" height="44" fill="rgba(255,255,255,0.4)"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                        </div>
+                        <div class="montage-backdrop-badge">
+                          <span class="pulse-icon">⚡</span> Smart Jump-Cuts Active
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Watermark Logo Overlay -->
+                    <div class="montage-logo-overlay" id="montage-preview-logo-box" style="top: 12px; right: 12px;">
+                      <img id="montage-preview-logo-img" src="" alt="Logo Watermark" style="display: none; max-width: 100%; height: auto; object-fit: contain;">
+                      <div id="montage-preview-logo-placeholder" class="montage-logo-placeholder">
+                        <span>BRAND LOGO</span>
+                      </div>
+                    </div>
+
+                    <!-- Dynamic Captions Overlay -->
+                    <div class="montage-caption-overlay" id="montage-preview-caption-box">
+                      <div class="montage-caption-text style-neon" id="montage-preview-caption-text">
+                        "So we tested the new workflow... and it worked!"
+                      </div>
+                    </div>
+
+                    <!-- Bumper Badges -->
+                    <div class="montage-bumper-badge intro" id="montage-badge-intro" style="display: none;">🎬 INTRO</div>
+                    <div class="montage-bumper-badge outro" id="montage-badge-outro" style="display: none;">🎬 OUTRO</div>
+                  </div>
+                </div>
+
+                <!-- STORYLINE TIMELINE STRIP -->
+                <div class="montage-timeline-strip">
+                  <div class="montage-timeline-block bumper" id="tl-block-intro">
+                    <span class="tl-icon">🎬</span>
+                    <span class="tl-label">Intro</span>
+                    <span class="tl-status" id="tl-intro-status">Disabled</span>
+                  </div>
+                  <div class="montage-timeline-arrow">➔</div>
+                  <div class="montage-timeline-block main">
+                    <span class="tl-icon">⚡</span>
+                    <span class="tl-label">AI Jump-Cut Dialogue</span>
+                    <span class="tl-sub" id="tl-main-sub">16:9 · 0.35s Max Gap</span>
+                  </div>
+                  <div class="montage-timeline-arrow">➔</div>
+                  <div class="montage-timeline-block bumper" id="tl-block-outro">
+                    <span class="tl-icon">🎬</span>
+                    <span class="tl-label">Outro</span>
+                    <span class="tl-status" id="tl-outro-status">Disabled</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- PANE 2: MONTAGE HISTORY -->
+              <div id="montage-pane-history" style="display: none; margin-top: 10px;">
+                <div class="montage-hist-toolbar">
+                  <span style="font-size: 11.5px; font-weight: 700; color: #f8fafc;">Recent Rendered Montages</span>
+                  <button class="btn btn-outline" id="btn-montage-clear-history" style="font-size: 10.5px; padding: 3px 8px;">Clear History</button>
+                </div>
+                <div class="montage-hist-list" id="montage-hist-list">
+                  <!-- Rendered dynamically in settings.js -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="view-cloud" class="view hidden">
-        <div class="section-label">1-CLICK CLOUD DROP &amp; INSTANT SHARE WHEEL (CTRL + SHIFT + G)</div>
+        <div class="section-label">1-CLICK CLOUD DROP &amp; INSTANT SHARE WHEEL (ALT + G)</div>
         <div class="card" style="border-color: rgba(56, 189, 248, 0.35); background: linear-gradient(155deg, rgba(56, 189, 248, 0.09), rgba(15, 23, 42, 0.45));">
           <div class="row">
             <div>
@@ -1550,24 +2211,10 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
           </div>
           <div class="row">
             <div>
-              <div class="row-title">Cloud Drop Global Shortcut</div>
-              <div class="row-sub">Dedicated shortcut for Cloud Upload &amp; Share (Convert remains Ctrl + G)</div>
+              <div class="row-title">☁️ Cloud Drop Global Shortcut</div>
+              <div class="row-sub">Configured centrally in General Preferences. Current shortcut: <b id="disp-cloud-current-key" style="color:#38bdf8;">Alt + G</b></div>
             </div>
-            <div class="shortcut-selector-box">
-              <div class="segmented-control" id="cloud-key-segmented">
-                <button class="seg-btn active" data-ckey="ctrl+shift+g">Ctrl + Shift + G</button>
-                <button class="seg-btn" data-ckey="alt+g">Alt + G</button>
-                <button class="seg-btn" data-ckey="alt+s">Alt + S</button>
-                <button class="seg-btn" data-ckey="ctrl+alt+g">Ctrl + Alt + G</button>
-              </div>
-              <div class="custom-hotkey-row">
-                <span class="custom-hotkey-label">Or custom shortcut:</span>
-                <button id="btn-record-cloud-hotkey" class="btn-hotkey-input" title="Click to record custom Cloud Drop shortcut">
-                  <span id="record-cloud-hotkey-text">Ctrl + Shift + G</span>
-                </button>
-                <button id="btn-reset-cloud-hotkey" class="btn-ghost-sm" data-i18n="default_btn">Default</button>
-              </div>
-            </div>
+            <button type="button" class="btn-ghost-sm btn-goto-general-shortcuts" data-target-shortcut="cloud" style="border-color:rgba(56,189,248,.4); color:#38bdf8; font-weight:700;">Change Shortcut →</button>
           </div>
           <div class="row">
             <div>
@@ -1655,9 +2302,314 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
         <div class="section-label">RECENT CLOUD UPLOADS &amp; SHARE LINKS</div>
         <div class="card">
           <div id="cloud-hist-list"></div>
-          <div id="cloud-hist-empty" style="text-align:center; padding:12px 8px; color:rgba(235,238,248,.5); font-size:11.2px;">No cloud uploads yet. Select any file and press <strong>Ctrl + Shift + G</strong>!</div>
+          <div id="cloud-hist-empty" style="text-align:center; padding:12px 8px; color:rgba(235,238,248,.5); font-size:11.2px;">No cloud uploads yet. Select any file and press <strong>Alt + G</strong>!</div>
         </div>
         <div class="center"><button class="link-btn" id="btn-clear-cloud-hist">Clear cloud history</button></div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- VIEW: VIDEO DOWNLOADER PRO & HISTORY MANAGEMENT                           -->
+      <!-- ========================================================================= -->
+      <section id="view-videodownloader" class="view hidden">
+        <div class="section-label" data-i18n="sec_videodownloader">VIDEO DOWNLOADER PRO &amp; HISTORY MANAGEMENT</div>
+
+        <!-- View Header -->
+        <div class="card" style="padding: 12px 14px; margin-bottom: 8px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            <div>
+              <div style="font-size:15px; font-weight:800; color:#f8fafc; display:flex; align-items:center; gap:8px;">
+                <span data-i18n="videodl_title">Video Downloader Pro</span>
+                <span class="pro-badge" style="color:#38bdf8; border-color:rgba(56,189,248,.5); background:rgba(56,189,248,.15);">PRO</span>
+              </div>
+              <div style="font-size:11.2px; color:rgba(235,238,248,.68); margin-top:3px;" data-i18n="videodl_subtitle">
+                Download videos, reels, shorts, playlists, and audio tracks with zero command prompt windows
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button type="button" class="btn-ghost-sm" id="btn-videodl-toggle-env" style="font-size:10.5px; color:#94a3b8; display:flex; align-items:center; gap:5px;" title="View or re-scan backend engine and binary dependencies">
+                <span>⚙️</span> <span>Engine Status</span>
+              </button>
+              <span class="keycap" style="font-size:10.5px;">Global Shortcut: Ctrl+Shift+V</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD 1: ENVIRONMENT & BINARY STATUS (Hidden by default when all dependencies are ready) -->
+        <div class="card hidden" id="videodl-env-card" style="border-left: 3px solid #38bdf8;">
+          <div class="row">
+            <div>
+              <div class="row-title" style="display:flex; align-items:center; gap:8px;">
+                <span data-i18n="videodl_env_title">Engine &amp; Binary Dependencies</span>
+                <span id="videodl-overall-env-pill" class="cai-status-pill none">Checking...</span>
+              </div>
+              <div class="row-sub" data-i18n="videodl_env_sub">Detects yt-dlp &amp; FFmpeg binaries for background video extraction and audio merging</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button class="btn-ghost-sm" id="btn-videodl-refresh-env" title="Re-scan system binaries">
+                <span>🔄</span> <span data-i18n="videodl_rescan">Re-scan</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="videodl-env-grid">
+            <!-- Tool 1: yt-dlp -->
+            <div class="videodl-env-item" id="env-item-ytdlp">
+              <div class="videodl-env-item-head">
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <span class="videodl-env-dot" id="dot-ytdlp"></span>
+                  <span class="videodl-env-name">yt-dlp Core Engine</span>
+                </div>
+                <span id="videodl-ytdlp-pill" class="cai-status-pill none">Checking</span>
+              </div>
+              <div class="videodl-env-path" id="videodl-ytdlp-path">Scanning system paths...</div>
+              <div class="videodl-env-actions">
+                <button class="btn-ghost-sm hidden" id="btn-install-ytdlp">Install yt-dlp</button>
+              </div>
+            </div>
+
+            <!-- Tool 2: FFmpeg -->
+            <div class="videodl-env-item" id="env-item-ffmpeg">
+              <div class="videodl-env-item-head">
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <span class="videodl-env-dot" id="dot-ffmpeg"></span>
+                  <span class="videodl-env-name">FFmpeg Codec &amp; Muxer</span>
+                </div>
+                <span id="videodl-ffmpeg-pill" class="cai-status-pill none">Checking</span>
+              </div>
+              <div class="videodl-env-path" id="videodl-ffmpeg-path">Scanning system paths...</div>
+              <div class="videodl-env-actions">
+                <button class="btn-ghost-sm hidden" id="btn-install-ffmpeg">Install FFmpeg</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="videodl-env-feedback-bar" class="row hidden" style="border-top:1px solid rgba(255,255,255,.08); padding-top:6px;">
+            <div id="videodl-env-message" class="row-sub" style="color:#7dd3fc;"></div>
+          </div>
+        </div>
+
+        <!-- CARD 2: MANUAL DOWNLOAD & ADVANCED CONFIGURATION -->
+        <div class="card" id="videodl-input-card">
+          <div class="row" style="border-top:none;">
+            <div>
+              <div class="row-title" data-i18n="videodl_manual_title">Manual Video &amp; Channel Download</div>
+              <div class="row-sub" data-i18n="videodl_manual_sub">Paste any video, shorts, reel, playlist, or channel URL to download with zero command windows</div>
+            </div>
+          </div>
+
+          <!-- URL Input Bar with Badge and Actions -->
+          <div class="row" style="flex-direction:column; align-items:stretch; gap:6px;">
+            <div class="videodl-input-wrapper" id="videodl-url-wrapper">
+              <span class="videodl-url-icon">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+              </span>
+              <input 
+                type="text" 
+                id="videodl-url-input" 
+                class="ag-input videodl-url-input" 
+                placeholder="Paste URL (YouTube, TikTok watermarkless, Facebook, Instagram, Twitter/X)..." 
+                autocomplete="off" 
+                spellcheck="false"
+              />
+              <span id="videodl-platform-badge" class="platform-badge badge-generic">Ready</span>
+              <button id="btn-videodl-clear-url" class="btn-ghost-sm hidden" title="Clear URL input">✕</button>
+              <button id="btn-videodl-paste-url" class="btn-ghost-sm" title="Paste URL from clipboard">📋 Paste</button>
+            </div>
+          </div>
+
+          <!-- Quality Preset Selector -->
+          <div class="row">
+            <div>
+              <div class="row-title" data-i18n="videodl_quality_title">Quality Preset &amp; Format</div>
+              <div class="row-sub">Choose target resolution or extract audio track as high-bitrate MP3</div>
+            </div>
+            <select id="videodl-quality-preset" class="ag-select" style="min-width:180px;">
+              <option value="best" selected>Best / Original (Highest Quality)</option>
+              <option value="720p">720p HD (Balanced Size)</option>
+              <option value="mp3">MP3 Audio Only (320kbps)</option>
+              <option value="srt">Transcript SRT (.srt with timestamps)</option>
+              <option value="txt">Transcript Text (.txt plain speech transcript)</option>
+            </select>
+          </div>
+
+          <!-- Output Folder Selector -->
+          <div class="row" style="flex-direction:column; align-items:stretch; gap:6px;">
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <div class="row-title" data-i18n="videodl_dest_title">Download Destination Folder</div>
+              <div class="row-sub" data-i18n="videodl_dest_sub">Where completed downloads are saved</div>
+            </div>
+            <div class="output-row" style="padding-bottom:2px;">
+              <div id="videodl-output-dir-display" class="path-field">Downloads/Pizza-Converter</div>
+              <button class="btn-ghost" id="btn-browse-videodl-dir">Browse…</button>
+              <button class="btn-ghost" id="btn-open-videodl-dir" title="Open download destination folder in Explorer/Finder">Open Folder</button>
+            </div>
+          </div>
+
+          <!-- Channel / Playlist Options -->
+          <div class="row" id="videodl-channel-row" style="flex-direction:column; align-items:stretch; gap:8px;">
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <div>
+                <div class="row-title" data-i18n="videodl_channel_title">Channel &amp; Playlist Download Mode</div>
+                <div class="row-sub" data-i18n="videodl_channel_sub">Download all videos from channels/playlists or specify a custom video count</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span class="row-sub">Limit:</span>
+                <input type="number" id="videodl-channel-limit" class="ag-input" min="1" max="2000" value="50" style="width:75px; text-align:center;" disabled>
+              </div>
+            </div>
+
+            <div style="padding:4px 0 0;">
+              <label class="cai-consent-lbl" style="color:#f8fafc; cursor:pointer;">
+                <input type="checkbox" id="videodl-full-channel" checked>
+                <span style="font-weight:600;">Download entire channel / playlist (all videos)</span>
+              </label>
+            </div>
+
+            <!-- Entire Channel Warning / Info -->
+            <div id="videodl-channel-warning" class="legal-callout" style="border-left-color:#38bdf8; margin:4px 0 0;">
+              <div style="font-weight:700; color:#38bdf8; margin-bottom:4px;">ℹ️ Full Channel &amp; Playlist Mode Active</div>
+              <div style="font-size:11.2px; line-height:1.45; color:#e2e8f0;" data-i18n="videodl_channel_warning">
+                All available videos in the channel or playlist will be fetched into a dedicated subfolder. To limit the number of videos, uncheck the box above.
+              </div>
+            </div>
+          </div>
+
+          <!-- Additional Options -->
+          <div class="row">
+            <div>
+              <div class="row-title">Embed Subtitles</div>
+              <div class="row-sub">Extract and embed subtitles directly into video container if available</div>
+            </div>
+            <button class="toggle" id="tgl-videodl-embed-subtitles" aria-pressed="false"><span class="knob"></span></button>
+          </div>
+
+          <div class="row">
+            <div>
+              <div class="row-title">Custom Output Filename (Optional)</div>
+              <div class="row-sub">Leave blank to use original video title automatically</div>
+            </div>
+            <input type="text" id="videodl-custom-filename" class="ag-input" placeholder="e.g., tutorial-part-1" style="width:230px;">
+          </div>
+
+          <!-- Primary Start Download Button -->
+          <div style="padding:8px 0 4px;">
+            <button id="btn-start-videodl" class="cta" style="display:flex; align-items:center; justify-content:center; gap:8px; margin:0; width:100%;">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              <span id="btn-videodl-start-label" data-i18n="videodl_start_download">Download Video</span>
+              <span class="keycap" style="background:rgba(0,0,0,0.25); color:#042f2e; border-color:rgba(0,0,0,0.3); font-size:10px; margin-left:4px;">Enter ↵</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- CARD 3: ACTIVE DOWNLOADS TRACKER -->
+        <div class="card" id="videodl-active-card">
+          <div class="row">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="row-title" data-i18n="videodl_active_title">Active Downloads</div>
+              <span id="videodl-active-count" class="cai-status-pill ok hidden">0 active</span>
+            </div>
+            <span class="row-sub" style="font-size:10.5px;">Real-time progress, speed &amp; ETA</span>
+          </div>
+
+          <!-- Empty State -->
+          <div id="videodl-active-empty" style="text-align:center; padding:18px 10px; color:rgba(235,238,248,.5); font-size:11.8px;" data-i18n="videodl_active_empty">
+            No active downloads in progress. Paste a URL above to start.
+          </div>
+
+          <!-- Active Cards Container -->
+          <div id="videodl-active-list" class="videodl-active-list"></div>
+        </div>
+
+        <!-- CARD 4: DOWNLOADS HISTORY & FILE MANAGEMENT -->
+        <div class="card" id="videodl-history-card">
+          <div class="row">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="row-title" data-i18n="videodl_history_title">Download History</div>
+              <span id="videodl-history-count" class="cai-status-pill saved">0 items</span>
+            </div>
+            <button class="btn-ghost-sm" id="btn-clear-videodl-history" title="Clear all download history records" data-i18n="videodl_clear_history">
+              Clear All
+            </button>
+          </div>
+
+          <!-- Filter & Search Toolbar -->
+          <div class="videodl-filter-toolbar">
+            <div class="videodl-search-wrap">
+              <span class="videodl-search-ico">🔍</span>
+              <input 
+                type="text" 
+                id="videodl-history-search" 
+                class="ag-input videodl-search-input" 
+                placeholder="Search downloaded titles, channels, formats..." 
+                autocomplete="off"
+              />
+              <button id="btn-videodl-clear-search" class="videodl-search-clear hidden" title="Clear search">✕</button>
+            </div>
+
+            <select id="videodl-history-platform-filter" class="ag-select" title="Filter by Platform">
+              <option value="all">All Platforms</option>
+              <option value="youtube">YouTube</option>
+              <option value="tiktok">TikTok</option>
+              <option value="facebook">Facebook</option>
+              <option value="instagram">Instagram</option>
+              <option value="twitter">X / Twitter</option>
+            </select>
+
+            <select id="videodl-history-status-filter" class="ag-select" title="Filter by Status">
+              <option value="all">All Statuses</option>
+              <option value="completed">Completed</option>
+              <option value="failed">Failed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+
+          <!-- History List Items Container -->
+          <div id="videodl-history-list" class="videodl-history-list"></div>
+
+          <!-- Empty History State -->
+          <div id="videodl-history-empty" class="hidden" style="text-align:center; padding:28px 10px; color:rgba(235,238,248,.5); font-size:11.8px;" data-i18n="videodl_history_empty">
+            No download history found. Completed and failed downloads will appear here.
+          </div>
+        </div>
+
+        <!-- DELETE CONFIRMATION MODAL -->
+        <div id="videodl-delete-modal" class="tour-backdrop hidden">
+          <div class="tour-modal" style="width:420px; max-width:92vw;">
+            <div class="tour-header">
+              <span class="tour-badge" style="color:#fda4af; border-color:rgba(244,63,94,.4); background:rgba(244,63,94,.12);">
+                🗑️ Delete Download Record
+              </span>
+              <button class="tour-close-x" id="btn-close-del-modal">✕</button>
+            </div>
+            <div style="padding:16px 20px;">
+              <div style="font-size:12.4px; font-weight:700; color:#f8fafc; margin-bottom:8px;" id="del-modal-title">
+                Remove this item from download history?
+              </div>
+              <div style="font-size:11.2px; color:rgba(235,238,248,.75); margin-bottom:14px;" id="del-modal-desc">
+                Choose whether to delete the history entry only or also delete the downloaded media file from your disk.
+              </div>
+              <div style="background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:10px 12px; margin-bottom:14px;">
+                <label class="cai-consent-lbl" style="color:#f8fafc; cursor:pointer;">
+                  <input type="checkbox" id="chk-del-also-file">
+                  <span>Also delete media file from disk permanently</span>
+                </label>
+              </div>
+              <div style="display:flex; justify-content:flex-end; gap:8px;">
+                <button class="btn-ghost" id="btn-cancel-del">Cancel</button>
+                <button class="btn-ghost" id="btn-confirm-del" style="background:rgba(244,63,94,.2); border-color:rgba(244,63,94,.5); color:#fda4af; font-weight:800;">
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section id="view-design" class="view hidden">
@@ -1686,23 +2638,10 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
               </div>
               <div class="row">
                 <div>
-                  <div class="row-title">Design Studio Global Shortcut</div>
-                  <div class="row-sub">Dedicated shortcut for Design Studio (Convert remains Ctrl + G)</div>
+                  <div class="row-title">🎨 Design Studio Global Shortcut</div>
+                  <div class="row-sub">Configured centrally in General Preferences. Current shortcut: <b id="disp-design-current-key" style="color:#fbbf24;">Ctrl + Shift + D</b></div>
                 </div>
-                <div class="shortcut-selector-box">
-                  <div class="segmented-control" id="design-key-segmented">
-                    <button class="seg-btn active" data-dkey="ctrl+shift+d">Ctrl + Shift + D</button>
-                    <button class="seg-btn" data-dkey="alt+d">Alt + D</button>
-                    <button class="seg-btn" data-dkey="ctrl+alt+d">Ctrl + Alt + D</button>
-                  </div>
-                  <div class="custom-hotkey-row">
-                    <span class="custom-hotkey-label" data-i18n="custom_hotkey_label">Or custom shortcut:</span>
-                    <button id="btn-record-design-hotkey" class="btn-hotkey-input" title="Click to record custom Design Studio shortcut">
-                      <span id="record-design-hotkey-text">Ctrl + Shift + D</span>
-                    </button>
-                    <button id="btn-reset-design-hotkey" class="btn-ghost-sm" data-i18n="default_btn">Default</button>
-                  </div>
-                </div>
+                <button type="button" class="btn-ghost-sm btn-goto-general-shortcuts" data-target-shortcut="design" style="border-color:rgba(251,191,36,.4); color:#fbbf24; font-weight:700;">Change Shortcut →</button>
               </div>
               <div class="row">
                 <div>
@@ -2231,7 +3170,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
             <div style="font-size:13.2px; font-weight:800; color:#5eead4;" data-i18n="aig_hero_title">✨ 12 On-Device AI &amp; Smart Workflow Engines</div>
             <span class="pro-badge" style="margin-left:0;">100% LOCAL · ZERO PRIVACY LEAK</span>
           </div>
-          <div style="font-size:11.2px; color:rgba(235,238,248,.78); line-height:1.48;" data-i18n-html="aig_hero_sub">All AI features are built directly into your radial wheels: press <b>Ctrl + G</b> on any selected file(s) for AI Conversion &amp; Studio tools, or press <b>Ctrl + Shift + G</b> for Cloud Drop &amp; Wi-Fi Phone Transfer.</div>
+          <div style="font-size:11.2px; color:rgba(235,238,248,.78); line-height:1.48;" data-i18n-html="aig_hero_sub">All AI features are built directly into your radial wheels: press <b>Ctrl + G</b> on any selected file(s) for AI Conversion &amp; Studio tools, or press <b>Alt + G</b> for Cloud Drop &amp; Wi-Fi Phone Transfer.</div>
         </div>
 
         <div class="section-label" data-i18n="aig_sec_video">🎬 1. AI VIDEO STUDIO, CAPTIONS, DUBBING &amp; AUDIOGRAM</div>
@@ -2325,7 +3264,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
             <div class="step-num">12</div>
             <div class="step-content">
               <div class="step-title" data-i18n="aig_f12_title">📲 2-Way Phone ↔ PC Wi-Fi Transfer &amp; Instant HUD QR Code</div>
-              <div class="step-desc" data-i18n-html="aig_f12_desc">• <b>Phone → PC (Receive from Phone):</b> Press <b>Ctrl + Shift + G</b> (even with 0 files selected) → click <b>Phone → PC</b> → scan the QR code with your iPhone/Android camera to beam original-quality photos &amp; 4K videos over local Wi-Fi straight into <code>Downloads/Pizza Phone Drop</code>.<br>• <b>PC → Phone (Send to Phone):</b> On any completed HUD notification card at the bottom-right, click <b>📱 QR</b> to display an instant QR code — scan with your phone to open Cloud links or download local converted files over Wi-Fi!</div>
+              <div class="step-desc" data-i18n-html="aig_f12_desc">• <b>Phone → PC (Receive from Phone):</b> Press <b>Alt + G</b> (even with 0 files selected) → click <b>Phone → PC</b> → scan the QR code with your iPhone/Android camera to beam original-quality photos &amp; 4K videos over local Wi-Fi straight into <code>Downloads/Pizza Phone Drop</code>.<br>• <b>PC → Phone (Send to Phone):</b> On any completed HUD notification card at the bottom-right, click <b>📱 QR</b> to display an instant QR code — scan with your phone to open Cloud links or download local converted files over Wi-Fi!</div>
             </div>
           </div>
         </div>
@@ -2376,9 +3315,9 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
             <div class="guide-step">
               <div class="step-num">3</div>
               <div class="step-content">
-                <div class="step-title">Wheel 3: <kbd style="background:#1e293b;padding:2px 7px;border-radius:5px;color:#38bdf8;">Ctrl + Shift + G</kbd> — Cloud Drop &amp; 2-Way Phone Wi-Fi QR</div>
+                <div class="step-title">Wheel 3: <kbd style="background:#1e293b;padding:2px 7px;border-radius:5px;color:#38bdf8;">Alt + G</kbd> — Cloud Drop &amp; 2-Way Phone Wi-Fi QR</div>
                 <div class="step-desc">
-                  • Select any file(s) → Press <b><code>Ctrl + Shift + G</code></b>:<br>
+                  • Select any file(s) → Press <b><code>Alt + G</code></b>:<br>
                   &nbsp;&nbsp;▸ <b>Google Drive / Dropbox / OneDrive / iCloud / Instant Link / ZIP Share:</b> Uploads your file directly to the cloud and <b>automatically copies the share link</b> to your clipboard (just press <code>Ctrl + V</code> to paste and share).<br>
                   &nbsp;&nbsp;▸ <b>PC → Phone &amp; Phone → PC:</b> Displays an instant Wi-Fi QR code on screen — scan with your iPhone or Android camera to download files from PC to Phone or beam original photos/videos from Phone to PC over local Wi-Fi!
                 </div>
@@ -2509,9 +3448,9 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
             <div class="guide-step">
               <div class="step-num">3</div>
               <div class="step-content">
-                <div class="step-title">Vòng Xoay 3: <kbd style="background:#1e293b;padding:2px 7px;border-radius:5px;color:#38bdf8;">Ctrl + Shift + G</kbd> — Cloud Drop &amp; Bắn File Điện Thoại Wi-Fi QR</div>
+                <div class="step-title">Vòng Xoay 3: <kbd style="background:#1e293b;padding:2px 7px;border-radius:5px;color:#38bdf8;">Alt + G</kbd> — Cloud Drop &amp; Bắn File Điện Thoại Wi-Fi QR</div>
                 <div class="step-desc">
-                  • Chọn file bất kỳ → Nhấn <b><code>Ctrl + Shift + G</code></b> để tải lên đám mây hoặc quét mã QR chuyển file giữa Điện thoại và PC qua Wi-Fi.
+                  • Chọn file bất kỳ → Nhấn <b><code>Alt + G</code></b> để tải lên đám mây hoặc quét mã QR chuyển file giữa Điện thoại và PC qua Wi-Fi.
                 </div>
               </div>
             </div>
@@ -2678,7 +3617,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
 <div class="pdf-page">
 <div class="pdf-run-head"><span>Pizza Converter · About Pizza Converter</span><span>PC-ABT-2026-11</span></div>
 <div class="pdf-title-block"><div class="pdf-brand">NEEFLOW · PIZZA CONVERTER</div><h3 class="pdf-title">About Pizza Converter</h3><div class="pdf-subtitle">Product Information Sheet, Technical Overview and Third-Party Acknowledgements</div><div class="pdf-meta"><span><b>Effective Date:</b> November 5, 2026</span><span><b>Last Updated:</b> November 5, 2026</span><span><b>Applies to:</b> Version 1.0.4.0 and later</span><span><b>Document No.:</b> PC-ABT-2026-11</span></div></div>
-<div class="pdf-body"><h4 class="pdf-h2">1. Product Overview</h4><p class="pdf-p">Pizza Converter (the "Software") is a desktop productivity application for Microsoft Windows and Apple macOS that brings file conversion, document tools, image design utilities, artificial-intelligence-assisted video tools and cloud sharing into a single radial ("pizza") menu that appears directly at the position of your mouse cursor. Instead of opening a large application window, uploading files to a website, waiting in a queue and downloading the results, you select one or more files in Windows File Explorer, macOS Finder or on your desktop, press a global keyboard shortcut, and click a slice of the wheel. The Software detects the type of the selected files automatically and only shows actions that make sense for them.</p><p class="pdf-p">The Software was designed around three principles: (a) speed, meaning that the most common conversions should complete in a single click without configuration; (b) locality, meaning that, wherever technically practical, processing is performed on your own computer rather than on a remote server; and (c) transparency, meaning that features which do require an internet service are identified as such in this document and in the Privacy Policy, and are only executed when you explicitly invoke them.</p><h4 class="pdf-h2">2. Publisher, Version and Credits</h4><p class="pdf-p">The Software is created, published and maintained by Ken Dao, doing business as NEEFLOW (the "Publisher", "we", "us" or "our"). The version currently installed on this device is shown below. Version numbers follow the format Major.Minor.Patch.Build. Distribution of the Windows edition takes place primarily through the Microsoft Store; the macOS edition may be distributed through direct download or other channels designated by the Publisher.</p><div class="pdf-version-row"><span class="pdf-meta-k">Installed Version</span><span id="about-line" class="pdf-version-val">Version 1.0.4.0 (Official Release)</span></div><p class="pdf-p">Creator and Lead Architect: Ken Dao. Brand: NEEFLOW. Support: support@neeflow.com. Copyright © 2026 Ken Dao / NEEFLOW. All rights reserved.</p><h4 class="pdf-h2">3. The Three Radial Wheels</h4><p class="pdf-p">The Software exposes its features through three independent radial wheels, each bound to its own configurable global keyboard shortcut. All shortcuts can be changed or recorded in the General, Design Studio and Cloud Drop tabs of Settings.</p><ul class="pdf-ul"><li><b>Conversion Wheel (default Ctrl + G).</b> Universal conversion between more than fifty-five image, document, spreadsheet, data, audio, video and subtitle formats, plus PDF tools, target-size compression, OCR, document-to-speech, AI Upscale, Remove Background, Barcode Sheet and the AI Video Studio entry points.</li><li><b>Design and Product Studio Wheel (default Ctrl + Shift + D).</b> Product photography templates with simulated 3D podiums and lighting, transparent cutouts, Watermarker+, Barcode and Label Studio, AI Upscale, Iconize (.ICO / .ICNS) and RenameMe batch renaming.</li><li><b>Cloud Drop Wheel (default Ctrl + Shift + G).</b> One-click upload to Google Drive or Dropbox, local sync folders for iCloud Drive and OneDrive, Instant Link and ZIP Share public links, and two-way Phone-to-PC and PC-to-Phone transfer over local Wi-Fi using a QR code.</li></ul><h4 class="pdf-h2">4. Ring 2 and the Center Hub</h4><p class="pdf-p">Features with multiple options open a second ring ("Ring 2"). The center circle of the wheel (the "Center Hub") then displays pill-shaped buttons that cycle options such as aspect ratio (16:9 or 9:16), review duration, barcode symbology, caption style, caption size and position, emoji, translation mode and brand header visibility. After configuring the Center Hub you click an outer slice to execute the action. Options selected in the Center Hub are remembered for next time. The Edit Layout control at the bottom of the wheel lets you reorder or hide slices, and the Order control reverses the merge sequence when two or more files are selected for Merge PDF or Merge Video. Pressing Esc or clicking the center ✕ closes the wheel at any time.</p></div>
+<div class="pdf-body"><h4 class="pdf-h2">1. Product Overview</h4><p class="pdf-p">Pizza Converter (the "Software") is a desktop productivity application for Microsoft Windows and Apple macOS that brings file conversion, document tools, image design utilities, artificial-intelligence-assisted video tools and cloud sharing into a single radial ("pizza") menu that appears directly at the position of your mouse cursor. Instead of opening a large application window, uploading files to a website, waiting in a queue and downloading the results, you select one or more files in Windows File Explorer, macOS Finder or on your desktop, press a global keyboard shortcut, and click a slice of the wheel. The Software detects the type of the selected files automatically and only shows actions that make sense for them.</p><p class="pdf-p">The Software was designed around three principles: (a) speed, meaning that the most common conversions should complete in a single click without configuration; (b) locality, meaning that, wherever technically practical, processing is performed on your own computer rather than on a remote server; and (c) transparency, meaning that features which do require an internet service are identified as such in this document and in the Privacy Policy, and are only executed when you explicitly invoke them.</p><h4 class="pdf-h2">2. Publisher, Version and Credits</h4><p class="pdf-p">The Software is created, published and maintained by Ken Dao, doing business as NEEFLOW (the "Publisher", "we", "us" or "our"). The version currently installed on this device is shown below. Version numbers follow the format Major.Minor.Patch.Build. Distribution of the Windows edition takes place primarily through the Microsoft Store; the macOS edition may be distributed through direct download or other channels designated by the Publisher.</p><div class="pdf-version-row"><span class="pdf-meta-k">Installed Version</span><span id="about-line" class="pdf-version-val">Version 1.0.4.0 (Official Release)</span></div><p class="pdf-p">Creator and Lead Architect: Ken Dao. Brand: NEEFLOW. Support: support@neeflow.com. Copyright © 2026 Ken Dao / NEEFLOW. All rights reserved.</p><h4 class="pdf-h2">3. The Three Radial Wheels</h4><p class="pdf-p">The Software exposes its features through three independent radial wheels, each bound to its own configurable global keyboard shortcut. All shortcuts can be changed or recorded in the General, Design Studio and Cloud Drop tabs of Settings.</p><ul class="pdf-ul"><li><b>Conversion Wheel (default Ctrl + G).</b> Universal conversion between more than fifty-five image, document, spreadsheet, data, audio, video and subtitle formats, plus PDF tools, target-size compression, OCR, document-to-speech, AI Upscale, Remove Background, Barcode Sheet and the AI Video Studio entry points.</li><li><b>Design and Product Studio Wheel (default Ctrl + Shift + D).</b> Product photography templates with simulated 3D podiums and lighting, transparent cutouts, Watermarker+, Barcode and Label Studio, AI Upscale, Iconize (.ICO / .ICNS) and RenameMe batch renaming.</li><li><b>Cloud Drop Wheel (default Alt + G).</b> One-click upload to Google Drive or Dropbox, local sync folders for iCloud Drive and OneDrive, Instant Link and ZIP Share public links, and two-way Phone-to-PC and PC-to-Phone transfer over local Wi-Fi using a QR code.</li></ul><h4 class="pdf-h2">4. Ring 2 and the Center Hub</h4><p class="pdf-p">Features with multiple options open a second ring ("Ring 2"). The center circle of the wheel (the "Center Hub") then displays pill-shaped buttons that cycle options such as aspect ratio (16:9 or 9:16), review duration, barcode symbology, caption style, caption size and position, emoji, translation mode and brand header visibility. After configuring the Center Hub you click an outer slice to execute the action. Options selected in the Center Hub are remembered for next time. The Edit Layout control at the bottom of the wheel lets you reorder or hide slices, and the Order control reverses the merge sequence when two or more files are selected for Merge PDF or Merge Video. Pressing Esc or clicking the center ✕ closes the wheel at any time.</p></div>
 <div class="pdf-run-foot"><span>© 2026 Ken Dao / NEEFLOW. All rights reserved.</span><span>Page 1 of 3</span></div>
 </div>
 <div class="pdf-page">
@@ -2751,262 +3690,565 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
 </div></div></section>
 
       <!-- ══════════════════════════════════════════════════════════════ -->
-      <!-- VIEW: AI VOICE STUDIO (OFFLINE VOICELAB, CLONING & SRT DUB)   -->
+      <!-- VIEW: AI VOICE STUDIO (ELEVENLABS-GRADE WORKSPACE & VOICELAB)    -->
       <!-- ══════════════════════════════════════════════════════════════ -->
       <section id="view-voicestudio" class="view hidden">
-        <!-- Master Banner -->
-        <div class="card" style="border-color: rgba(244, 63, 94, 0.45); background: linear-gradient(135deg, rgba(244, 63, 94, 0.16), rgba(99, 102, 241, 0.08), rgba(15, 23, 42, 0.7)); padding: 12px 18px; margin-bottom: 12px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
-          <div class="row" style="padding: 4px 0; border:none;">
+        <div class="el-studio-container">
+          <!-- Master Header Banner -->
+          <div class="el-header-banner">
             <div style="flex:1;">
-              <div style="font-size:14px; font-weight:800; color:#ffe4e6; display:flex; align-items:center; gap:8px;">
-                <span>🎙️ AI Voice Studio &amp; Local Neural VoiceLab</span>
+              <div style="font-size:13.5px; font-weight:800; display:flex; align-items:center; gap:8px;">
+                <svg style="width:16px; height:16px; stroke:#fb7185; fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                <span>AI Voice Studio &amp; Neural VoiceLab</span>
                 <span id="vs-master-badge" class="cai-status-pill pro">STUDIO DSP V2 · OFFLINE READY</span>
               </div>
-              <div style="font-size:11px; color:rgba(254,205,211,.85); margin-top:3px; line-height: 1.45;">
-                Studio-grade Text-to-Speech &amp; Instant Zero-Shot Voice Cloning running 100% locally on your hardware.
-                Zero subscription fees, zero API charges, unlimited lifetime voice generation.
+              <div style="font-size:11px; color:#94a3b8; margin-top:2px;">
+                Studio-grade Text-to-Speech &amp; Instant Zero-Shot Voice Cloning running 100% locally on your machine. Zero fees, zero API charges.
               </div>
             </div>
-            <button class="toggle active" id="tgl-vs-master" aria-pressed="true" title="Toggle AI Voice Studio"><span class="knob"></span></button>
-          </div>
-        </div>
-
-        <!-- Global App Override Switch -->
-        <div class="card" style="margin-bottom: 12px; border-color: rgba(251, 191, 36, 0.38); background: linear-gradient(155deg, rgba(251, 191, 36, 0.09), rgba(15, 23, 42, 0.55)); border-radius: 10px;">
-          <div class="row" style="padding: 6px 0; border:none;">
-            <div style="flex:1;">
-              <div style="font-size:12px; font-weight:700; color:#fef08a; display:flex; align-items:center; gap:6px;">
-                <span>⚡ Master App Override: Upgrade All App Voices</span>
-                <span style="font-size:9.5px; padding:1.5px 6px; border-radius:6px; background:rgba(251,191,36,.22); color:#fbbf24; border:1px solid rgba(251,191,36,.4);">RECOMMENDED</span>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:10.5px; font-weight:700; color:#fbbf24;">Master Override</span>
+                <button class="toggle active" id="tgl-vs-override-global" aria-pressed="true" title="Auto-upgrade all app voices with selected VoiceLab voice"><span class="knob"></span></button>
               </div>
-              <div style="font-size:10.5px; color:#cbd5e1; margin-top:2px;">
-                When active, your selected Voice Studio profile or custom Cloned Voice automatically powers <b>AI Video Review, Movie Recaps, AI Dubbing, SRT Dubbing, and Audiograms</b> instead of robotic monotone voices.
-              </div>
+              <div style="width:1px; height:22px; background:rgba(255,255,255,0.12);"></div>
+              <button class="toggle active" id="tgl-vs-master" aria-pressed="true" title="Toggle AI Voice Studio"><span class="knob"></span></button>
             </div>
-            <button class="toggle active" id="tgl-vs-override-global" aria-pressed="true"><span class="knob"></span></button>
           </div>
-        </div>
 
-        <!-- 2-Column Studio: Left = VoiceLab & Cloner, Right = TTS & SRT Dubber -->
-        <div style="display:grid; grid-template-columns: minmax(330px, 1fr) minmax(360px, 1.2fr); gap:12px; margin-bottom: 12px;">
+          <!-- Studio Sub-Navigation Tabs -->
+          <div class="el-studio-tabs">
+            <button type="button" class="el-tab-btn active" id="tab-btn-vs-studio" data-vtab="studio">
+              <svg style="width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+              <span>Speech Synthesis Studio</span>
+            </button>
+            <button type="button" class="el-tab-btn" id="tab-btn-vs-voicelab" data-vtab="voicelab">
+              <svg style="width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              <span>VoiceLab &amp; Cloner Studio</span>
+              <span id="vl-tab-badge" style="font-size:9.5px; background:rgba(244,63,94,0.25); color:#fda4af; padding:1px 6px; border-radius:999px;">0 Clones</span>
+            </button>
+          </div>
+
+          <!-- TAB 1: Speech Synthesis Studio (3 Columns) -->
+          <div id="vtab-pane-studio" class="el-studio-grid">
           
-          <!-- Column 1: VoiceLab (Profiles & Instant Cloner) -->
-          <div style="display:flex; flex-direction:column; gap:12px;">
-            <div class="card" style="margin-bottom:0; border-radius:10px; background:rgba(15,23,42,0.65); border:1px solid rgba(244,63,94,0.3);">
-              <div class="card-title" style="color:#fb7185; display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-                <span style="display:flex; align-items:center; gap:6px; font-weight:800;">
-                  <svg style="width:16px; height:16px; stroke:#fb7185; fill:none;" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
-                  VoiceLab · Curated &amp; Cloned Voices
+          <!-- Column 1: Voice Library -->
+          <div class="el-col" style="height:100%; display:flex; flex-direction:column; min-height:0;">
+            <!-- Voice Library Card -->
+            <div class="el-card el-card-voice-lib" style="border-color: rgba(244, 63, 94, 0.3); height:100%; display:flex; flex-direction:column;">
+              <div class="el-card-header">
+                <span class="el-card-title" style="color:#fb7185;">
+                  <svg style="width:16px; height:16px; stroke:#fb7185; fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                  Voice Library
                 </span>
-                <span style="font-size:10px; color:#5eead4; background:rgba(45,212,191,0.12); padding:2px 8px; border-radius:999px; border:1px solid rgba(45,212,191,0.3);" id="vs-voice-count-badge">330+ Voices (All Catalogs)</span>
+                <span style="font-size:10px; color:#5eead4; background:rgba(45,212,191,0.12); padding:2px 8px; border-radius:999px; border:1px solid rgba(45,212,191,0.3);" id="vs-voice-count-badge">330+ Voices</span>
               </div>
 
               <!-- Filter Toolbar: Language, Gender, Search -->
-              <div style="display:flex; flex-direction:column; gap:7px; margin-bottom:10px;">
+              <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;">
                 <div style="display:flex; gap:6px;">
-                  <select id="sel-vs-lang-filter" style="flex:1; font-size:11px; font-weight:700; background:rgba(10,14,26,0.9); border:1px solid rgba(244,63,94,0.45); border-radius:6px; padding:6px 8px; color:#ffe4e6; cursor:pointer;">
-                    <option value="en" selected>🇺🇸 English (US, UK, AU, CA · 30+ Voices)</option>
-                    <option value="vi">🇻🇳 Vietnamese (Tiếng Việt · All 11+ Styles &amp; Narrators)</option>
-                    <option value="all">🌐 All Languages (330+ Neural Voices)</option>
-                    <option value="cloned">🧬 My Cloned Voices (Zero-Shot)</option>
-                    <option value="ja">🇯🇵 Japanese (日本語 · Keita &amp; Nanami)</option>
-                    <option value="ko">🇰🇷 Korean (한국어 · InJoon &amp; SunHi)</option>
-                    <option value="zh">🇨🇳 Chinese (中文 · Mandarin &amp; Cantonese)</option>
-                    <option value="fr">🇫🇷 French (Français · Henri, Denise &amp; Canada)</option>
-                    <option value="de">🇩🇪 German (Deutsch · Conrad &amp; Austria)</option>
-                    <option value="es">🇪🇸 Spanish (Español · Spain, Mexico &amp; LatAm)</option>
-                    <option value="it">🇮🇹 Italian (Italiano)</option>
-                    <option value="ru">🇷🇺 Russian (Русский)</option>
-                    <option value="th">🇹🇭 Thai (ไทย)</option>
-                    <option value="id">🇮🇩 Indonesian (Bahasa Indonesia)</option>
-                    <option value="pt">🇧🇷 Portuguese (Brasil &amp; Portugal)</option>
-                    <option value="hi">🇮🇳 Hindi (हिन्दी)</option>
+                  <select id="sel-vs-lang-filter" style="flex:1; font-size:11px; font-weight:700; background:rgba(10,14,26,0.9); border:1px solid rgba(244,63,94,0.45); border-radius:6px; padding:5px 7px; color:#ffe4e6; cursor:pointer;">
+                    <option value="en" selected>English (US, UK, AU, CA · 30+ Voices)</option>
+                    <option value="vi">Vietnamese (Tiếng Việt · 11+ Styles)</option>
+                    <option value="all">All Languages (330+ Voices)</option>
+                    <option value="cloned">My Cloned Voices (Zero-Shot)</option>
+                    <option value="ja">Japanese (日本語)</option>
+                    <option value="ko">Korean (한국어)</option>
+                    <option value="zh">Chinese (中文)</option>
+                    <option value="fr">French (Français)</option>
+                    <option value="de">German (Deutsch)</option>
+                    <option value="es">Spanish (Español)</option>
+                    <option value="it">Italian (Italiano)</option>
+                    <option value="ru">Russian (Русский)</option>
+                    <option value="th">Thai (ไทย)</option>
+                    <option value="id">Indonesian</option>
+                    <option value="pt">Portuguese</option>
+                    <option value="hi">Hindi (हिन्दी)</option>
                   </select>
-                  <select id="sel-vs-gender-filter" style="width:96px; font-size:11px; background:rgba(10,14,26,0.9); border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:6px; color:#cbd5e1; cursor:pointer;">
-                    <option value="all">All Genders</option>
-                    <option value="male">👨 Male</option>
-                    <option value="female">👩 Female</option>
+                  <select id="sel-vs-gender-filter" style="width:84px; font-size:11px; background:rgba(10,14,26,0.9); border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:5px; color:#cbd5e1; cursor:pointer;">
+                    <option value="all">All</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
                   </select>
                 </div>
-                <div style="position:relative;">
-                  <input type="text" id="inp-vs-search" placeholder="🔍 Search voice name, style, accent (e.g. Andrew, Recap, Anime)..." style="width:100%; font-size:11px; background:rgba(10,14,26,0.85); border:1px solid rgba(255,255,255,0.12); border-radius:6px; padding:6px 8px; color:#f8fafc;" />
+                <div>
+                  <input type="text" id="inp-vs-search" placeholder="Search voice name, style..." style="width:100%; font-size:11px; background:rgba(10,14,26,0.85); border:1px solid rgba(255,255,255,0.12); border-radius:6px; padding:5px 8px; color:#f8fafc;" />
                 </div>
               </div>
 
               <!-- Voice Cards Container -->
-              <div id="vs-voice-list" style="display:flex; flex-direction:column; gap:6px; max-height:240px; overflow-y:auto; padding-right:4px;">
+              <div id="vs-voice-list" style="display:flex; flex-direction:column; gap:5px; flex:1; min-height:180px; overflow-y:auto; padding-right:3px;">
                 <!-- Populated dynamically via JS -->
               </div>
 
-              <!-- Instant Voice Cloner Box -->
-              <div style="margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.08);">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
-                  <div style="font-size:11.8px; font-weight:800; color:#fb7185; display:flex; align-items:center; gap:6px;">
-                    <span>🧬 Instant Voice Cloner (Zero-Shot)</span>
-                  </div>
-                  <span style="font-size:9.5px; color:#5eead4; background:rgba(45,212,191,0.12); border:1px solid rgba(45,212,191,0.3); padding:1px 6px; border-radius:4px;">TIMBRE V2</span>
-                </div>
-                <div style="font-size:10.5px; color:#94a3b8; margin-bottom:8px;">
-                  Record 5–10s of any voice or drop an audio clip to clone its exact acoustic timbre for all features.
-                </div>
-
-                <div style="display:flex; gap:6px; margin-bottom:8px;">
-                  <button class="btn secondary" id="btn-vs-record-mic" style="flex:1; font-size:10.5px; padding:7px 10px; display:flex; align-items:center; justify-content:center; gap:5px;">
-                    <span>🎙️</span><span>Record Mic (5-10s)</span>
-                  </button>
-                  <button class="btn secondary" id="btn-vs-upload-audio" style="flex:1; font-size:10.5px; padding:7px 10px; display:flex; align-items:center; justify-content:center; gap:5px;">
-                    <span>📁</span><span>Upload Sample</span>
-                  </button>
-                </div>
-
-                <!-- Record status / preview area -->
-                <div id="vs-record-status-box" style="display:none; padding:10px; border-radius:8px; background:rgba(0,0,0,0.45); border:1px solid rgba(244,63,94,0.35); margin-bottom:8px;">
-                  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:5px;">
-                    <span id="vs-record-status-label" style="font-size:10.5px; font-weight:700; color:#f43f5e;">Recording... Speak clearly</span>
-                    <span id="vs-record-timer" style="font-size:11px; font-family:monospace; color:#ffe4e6; font-weight:700;">0:00 / 0:08</span>
-                  </div>
-                  <div style="height:6px; background:rgba(255,255,255,0.12); border-radius:999px; overflow:hidden;">
-                    <div id="vs-record-progress" style="width:0%; height:100%; background:linear-gradient(90deg, #f43f5e, #fb7185); transition:width .1s linear;"></div>
-                  </div>
-                </div>
-
-                <div style="display:flex; gap:6px; margin-bottom:8px;">
-                  <input type="text" id="inp-vs-clone-name" placeholder="Voice Name (e.g. My Studio Voice, John Trailer)" style="flex:1; font-size:11px; background:rgba(15,23,42,0.85); border:1px solid rgba(255,255,255,0.14); border-radius:6px; padding:6px 8px; color:#f8fafc;" />
-                  <button class="btn primary" id="btn-vs-submit-clone" style="font-size:11px; padding:6px 14px; background:linear-gradient(135deg, #e11d48, #f43f5e); border-color:#fb7185; font-weight:700;">
-                    Save Voice
-                  </button>
-                </div>
-
-                <!-- Custom Cloned Voices Quick Shelf -->
-                <div id="vs-cloned-shelf" style="display:none; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.08);">
-                  <div style="font-size:10px; font-weight:800; color:#a78bfa; margin-bottom:5px; text-transform:uppercase; letter-spacing:0.04em;">My Saved Cloned Voices</div>
-                  <div id="vs-cloned-list-items" style="display:flex; flex-direction:column; gap:4px; max-height:100px; overflow-y:auto;"></div>
-                </div>
-              </div>
+              <!-- Switch to VoiceLab Cloner Button -->
+              <button type="button" class="btn secondary" id="btn-vs-switch-to-cloner" style="width:100%; margin-top:8px; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px; border-color:rgba(244,63,94,0.4); color:#fb7185;">
+                <svg style="width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:2;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="m12 8 4 4-4 4"/></svg>
+                <span>Manage &amp; Record Voice Clones →</span>
+              </button>
             </div>
           </div>
 
-          <!-- Column 2: Text-to-Speech & Subtitle (.SRT) Studio -->
-          <div style="display:flex; flex-direction:column; gap:12px;">
-            
-            <!-- TTS Generator -->
-            <div class="card" style="margin-bottom:0; border-radius:10px; background:rgba(15,23,42,0.65); border:1px solid rgba(56,189,248,0.3);">
-              <div class="card-title" style="color:#38bdf8; display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                <span style="display:flex; align-items:center; gap:6px; font-weight:800;">
-                  <svg style="width:16px; height:16px; stroke:#38bdf8; fill:none;" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
-                  Text-to-Speech Studio
-                </span>
-                <span id="vs-active-voice-pill" style="font-size:10px; font-weight:700; color:#5eead4; background:rgba(45,212,191,0.14); border:1px solid rgba(45,212,191,0.35); padding:2.5px 8px; border-radius:6px; display:flex; align-items:center; gap:4px;">
+          <!-- Column 2: Document Canvas & Synthesis -->
+          <div class="el-col">
+            <div class="el-editor-canvas">
+              <!-- Top bar with Active Voice Pill & Sample Script Chips -->
+              <div class="el-editor-topbar">
+                <span id="vs-active-voice-pill" style="font-size:11px; font-weight:700; color:#5eead4; background:rgba(45,212,191,0.14); border:1px solid rgba(45,212,191,0.35); padding:3px 10px; border-radius:999px; display:inline-flex; align-items:center; gap:5px;">
                   🎬 Andrew · Cinematic Multilingual
                 </span>
-              </div>
-
-              <!-- Quick English Sample Script Chips -->
-              <div style="display:flex; align-items:center; gap:5px; flex-wrap:wrap; margin-bottom:8px;">
-                <span style="font-size:9.5px; color:#94a3b8; font-weight:700;">PRESETS:</span>
-                <button type="button" class="btn-ghost vs-script-chip" data-script="In a world pushed to the brink of chaos, one secret changes everything. Nobody saw it coming, and now the entire future hangs in the balance." style="font-size:9.5px; padding:2px 7px; border-radius:5px; border-color:rgba(56,189,248,0.3); color:#7dd3fc;">🎬 Movie Recap</button>
-                <button type="button" class="btn-ghost vs-script-chip" data-script="Welcome back to the studio. Today we are diving deep into the untold story behind one of the greatest innovations of our time." style="font-size:9.5px; padding:2px 7px; border-radius:5px; border-color:rgba(56,189,248,0.3); color:#7dd3fc;">🎙️ Podcast Intro</button>
-                <button type="button" class="btn-ghost vs-script-chip" data-script="The rain drummed quietly against the dark window pane as the clock struck midnight, revealing a message left behind years ago." style="font-size:9.5px; padding:2px 7px; border-radius:5px; border-color:rgba(56,189,248,0.3); color:#7dd3fc;">📚 Story Narration</button>
-                <button type="button" class="btn-ghost vs-script-chip" data-script="Stop scrolling! Here is the number one secret that top creators use to produce viral videos in under five minutes." style="font-size:9.5px; padding:2px 7px; border-radius:5px; border-color:rgba(56,189,248,0.3); color:#7dd3fc;">🔥 Viral Hook</button>
-                <button type="button" id="btn-vs-clear-text" class="btn-ghost" style="font-size:9.5px; padding:2px 7px; border-radius:5px; margin-left:auto; color:#f87171; border-color:rgba(248,113,113,0.3);">✕ Clear</button>
+                <div style="display:flex; align-items:center; gap:5px;">
+                  <button type="button" class="btn-ghost vs-script-chip" data-script="In a world pushed to the brink of chaos, one secret changes everything. Nobody saw it coming, and now the entire future hangs in the balance." style="font-size:9.5px; padding:2px 7px; border-radius:5px; border-color:rgba(56,189,248,0.3); color:#7dd3fc;">🎬 Recap</button>
+                  <button type="button" class="btn-ghost vs-script-chip" data-script="Welcome back to the studio. Today we are diving deep into the untold story behind one of the greatest innovations of our time." style="font-size:9.5px; padding:2px 7px; border-radius:5px; border-color:rgba(56,189,248,0.3); color:#7dd3fc;">🎙️ Podcast</button>
+                  <button type="button" class="btn-ghost vs-script-chip" data-script="The rain drummed quietly against the dark window pane as the clock struck midnight, revealing a message left behind years ago." style="font-size:9.5px; padding:2px 7px; border-radius:5px; border-color:rgba(56,189,248,0.3); color:#7dd3fc;">📚 Story</button>
+                  <button type="button" class="btn-ghost vs-script-chip" data-script="Stop scrolling! Here is the number one secret that top creators use to produce viral videos in under five minutes." style="font-size:9.5px; padding:2px 7px; border-radius:5px; border-color:rgba(56,189,248,0.3); color:#7dd3fc;">🔥 Viral</button>
+                  <button type="button" id="btn-vs-clear-text" class="btn-ghost" style="font-size:9.5px; padding:2px 7px; border-radius:5px; color:#f87171; border-color:rgba(248,113,113,0.3);">✕ Clear</button>
+                </div>
               </div>
 
               <!-- Language Auto-Detect Status Bar & Metrics -->
-              <div id="vs-lang-detect-box" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; font-size:10px; color:#94a3b8;">
+              <div id="vs-lang-detect-box" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; font-size:10.5px; color:#94a3b8; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.06);">
                 <span id="vs-lang-detect-label" style="display:flex; align-items:center; gap:4px;">
-                  <span>🌐 Text Language:</span>
-                  <b id="vs-lang-detected-tag" style="color:#38bdf8;">🇺🇸 English (Default)</b>
+                  <span>🌐 Language:</span>
+                  <b id="vs-lang-detected-tag" style="color:#38bdf8;">🇺🇸 English (Auto-Detect)</b>
                 </span>
                 <span style="font-size:10px; color:#cbd5e1; font-weight:700;" id="vs-char-count">0 chars · 0 words · ~0s duration</span>
               </div>
 
-              <textarea id="txt-vs-script" placeholder="Enter or paste your script, narration, or dialogue here to synthesize studio-grade AI speech (English, Multilingual, etc.)..." style="width:100%; height:105px; font-size:11.8px; background:rgba(10,14,26,0.9); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:9px 11px; color:#f8fafc; resize:vertical; line-height:1.5; font-family:inherit;"></textarea>
+              <!-- Main ElevenLabs Canvas Textarea -->
+              <textarea id="txt-vs-script" class="el-editor-textarea" placeholder="Start typing or paste your script here to synthesize high-fidelity AI speech..."></textarea>
 
-              <!-- Studio Audio Controls: Speed, Pitch, Stability -->
-              <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-top:10px; background:rgba(0,0,0,0.25); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
-                <div>
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
-                    <label style="font-size:9.5px; font-weight:700; color:#94a3b8; text-transform:uppercase;">Speed</label>
-                    <span id="lbl-vs-speed" style="font-size:9.5px; font-weight:800; color:#38bdf8;">1.0x</span>
-                  </div>
-                  <input type="range" id="rng-vs-speed" min="60" max="160" value="100" style="width:100%; accent-color:#38bdf8;" />
+              <!-- Bottom Bar with Controls & Generate Button -->
+              <div class="el-editor-bottombar">
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <button class="btn secondary" id="btn-vs-export-tts" style="font-size:11px; padding:6px 12px; display:inline-flex; align-items:center; gap:4px;">
+                    <span>💾</span><span>Export MP3</span>
+                  </button>
+                  <button class="btn-ghost" id="btn-vs-send-audiogram" title="Send generated audio directly to Audiogram Studio" style="font-size:10.5px; padding:6px 10px; border-color:rgba(168,85,247,0.4); color:#c084fc;">
+                    <span>🎬 Audiogram</span>
+                  </button>
                 </div>
-                <div>
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
-                    <label style="font-size:9.5px; font-weight:700; color:#94a3b8; text-transform:uppercase;">Pitch</label>
-                    <span id="lbl-vs-pitch" style="font-size:9.5px; font-weight:800; color:#f43f5e;">0 st (Natural)</span>
-                  </div>
-                  <input type="range" id="rng-vs-pitch" min="-6" max="6" value="0" step="1" style="width:100%; accent-color:#f43f5e;" />
-                </div>
-                <div>
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
-                    <label style="font-size:9.5px; font-weight:700; color:#94a3b8; text-transform:uppercase;">Stability</label>
-                    <span id="lbl-vs-stability" style="font-size:9.5px; font-weight:800; color:#a855f7;">85%</span>
-                  </div>
-                  <input type="range" id="rng-vs-stability" min="20" max="100" value="85" style="width:100%; accent-color:#a855f7;" />
-                </div>
-              </div>
-
-              <!-- Action Bar -->
-              <div style="display:flex; gap:8px; margin-top:10px; align-items:center;">
-                <button class="btn primary" id="btn-vs-generate-tts" style="flex:1.2; font-size:11.5px; font-weight:800; padding:8px 14px; background:linear-gradient(135deg, #0284c7, #2563eb); border-color:#38bdf8; display:flex; align-items:center; justify-content:center; gap:6px;">
-                  <span>▶️ Synthesize &amp; Play</span>
-                </button>
-                <button class="btn secondary" id="btn-vs-export-tts" style="font-size:11px; padding:8px 12px; display:flex; align-items:center; gap:5px;">
-                  <span>💾</span><span>Export MP3</span>
-                </button>
-                <button class="btn-ghost" id="btn-vs-send-audiogram" title="Send generated audio directly to Audiogram Studio" style="font-size:10.5px; padding:7px 10px; border-color:rgba(168,85,247,0.4); color:#c084fc;">
-                  <span>🎬 Audiogram</span>
+                <button id="btn-vs-generate-tts" class="el-gen-btn">
+                  <span>▶</span>
+                  <span>Generate speech</span>
                 </button>
               </div>
 
-              <!-- Audio Player Container with Waveform -->
-              <div id="vs-tts-player-box" style="display:none; margin-top:10px; background:rgba(0,0,0,0.35); padding:8px 10px; border-radius:8px; border:1px solid rgba(56,189,248,0.3);">
+              <!-- Audio Player Container -->
+              <div id="vs-tts-player-box" style="display:none; margin-top:10px; background:rgba(0,0,0,0.35); padding:8px 12px; border-radius:10px; border:1px solid rgba(56,189,248,0.3);">
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; font-size:10px; color:#94a3b8;">
                   <span style="display:flex; align-items:center; gap:6px;">
                     <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#22c55e;"></span>
                     <span style="font-weight:700; color:#f8fafc;">Audio Master Ready</span>
                   </span>
-                  <span id="vs-player-file-path" style="font-family:monospace; color:#38bdf8; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+                  <span id="vs-player-file-path" style="font-family:monospace; color:#38bdf8; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
                 </div>
                 <audio id="vs-tts-audio" controls style="width:100%; height:32px; filter:invert(1) hue-rotate(180deg);"></audio>
               </div>
             </div>
+          </div>
 
-            <!-- Subtitle-to-Speech (.SRT / .VTT Dubber) -->
-            <div class="card" style="margin-bottom:0; border-radius:10px; background:rgba(15,23,42,0.65); border:1px solid rgba(168,85,247,0.35);">
-              <div class="card-title" style="color:#c084fc; display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-                <span style="display:flex; align-items:center; gap:6px; font-weight:800;">
-                  <svg style="width:16px; height:16px; stroke:#c084fc; fill:none;" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 12h4M14 12h4M6 15.5h8"/></svg>
-                  Subtitle-to-Speech Studio (SRT Dubber)
+          <!-- Column 3: Voice Settings & Subtitle Dubber -->
+          <div class="el-col">
+            <!-- Voice Settings Card -->
+            <div class="el-card el-card-settings" style="border-color: rgba(56, 189, 248, 0.3);">
+              <div class="el-card-header">
+                <span class="el-card-title" style="color:#38bdf8;">
+                  <svg style="width:15px; height:15px; stroke:#38bdf8; fill:none;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                  Voice Settings
                 </span>
-                <span style="font-size:10px; padding:2px 7px; border-radius:6px; background:rgba(168,85,247,0.18); color:#d8b4fe; border:1px solid rgba(168,85,247,0.3); font-weight:700;">TIMELINE SYNC</span>
-              </div>
-              <div style="font-size:10.5px; color:#94a3b8; margin-bottom:8px;">
-                Upload a subtitle file (.srt / .vtt) to turn every line into speech, automatically paced to fit exact video timestamps with zero drift.
+                <span style="font-size:9.5px; color:#38bdf8; background:rgba(56,189,248,0.12); border:1px solid rgba(56,189,248,0.25); padding:1px 6px; border-radius:4px; font-weight:700;">NEURAL DSP</span>
               </div>
 
-              <div style="display:flex; gap:8px; align-items:center;">
-                <button class="btn secondary" id="btn-vs-pick-srt" style="flex:1; font-size:11px; padding:7px 12px; display:flex; align-items:center; justify-content:center; gap:6px;">
-                  <span>📄</span><span>Select .SRT / .VTT File</span>
+              <!-- Model Badge -->
+              <div style="background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:6px 10px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between;">
+                <div>
+                  <div style="font-size:9.5px; color:#94a3b8; font-weight:700; text-transform:uppercase;">Model</div>
+                  <div style="font-size:11px; font-weight:800; color:#f8fafc;">⚡ Pizza Neural V4 Multilingual</div>
+                </div>
+                <span style="font-size:9px; color:#38bdf8; font-weight:700;">24kHz</span>
+              </div>
+
+              <!-- Speed Slider -->
+              <div class="el-slider-group">
+                <div class="el-slider-head">
+                  <span class="el-slider-label">Speed</span>
+                  <span id="lbl-vs-speed" class="el-slider-val">1.0x</span>
+                </div>
+                <input type="range" id="rng-vs-speed" min="60" max="160" value="100" style="width:100%; accent-color:#38bdf8;" />
+                <div class="el-slider-scale">
+                  <span>0.6x (Slower)</span>
+                  <span>1.0x (Default)</span>
+                  <span>1.6x (Faster)</span>
+                </div>
+              </div>
+
+              <!-- Stability Slider -->
+              <div class="el-slider-group">
+                <div class="el-slider-head">
+                  <span class="el-slider-label">Stability</span>
+                  <span id="lbl-vs-stability" class="el-slider-val" style="color:#a855f7;">85%</span>
+                </div>
+                <input type="range" id="rng-vs-stability" min="20" max="100" value="85" style="width:100%; accent-color:#a855f7;" />
+                <div class="el-slider-scale">
+                  <span>More variable</span>
+                  <span>Balanced</span>
+                  <span>More stable</span>
+                </div>
+              </div>
+
+              <!-- Pitch Slider -->
+              <div class="el-slider-group">
+                <div class="el-slider-head">
+                  <span class="el-slider-label">Pitch</span>
+                  <span id="lbl-vs-pitch" class="el-slider-val" style="color:#f43f5e;">0 st (Natural)</span>
+                </div>
+                <input type="range" id="rng-vs-pitch" min="-6" max="6" value="0" step="1" style="width:100%; accent-color:#f43f5e;" />
+                <div class="el-slider-scale">
+                  <span>-6st (Deeper)</span>
+                  <span>0st</span>
+                  <span>+6st (Higher)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Subtitle Dubber (.SRT) Card -->
+            <div class="el-card el-card-dubber" style="border-color: rgba(168, 85, 247, 0.35);">
+              <div class="el-card-header">
+                <span class="el-card-title" style="color:#c084fc;">
+                  <svg style="width:15px; height:15px; stroke:#c084fc; fill:none;" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 12h4M14 12h4M6 15.5h8"/></svg>
+                  Subtitle Dubber (.SRT)
+                </span>
+                <span style="font-size:9px; padding:1px 5px; border-radius:4px; background:rgba(168,85,247,0.18); color:#d8b4fe; border:1px solid rgba(168,85,247,0.3); font-weight:700;">SYNC</span>
+              </div>
+              <div style="font-size:10.5px; color:#94a3b8; margin-bottom:8px; line-height:1.4;">
+                Upload .srt / .vtt file to dub audio synced to video timestamps.
+              </div>
+
+              <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+                <button class="btn secondary" id="btn-vs-pick-srt" style="flex:1; font-size:10.5px; padding:6px 10px; display:flex; align-items:center; justify-content:center; gap:5px;">
+                  <span>📄</span><span>Select Subtitle</span>
                 </button>
-                <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
-                  <label style="font-size:10px; color:#cbd5e1; cursor:pointer; font-weight:700;" for="chk-vs-autofit">Auto Time-Fit</label>
+                <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+                  <label style="font-size:10px; color:#cbd5e1; cursor:pointer; font-weight:700;" for="chk-vs-autofit">Auto-Fit</label>
                   <input type="checkbox" id="chk-vs-autofit" checked style="accent-color:#c084fc; cursor:pointer;" />
                 </div>
               </div>
 
-              <div id="vs-srt-file-info" style="display:none; margin-top:8px; font-size:10.5px; background:rgba(0,0,0,0.35); padding:6px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); color:#e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-                <span id="vs-srt-filename" style="font-family:monospace; color:#c084fc;">subtitles.srt</span>
+              <div id="vs-srt-file-info" style="display:none; margin-bottom:6px; font-size:10px; background:rgba(0,0,0,0.35); padding:5px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); color:#e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                <span id="vs-srt-filename" style="font-family:monospace; color:#c084fc; max-width:140px; overflow:hidden; text-overflow:ellipsis;">subtitles.srt</span>
                 <span id="vs-srt-cue-count" style="color:#94a3b8; font-weight:700;">0 cues</span>
               </div>
 
-              <button class="btn primary" id="btn-vs-dub-srt" style="width:100%; margin-top:8px; font-size:11.5px; font-weight:800; padding:8px 14px; background:linear-gradient(135deg, #7c3aed, #9333ea); border-color:#a855f7; display:flex; align-items:center; justify-content:center; gap:6px;">
-                <span>🎬</span><span>Synthesize Full Synchronized Voiceover</span>
+              <button class="btn primary" id="btn-vs-dub-srt" style="width:100%; font-size:11px; font-weight:800; padding:7px 12px; background:linear-gradient(135deg, #7c3aed, #9333ea); border-color:#a855f7; display:flex; align-items:center; justify-content:center; gap:5px;">
+                <span>🎬</span><span>Dub Synchronized Audio</span>
               </button>
-              <div id="vs-srt-result-box" style="display:none; margin-top:6px; font-size:10.5px; color:#4ade80; font-weight:700;"></div>
+              <div id="vs-srt-result-box" style="display:none; margin-top:6px; font-size:10px; color:#4ade80; font-weight:700;"></div>
             </div>
+          </div>
+        </div>
 
+        <!-- TAB 2: VoiceLab & Cloner Studio (2 Columns Full Height) -->
+        <div id="vtab-pane-voicelab" class="vl-manage-grid" style="display:none;">
+          <!-- Left: Studio Recorder & File Cloner -->
+          <div class="el-col" style="height:100%; min-height:0;">
+            <div class="el-card" style="height:100%; display:flex; flex-direction:column; justify-content:space-between; border-color:rgba(244,63,94,0.35);">
+              <div>
+                <div class="el-card-header">
+                  <span class="el-card-title" style="color:#fb7185; font-size:13px; display:flex; align-items:center; gap:6px;">
+                    <svg style="width:15px; height:15px; stroke:#fb7185; fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    <span>Instant Zero-Shot Voice Cloner (5s – 2min)</span>
+                  </span>
+                  <span style="font-size:9.5px; color:#5eead4; background:rgba(45,212,191,0.12); border:1px solid rgba(45,212,191,0.3); padding:2px 7px; border-radius:5px; font-weight:700;">NEURAL TIMBRE</span>
+                </div>
+                <div style="font-size:11px; color:#94a3b8; margin-bottom:12px; line-height:1.45;">
+                  Record your own voice via microphone (recommended: 5 to 30 seconds, maximum 2 minutes) or upload an audio file. The engine extracts your unique vocal tract timbre, fundamental pitch (F0), and harmonic formants.
+                </div>
+
+                <!-- Recorder Action Buttons: Start & Stop -->
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                  <button type="button" class="btn primary" id="btn-vl-start-rec" style="flex:1; padding:9px 14px; font-size:11.5px; font-weight:800; background:linear-gradient(135deg, #10b981, #059669); border-color:#34d399; display:flex; align-items:center; justify-content:center; gap:6px;">
+                    <svg style="width:13px; height:13px; fill:currentColor;" viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                    <span>Start Recording</span>
+                  </button>
+                  <button type="button" class="btn secondary" id="btn-vl-stop-rec" disabled style="flex:1; padding:9px 14px; font-size:11.5px; font-weight:800; background:rgba(239,68,68,0.2); border-color:rgba(239,68,68,0.4); color:#fca5a5; display:flex; align-items:center; justify-content:center; gap:6px; opacity:0.5; cursor:not-allowed;">
+                    <svg style="width:13px; height:13px; fill:currentColor;" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+                    <span>Stop Recording</span>
+                  </button>
+                </div>
+
+                <!-- Live Recording HUD -->
+                <div id="vl-rec-hud" style="display:none; padding:10px 12px; border-radius:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(244,63,94,0.35); margin-bottom:10px;">
+                  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                    <span id="vl-rec-status-txt" style="font-size:11px; font-weight:700; color:#f43f5e; display:flex; align-items:center; gap:6px;">
+                      <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#ef4444; animation:ag-pulse 1s infinite;"></span>
+                      Recording in progress... Speak clearly
+                    </span>
+                    <span id="vl-rec-timer-txt" style="font-size:11.5px; font-family:monospace; color:#ffe4e6; font-weight:800;">0:00 / 2:00</span>
+                  </div>
+                  <div style="height:6px; background:rgba(255,255,255,0.12); border-radius:999px; overflow:hidden; position:relative;">
+                    <div id="vl-rec-progress-bar" style="width:0%; height:100%; background:linear-gradient(90deg, #f43f5e, #fb7185); transition:width .2s linear;"></div>
+                  </div>
+                  <div style="display:flex; justify-content:space-between; font-size:9px; color:#64748b; margin-top:3px;">
+                    <span>0s</span>
+                    <span style="color:#fbbf24;">Min 5s</span>
+                    <span>30s (Ideal)</span>
+                    <span>Max 120s</span>
+                  </div>
+                </div>
+
+                <!-- Audio Review Player -->
+                <div id="vl-audio-preview-box" style="display:none; padding:8px 12px; border-radius:10px; background:rgba(0,0,0,0.3); border:1px solid rgba(56,189,248,0.3); margin-bottom:10px;">
+                  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; font-size:10.5px; color:#38bdf8; font-weight:700;">
+                    <span>Review Recorded Audio:</span>
+                    <span id="vl-audio-preview-duration" style="color:#cbd5e1; font-family:monospace;">0s</span>
+                  </div>
+                  <audio id="vl-audio-preview-el" controls style="width:100%; height:32px; filter:invert(1) hue-rotate(180deg);"></audio>
+                </div>
+
+                <!-- File Upload Option -->
+                <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+                  <button type="button" class="btn secondary" id="btn-vl-upload-audio" style="flex:1; font-size:10.8px; padding:7px 12px; display:flex; align-items:center; justify-content:center; gap:6px;">
+                    <svg style="width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+                    <span>Upload Audio File (WAV, MP3, M4A, FLAC)</span>
+                  </button>
+                </div>
+                <div id="vl-upload-info-box" style="display:none; font-size:10.5px; color:#38bdf8; background:rgba(56,189,248,0.1); padding:5px 9px; border-radius:6px; margin-bottom:10px; font-family:monospace;"></div>
+
+                <!-- Metadata Form -->
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <div>
+                    <label style="font-size:10.5px; font-weight:700; color:#94a3b8; display:block; margin-bottom:3px;">Voice Name</label>
+                    <input type="text" id="inp-vl-name" placeholder="e.g. My Studio Voice, John Recap..." style="width:100%; font-size:11.5px; background:rgba(15,23,42,0.85); border:1px solid rgba(255,255,255,0.15); border-radius:7px; padding:7px 10px; color:#f8fafc;" />
+                  </div>
+                  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                    <div>
+                      <label style="font-size:10.5px; font-weight:700; color:#94a3b8; display:block; margin-bottom:3px;">Language Optimization</label>
+                      <select id="sel-vl-lang" style="width:100%; font-size:11px; background:rgba(15,23,42,0.85); border:1px solid rgba(255,255,255,0.15); border-radius:7px; padding:6px 8px; color:#f8fafc;">
+                        <option value="en" selected>English (US / Global)</option>
+                        <option value="vi">Vietnamese (Tiếng Việt)</option>
+                        <option value="ja">Japanese (日本語)</option>
+                        <option value="ko">Korean (한국어)</option>
+                        <option value="zh">Chinese (中文 · Mandarin)</option>
+                        <option value="es">Spanish (Español)</option>
+                        <option value="fr">French (Français)</option>
+                        <option value="de">German (Deutsch)</option>
+                        <option value="it">Italian (Italiano)</option>
+                        <option value="pt">Portuguese (Português)</option>
+                        <option value="ru">Russian (Русский)</option>
+                        <option value="th">Thai (ไทย)</option>
+                        <option value="id">Indonesian (Bahasa)</option>
+                        <option value="hi">Hindi (हिन्दी)</option>
+                        <option value="ar">Arabic (العربية)</option>
+                        <option value="auto">Multilingual Auto-Detect</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style="font-size:10.5px; font-weight:700; color:#94a3b8; display:block; margin-bottom:3px;">Gender Pitch Hint</label>
+                      <select id="sel-vl-gender" style="width:100%; font-size:11px; background:rgba(15,23,42,0.85); border:1px solid rgba(255,255,255,0.15); border-radius:7px; padding:6px 8px; color:#f8fafc;">
+                        <option value="auto" selected>Auto-Detect Pitch</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Submit Button -->
+              <button type="button" class="btn primary" id="btn-vl-submit-clone" style="width:100%; font-size:12px; font-weight:800; padding:10px 16px; background:linear-gradient(135deg, #e11d48, #f43f5e); border-color:#fb7185; display:flex; align-items:center; justify-content:center; gap:6px; margin-top:14px; box-shadow:0 4px 16px rgba(244,63,94,0.3);">
+                <svg style="width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                <span>Clone &amp; Save Voice Profile</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Right: My Cloned Voices Shelf & Manager -->
+          <div class="el-col" style="height:100%; min-height:0;">
+            <div class="el-card" style="height:100%; display:flex; flex-direction:column; border-color:rgba(168,85,247,0.35);">
+              <div class="el-card-header">
+                <span class="el-card-title" style="color:#c084fc; font-size:13px;">
+                  <svg style="width:16px; height:16px; stroke:#c084fc; fill:none;" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                  My Cloned Voices Shelf
+                </span>
+                <span id="vl-clones-count-badge" style="font-size:10px; color:#c084fc; background:rgba(168,85,247,0.15); border:1px solid rgba(168,85,247,0.3); padding:2px 8px; border-radius:999px; font-weight:800;">0 Cloned Voices</span>
+              </div>
+              <div style="font-size:11px; color:#94a3b8; margin-bottom:10px;">
+                All your zero-shot cloned voices are listed here. You can test synthesis, set any clone as the global voice, or delete profiles.
+              </div>
+
+              <!-- Cloned Voice Cards Container -->
+              <div id="vl-clones-shelf-list" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding-right:4px;">
+                <!-- Populated dynamically via JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════════════════════════════════════════════════════════════ -->
+      <!-- VIEW: VOICE STUDIO LOCAL REST API                                  -->
+      <!-- ═══════════════════════════════════════════════════════════════════ -->
+      <section id="view-voiceapi" class="view hidden">
+        <!-- 1. Header & Live Server Status Banner -->
+        <div class="card" style="border-color: rgba(56, 189, 248, 0.42); background: linear-gradient(155deg, rgba(56, 189, 248, 0.12), rgba(15, 23, 42, 0.65)); padding: 10px 16px; margin-bottom: 10px;">
+          <div class="row" style="padding: 2px 0;">
+            <div style="flex: 1;">
+              <div style="font-size: 13.5px; font-weight: 800; color: #7dd3fc; display: flex; align-items: center; gap: 8px;">
+                <span>⚡ Voice Studio Local REST API</span>
+                <span id="vapi-status-badge" style="font-size: 10px; font-weight: 800; padding: 2px 9px; border-radius: 999px; background: rgba(45,212,191,0.18); border: 1px solid rgba(45,212,191,0.5); color: #5eead4; letter-spacing: 0.04em;">● ONLINE</span>
+              </div>
+              <div style="font-size: 11px; color: rgba(235, 238, 248, 0.72); margin-top: 3px; line-height: 1.45;">
+                Local high-speed, offline HTTP server for external tools, n8n automations, Python, OBS Studio &amp; AI agents. Includes drop-in OpenAI-compatible <code>/v1/audio/speech</code> support.
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button id="vapi-btn-copy-base-url" class="sidebar-action-btn" style="padding: 5px 12px; font-size: 11px; background: rgba(56,189,248,.18); border-color: rgba(56,189,248,.35);">
+                <span>📋 Copy Base URL</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Server Configuration Card -->
+        <div class="card">
+          <div class="row">
+            <div>
+              <div class="row-title">Enable Local API Server</div>
+              <div class="row-sub">Runs an offline, high-speed background HTTP server to handle speech synthesis requests.</div>
+            </div>
+            <button id="vapi-toggle-server" class="toggle" aria-pressed="true"><div class="knob"></div></button>
+          </div>
+          <div class="row">
+            <div>
+              <div class="row-title">Listen Host &amp; Network Scope</div>
+              <div class="row-sub">Choose whether to accept connections from localhost only or allow other devices on your local Wi-Fi.</div>
+            </div>
+            <select id="vapi-select-host" class="ag-select" style="min-width: 210px;">
+              <option value="127.0.0.1">127.0.0.1 (Localhost Only — Secure)</option>
+              <option value="0.0.0.0">0.0.0.0 (Allow Local Wi-Fi / LAN)</option>
+            </select>
+          </div>
+          <div class="row">
+            <div>
+              <div class="row-title">Server Port</div>
+              <div class="row-sub">TCP port used by the Voice API server (default: 8933).</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <input id="vapi-input-port" class="ag-input" type="number" min="1024" max="65535" value="8933" style="width: 86px; text-align: center; font-weight:700;">
+              <button id="vapi-btn-apply-server" class="sidebar-action-btn" style="padding: 5px 11px; font-size: 11px;">Apply &amp; Restart</button>
+            </div>
+          </div>
+          <div class="row" style="background: rgba(0,0,0,0.22); margin: 4px -14px -4px; padding: 8px 14px; border-radius: 0 0 13px 13px;">
+            <div style="font-size: 11px; color: #94a3b8; display:flex; align-items:center; gap:6px;">
+              <span style="color:#38bdf8; font-weight:700;">Active Base URL:</span>
+              <code id="vapi-label-base-url" style="color:#f8fafc; background: rgba(255,255,255,0.08); padding: 2px 7px; border-radius: 5px; font-family: monospace;">http://127.0.0.1:8933</code>
+            </div>
+            <a id="vapi-link-health-test" href="#" target="_blank" style="font-size: 11px; color:#5eead4; text-decoration:none; font-weight:700;">↗ Test /health ping</a>
+          </div>
+        </div>
+
+        <!-- 3. API Key & Token Management Card -->
+        <div class="card" style="margin-top: 10px;">
+          <div class="row">
+            <div>
+              <div class="row-title">Require API Key Authentication</div>
+              <div class="row-sub">Enforce Bearer Token authorization on all requests (<code>Authorization: Bearer pizza_live_...</code>).</div>
+            </div>
+            <button id="vapi-toggle-require-auth" class="toggle" aria-pressed="false"><div class="knob"></div></button>
+          </div>
+
+          <div style="padding: 10px 0 6px; display:flex; align-items:center; justify-content:space-between; border-top: 1px solid rgba(255,255,255,.08);">
+            <div>
+              <div style="font-size: 12px; font-weight: 700; color: #f4f6fb;">Active API Keys</div>
+              <div style="font-size: 10.8px; color: rgba(235,238,248,.58);">Generate secret tokens to securely authorize external scripts, n8n, or AI bots.</div>
+            </div>
+            <button id="vapi-btn-show-create-key" class="sidebar-action-btn" style="padding: 5px 12px; font-size: 11px; background: linear-gradient(135deg, rgba(45,212,191,0.22), rgba(14,165,233,0.22)); border-color: rgba(45,212,191,0.45); color: #5eead4;">
+              <span>➕ Generate New Key</span>
+            </button>
+          </div>
+
+          <!-- Create Key Form Modal / Drawer -->
+          <div id="vapi-create-key-drawer" style="display:none; background: rgba(15,23,42,0.85); border: 1px solid rgba(56,189,248,0.35); border-radius: 10px; padding: 12px 14px; margin: 6px 0 10px;">
+            <div style="font-size: 11.8px; font-weight: 700; color: #7dd3fc; margin-bottom: 6px;">Create a New Secret API Key</div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <input id="vapi-new-key-name" class="ag-input" placeholder="e.g. n8n Automation, Python Script, OBS" style="flex:1;" />
+              <button id="vapi-btn-submit-new-key" class="sidebar-action-btn" style="padding: 6px 14px; background: #0ea5e9; color: #fff; font-weight:700;">Generate</button>
+              <button id="vapi-btn-cancel-new-key" class="sidebar-action-btn" style="padding: 6px 10px; background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.18);">Cancel</button>
+            </div>
+          </div>
+
+          <!-- Newly Created Key Reveal Box -->
+          <div id="vapi-key-reveal-box" style="display:none; background: rgba(45,212,191,0.12); border: 1px solid rgba(45,212,191,0.45); border-radius: 10px; padding: 12px 14px; margin: 6px 0 10px;">
+            <div style="font-size: 11.5px; font-weight: 800; color: #5eead4; display:flex; align-items:center; justify-content:space-between;">
+              <span>🔑 API Key Generated Successfully</span>
+              <span style="font-size: 10px; opacity: 0.8;">Make sure to copy it now!</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; margin-top: 8px;">
+              <input id="vapi-reveal-token-input" class="ag-input" readonly style="flex:1; font-family: monospace; color:#38bdf8; background: rgba(0,0,0,0.4);" />
+              <button id="vapi-btn-copy-reveal-token" class="sidebar-action-btn" style="padding: 6px 14px; background: #2dd4bf; color: #042f2e; font-weight:800;">Copy Key</button>
+            </div>
+          </div>
+
+          <!-- API Keys List Table -->
+          <div id="vapi-keys-container" style="margin-top: 6px;">
+            <div id="vapi-keys-list" style="display:flex; flex-direction:column; gap:6px;">
+              <!-- Populated dynamically via JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Interactive Live Playground Tester Card -->
+        <div class="card" style="margin-top: 10px;">
+          <div class="row" style="padding-bottom: 6px;">
+            <div>
+              <div class="row-title">Live API Playground &amp; Tester</div>
+              <div class="row-sub">Send a real HTTP synthesis request to your local API server and test the audio output instantly.</div>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 180px 90px; gap:8px; margin-bottom: 8px;">
+            <div>
+              <input id="vapi-test-text" class="ag-input" style="width:100%;" value="Hello! This is a real-time speech test from Pizza Voice API." placeholder="Enter text to synthesize..." />
+            </div>
+            <div>
+              <select id="vapi-test-voice-select" class="ag-select" style="width:100%;">
+                <option value="vi-VN-NamMinhNeural">Nam Minh (Vietnamese)</option>
+                <option value="en-US-AndrewNeural">Andrew (English)</option>
+              </select>
+            </div>
+            <div>
+              <select id="vapi-test-format" class="ag-select" style="width:100%;">
+                <option value="mp3">MP3</option>
+                <option value="wav">WAV</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            <button id="vapi-btn-run-test" class="sidebar-action-btn" style="padding: 7px 16px; font-size: 11.5px; font-weight:800; background: linear-gradient(135deg, #0ea5e9, #2dd4bf); color: #041019;">
+              <span>▶ Send API Request</span>
+            </button>
+            <div id="vapi-test-status-pill" style="font-size: 11px; color:#94a3b8; font-family: monospace;">Ready</div>
+            <audio id="vapi-test-audio-player" controls style="height: 32px; flex:1; max-width: 320px; display:none;"></audio>
+          </div>
+        </div>
+
+        <!-- 5. Documentation & Code Samples Card -->
+        <div class="card" style="margin-top: 10px; margin-bottom: 18px;">
+          <div class="row" style="padding-bottom: 4px;">
+            <div>
+              <div class="row-title">API Integration Guide &amp; Code Samples</div>
+              <div class="row-sub">Plug Pizza Voice Studio directly into existing applications using these copy-pasteable snippets.</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:6px; margin: 6px 0 10px;" id="vapi-doc-tabs">
+            <button class="cap-chip active" data-tab="curl">cURL</button>
+            <button class="cap-chip" data-tab="python">Python (OpenAI SDK)</button>
+            <button class="cap-chip" data-tab="nodejs">Node.js / JS</button>
+            <button class="cap-chip" data-tab="voices">List Voices (JSON)</button>
+          </div>
+          <div style="position:relative;">
+            <pre id="vapi-code-snippet" style="background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.12); border-radius: 9px; padding: 12px; font-family: 'Consolas', monospace; font-size: 11.2px; color: #e2e8f0; overflow-x: auto; max-height: 220px; line-height: 1.45;"></pre>
+            <button id="vapi-btn-copy-code" class="sidebar-action-btn" style="position:absolute; top:8px; right:8px; padding: 3px 9px; font-size: 10px;">Copy</button>
           </div>
         </div>
       </section>
@@ -3148,7 +4390,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
                 <option value="Continuous flow without Chapter labels; natural spoken rhythm">Continuous Story (No 'Chapter' Labels)</option>
                 <option value="Full plot recap including climax and ending twists; no Chapter labels">Full Plot Recap (Include Ending)</option>
                 <option value="Spoiler-free teaser and hook; never reveal the final twist">Spoiler-Free Teaser Only</option>
-                <option value="Preserve character hierarchy &amp; natural pronouns (Anh/Em/Ngài/Tôi)">Smart Character Pronouns &amp; Context</option>
+                <option value="Preserve character hierarchy &amp; natural context-aware pronouns">Smart Character Pronouns &amp; Context</option>
                 <option value="Keyword-rich SEO metadata under 125 chars for Alt text">Search-Optimized SEO Metadata</option>
                 <option value="Preserve exact tables, numbers, and line breaks">Exact Document &amp; Table Fidelity</option>
               </select>
@@ -3175,7 +4417,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
             <div class="row" style="flex-direction:column; align-items:stretch; gap:5px;">
               <div class="row-title">📖 Mandatory Glossary / Names &amp; Terms to Preserve</div>
               <div class="row-sub">Comma-separated brand names, character names, or domain terms the AI must keep consistent</div>
-              <input type="text" id="inp-cai-cust-glossary" class="ag-input" placeholder="e.g. NEEFLOW, Pizza Converter, John Wick -> Sát thủ John, Matcha Ceremonial" style="width:100%;" />
+              <input type="text" id="inp-cai-cust-glossary" class="ag-input" placeholder="e.g. NEEFLOW, Pizza Converter, John Wick, Studio Ghibli, Matcha Ceremonial" style="width:100%;" />
             </div>
 
             <div class="row" style="flex-direction:column; align-items:stretch; gap:5px;">
@@ -3193,208 +4435,6 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
               </div>
               <input type="text" id="inp-cai-cust-sample" class="ag-input" value="Summarize this scene in 2 gripping sentences without using Chapter labels: A lone detective discovers the encrypted hard drive inside the abandoned subway station just as the countdown reaches 30 seconds." style="width:100%;" />
               <div id="cai-cust-test-output" style="font-size:10.8px; color:#e2e8f0; background:rgba(9,13,24,0.75); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:7px 9px; min-height:36px; white-space:pre-wrap; line-height:1.45;">Click "▶ Run Test with Selected Provider" to preview how your API key &amp; custom instructions respond.</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ══════════════════════════════════════════════════════════════ -->
-      <!-- VIEW: AI AGENT HUB (MCP SERVER & P2P 1-CLICK / QR CONNECT)   -->
-      <!-- ══════════════════════════════════════════════════════════════ -->
-      <section id="view-mcphub" class="view hidden">
-        <div class="card" style="border-color: rgba(56, 189, 248, 0.45); background: linear-gradient(155deg, rgba(56, 189, 248, 0.12), rgba(15, 23, 42, 0.55)); padding: 12px 16px; margin-bottom: 12px;">
-          <div class="row" style="padding: 4px 0;">
-            <div style="flex:1;">
-              <div style="font-size:13.5px; font-weight:800; color:#e0f2fe; display:flex; align-items:center; gap:8px;">
-                <span>🤖 AI Agent Hub · Model Context Protocol (MCP) Server</span>
-                <span id="mcp-master-badge" class="cai-status-pill pro">ACTIVE · READY</span>
-              </div>
-              <div style="font-size:11px; color:rgba(224,242,254,.75); margin-top:3px; line-height: 1.45;">
-                Turn your PC or Mac into an ultra-fast local native worker for AI Agents (Claude Desktop, Cursor, Antigravity, Muse, Grok). 
-                Process local media files directly at native hardware speed with 1-click auto-configuration or QR Code.
-              </div>
-            </div>
-            <button class="toggle active" id="tgl-mcp-master" aria-pressed="true" title="Toggle AI Agent MCP Server"><span class="knob"></span></button>
-          </div>
-        </div>
-
-        <!-- 1-Click Local Agents (Claude Desktop, Cursor, Antigravity) -->
-        <div class="card" style="margin-bottom: 12px;">
-          <div class="card-title" style="color:#38bdf8; display:flex; align-items:center; justify-content:space-between;">
-            <span style="display:flex; align-items:center; gap:6px;">
-              <svg style="width:16px; height:16px; stroke:#38bdf8; fill:none;" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-              1-Click Local Agent Integration (Zero Configuration)
-            </span>
-            <span style="font-size:10px; padding:2px 8px; border-radius:10px; background:rgba(56,189,248,.15); color:#7dd3fc; border:1px solid rgba(56,189,248,.3);">Native stdio</span>
-          </div>
-          <div style="font-size:11px; color:#94a3b8; margin-bottom:12px;">
-            Click below to automatically write the configuration file into your local AI client. No manual JSON editing required.
-          </div>
-
-          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:12px;">
-            <!-- Claude Desktop -->
-            <div style="background:rgba(15,23,42,.6); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:12px; display:flex; flex-direction:column; justify-content:space-between;">
-              <div>
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-                  <span style="font-weight:700; color:#f8fafc; font-size:12.5px;">Claude Desktop</span>
-                  <span id="mcp-claude-badge" style="font-size:10px; font-weight:700; padding:2px 6px; border-radius:6px; background:rgba(34,197,94,.15); color:#4ade80;">Checking...</span>
-                </div>
-                <div style="font-size:10.5px; color:#64748b; line-height:1.4; margin-bottom:10px;">
-                  Installs <code>pizza-converter</code> directly into your Claude Desktop application configuration.
-                </div>
-              </div>
-              <button class="btn primary" id="btn-mcp-install-claude" style="width:100%; font-size:11px; padding:6px 10px;">
-                ⚡ 1-Click Install to Claude
-              </button>
-            </div>
-
-            <!-- Cursor IDE -->
-            <div style="background:rgba(15,23,42,.6); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:12px; display:flex; flex-direction:column; justify-content:space-between;">
-              <div>
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-                  <span style="font-weight:700; color:#f8fafc; font-size:12.5px;">Cursor IDE</span>
-                  <span id="mcp-cursor-badge" style="font-size:10px; font-weight:700; padding:2px 6px; border-radius:6px; background:rgba(34,197,94,.15); color:#4ade80;">Checking...</span>
-                </div>
-                <div style="font-size:10.5px; color:#64748b; line-height:1.4; margin-bottom:10px;">
-                  Writes MCP tool definitions to <code>.cursor/mcp.json</code> for instant composer assistance.
-                </div>
-              </div>
-              <button class="btn secondary" id="btn-mcp-install-cursor" style="width:100%; font-size:11px; padding:6px 10px;">
-                ⚡ 1-Click Install to Cursor
-              </button>
-            </div>
-
-            <!-- Custom / Antigravity -->
-            <div style="background:rgba(15,23,42,.6); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:12px; display:flex; flex-direction:column; justify-content:space-between;">
-              <div>
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-                  <span style="font-weight:700; color:#f8fafc; font-size:12.5px;">Antigravity / Generic JSON</span>
-                  <span style="font-size:10px; font-weight:700; padding:2px 6px; border-radius:6px; background:rgba(148,163,184,.15); color:#cbd5e1;">Any Client</span>
-                </div>
-                <div style="font-size:10.5px; color:#64748b; line-height:1.4; margin-bottom:10px;">
-                  Copy raw JSON-RPC 2.0 configuration block to paste into any MCP-compatible tool.
-                </div>
-              </div>
-              <button class="btn secondary" id="btn-mcp-copy-snippet" style="width:100%; font-size:11px; padding:6px 10px;">
-                📋 Copy MCP Config JSON
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Remote & Mobile Agent QR Connect (WebRTC / SSE) -->
-        <div class="card" style="margin-bottom: 12px;">
-          <div class="card-title" style="color:#a78bfa; display:flex; align-items:center; justify-content:space-between;">
-            <span style="display:flex; align-items:center; gap:6px;">
-              <svg style="width:16px; height:16px; stroke:#a78bfa; fill:none;" viewBox="0 0 24 24"><path d="M4 4h6v6H4z"/><path d="M14 4h6v6h-6z"/><path d="M4 14h6v6H4z"/><path d="M14 14h6v6h-6z"/></svg>
-              Cloud &amp; Remote Agent Connection (QR Code &amp; SSE Stream)
-            </span>
-            <span style="font-size:10px; padding:2px 8px; border-radius:10px; background:rgba(167,139,250,.15); color:#c4b5fd; border:1px solid rgba(167,139,250,.3);">P2P / WebRTC / SSE</span>
-          </div>
-
-          <div style="display:flex; gap:16px; align-items:flex-start; margin-top:8px;">
-            <!-- QR Code container -->
-            <div style="flex-shrink:0; background:#fff; padding:10px; border-radius:12px; width:160px; height:160px; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 16px rgba(0,0,0,.35);" id="mcp-qr-box">
-              <span style="color:#0f172a; font-size:11px; font-weight:700; text-align:center;">Generating QR...</span>
-            </div>
-
-            <!-- Connection Details -->
-            <div style="flex:1;">
-              <div style="font-size:11px; color:#94a3b8; margin-bottom:10px; line-height:1.5;">
-                Scan with your phone or paste the connection URL into <b>Muse, Grok, or Cloud Agents</b>. 
-                Protected with your unique machine token.
-              </div>
-
-              <!-- Remote URL Box -->
-              <div style="margin-bottom:8px;">
-                <label style="font-size:10px; font-weight:700; color:#cbd5e1; text-transform:uppercase;">Local / LAN SSE Stream URL:</label>
-                <div style="display:flex; gap:6px; margin-top:3px;">
-                  <input type="text" id="inp-mcp-remote-url" readonly style="flex:1; font-family:monospace; font-size:10.5px; background:rgba(15,23,42,.7); border:1px solid rgba(255,255,255,.1); border-radius:6px; padding:6px 10px; color:#38bdf8;" />
-                  <button class="btn secondary" id="btn-mcp-copy-url" style="font-size:11px; padding:4px 12px;">Copy</button>
-                </div>
-              </div>
-
-              <!-- Secret Token Row -->
-              <div style="margin-bottom:8px;">
-                <label style="font-size:10px; font-weight:700; color:#cbd5e1; text-transform:uppercase;">Bearer Security Token:</label>
-                <div style="display:flex; gap:6px; margin-top:3px;">
-                  <input type="password" id="inp-mcp-token" readonly style="flex:1; font-family:monospace; font-size:10.5px; background:rgba(15,23,42,.7); border:1px solid rgba(255,255,255,.1); border-radius:6px; padding:6px 10px; color:#f8fafc;" />
-                  <button class="btn secondary" id="btn-mcp-toggle-token" style="font-size:11px; padding:4px 10px;">👁️</button>
-                  <button class="btn secondary" id="btn-mcp-regen-token" style="font-size:11px; padding:4px 10px;" title="Regenerate token if compromised">🔄</button>
-                </div>
-              </div>
-
-              <!-- Test Ping Button -->
-              <div style="display:flex; gap:10px; align-items:center; margin-top:12px;">
-                <button class="btn secondary" id="btn-mcp-test-ping" style="font-size:11px; padding:5px 14px;">
-                  🔌 Test MCP Server Ping
-                </button>
-                <span id="mcp-ping-result" style="font-size:11px; font-weight:600; color:#94a3b8;"></span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 1-Click Copy Agent Setup Prompt (Paste into Claude / Muse / Grok / ChatGPT) -->
-        <div class="card" style="margin-bottom: 12px; border-color: rgba(167, 139, 250, 0.45); background: linear-gradient(155deg, rgba(167, 139, 250, 0.1), rgba(15, 23, 42, 0.6));">
-          <div class="card-title" style="color:#c4b5fd; display:flex; align-items:center; justify-content:space-between;">
-            <span style="display:flex; align-items:center; gap:6px;">
-              <svg style="width:16px; height:16px; stroke:#c4b5fd; fill:none;" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-              1-Click Copy Agent Setup Prompt (Claude, Muse, Grok, ChatGPT)
-            </span>
-            <span style="font-size:10px; padding:2px 8px; border-radius:10px; background:rgba(167,139,250,.2); color:#ddd6fe; border:1px solid rgba(167,139,250,.4);">Ready to Paste</span>
-          </div>
-          <div style="font-size:11px; color:#94a3b8; margin-bottom:10px; line-height:1.45;">
-            Instead of pasting a raw link, click below to copy a complete instruction prompt containing your active connection URL, authentication token, and full tool specifications. Simply paste it directly into your AI chat window so the agent immediately knows how to discover and convert files on your machine.
-          </div>
-
-          <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; align-items:center;">
-            <button class="btn primary" id="btn-mcp-copy-agent-prompt" style="font-size:11.5px; padding:7px 16px; font-weight:700; background:linear-gradient(135deg, #8b5cf6, #6366f1); border-color:#a78bfa;">
-              ✨ 1-Click Copy Agent Setup Prompt
-            </button>
-            <button class="btn secondary" id="btn-mcp-toggle-prompt-preview" style="font-size:11px; padding:6px 12px;">
-              👁️ Show / Hide Prompt Preview
-            </button>
-            <span id="mcp-prompt-copy-status" style="font-size:11px; font-weight:600; color:#4ade80;"></span>
-          </div>
-
-          <div id="mcp-prompt-preview-container" style="display:none; margin-top:8px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-              <span style="font-size:10px; font-weight:700; color:#cbd5e1; text-transform:uppercase;">Prompt Preview (Auto-updated with active IP &amp; Token):</span>
-            </div>
-            <textarea id="txt-mcp-agent-prompt" readonly style="width:100%; height:160px; font-family:monospace; font-size:10.5px; background:rgba(10,14,26,.85); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:10px; color:#e2e8f0; resize:vertical; line-height:1.45;"></textarea>
-          </div>
-        </div>
-
-        <!-- Available Tools Preview -->
-        <div class="card">
-          <div class="card-title" style="color:#e2e8f0; font-size:12px;">
-            🛠️ 6 Native AI Tools Provided by Pizza Converter
-          </div>
-          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:8px; margin-top:8px;">
-            <div style="font-size:11px; background:rgba(15,23,42,.45); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.05);">
-              <b style="color:#38bdf8;">pizza_list_files</b><br/>
-              <span style="color:#64748b; font-size:10px;">Scan PC/Mac directories with extension filtering</span>
-            </div>
-            <div style="font-size:11px; background:rgba(15,23,42,.45); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.05);">
-              <b style="color:#38bdf8;">pizza_convert_media</b><br/>
-              <span style="color:#64748b; font-size:10px;">Hardware-accelerated conversion across 55+ formats</span>
-            </div>
-            <div style="font-size:11px; background:rgba(15,23,42,.45); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.05);">
-              <b style="color:#38bdf8;">pizza_remove_background</b><br/>
-              <span style="color:#64748b; font-size:10px;">Local IS-Net neural AI cutout to transparent PNG</span>
-            </div>
-            <div style="font-size:11px; background:rgba(15,23,42,.45); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.05);">
-              <b style="color:#38bdf8;">pizza_ai_video_review</b><br/>
-              <span style="color:#64748b; font-size:10px;">Proportional recap, voiceover &amp; watermark overlay</span>
-            </div>
-            <div style="font-size:11px; background:rgba(15,23,42,.45); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.05);">
-              <b style="color:#38bdf8;">pizza_get_media_info</b><br/>
-              <span style="color:#64748b; font-size:10px;">Read duration, codec, bitrate, resolution</span>
-            </div>
-            <div style="font-size:11px; background:rgba(15,23,42,.45); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.05);">
-              <b style="color:#38bdf8;">pizza_upload_cloud</b><br/>
-              <span style="color:#64748b; font-size:10px;">Upload output to Google Drive &amp; generate link</span>
             </div>
           </div>
         </div>
@@ -3459,6 +4499,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
   </div>
   <div id="debug-log"></div>
   <button id="debug-test-click">Test: Programmatic Toggle Click</button>
+  <div id="settings-floating-toast" class="hidden"></div>
 </div>
 <script src="i18n.js"></script>
 <script src="tauri-bridge.js"></script>

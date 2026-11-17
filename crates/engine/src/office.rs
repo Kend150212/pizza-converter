@@ -181,49 +181,148 @@ pub fn office_convert(input: &Path, output_dir: &Path, out_ext: &str) -> Result<
     Ok(dst)
 }
 
-/// Locate a working Python 3 interpreter on the machine (skipping WindowsApps stub).
-pub fn find_python() -> Option<PathBuf> {
-    if let Ok(local) = std::env::var("LOCALAPPDATA") {
-        let base = PathBuf::from(local).join("Programs").join("Python");
-        for ver in ["Python312", "Python311", "Python313", "Python310"] {
-            let p = base.join(ver).join("python.exe");
-            if p.is_file() {
-                return Some(p);
-            }
-        }
+/// Score a candidate Python 3 interpreter using fast `importlib.util.find_spec` checks
+/// so the most capable local runtime (venv / user site-packages with AI & Office libs) wins.
+fn score_python_candidate(py: &Path) -> i32 {
+    if !py.is_file() {
+        return -1;
     }
-    #[cfg(target_os = "macos")]
+    let probe = concat!(
+        "import sys, importlib.util as u\n",
+        "if sys.version_info < (3, 9): sys.exit(1)\n",
+        "s = 10\n",
+        "for m, w in (('PIL',10),('pypdf',10),('pypdfium2',10),('docx',8),('openpyxl',8),('faster_whisper',30),('edge_tts',15)):\n",
+        "    if u.find_spec(m) is not None: s += w\n",
+        "try:\n",
+        "    if u.find_spec('av') is not None:\n",
+        "        import inspect, av\n",
+        "        s += 10 if 'metadata_errors' in inspect.signature(av.open).parameters else 3\n",
+        "except Exception:\n",
+        "    pass\n",
+        "print(s)\n"
+    );
+    let mut cmd = std::process::Command::new(py);
+    cmd.env("PYTHONIOENCODING", "utf-8")
+        .env("PYTHONUTF8", "1")
+        .args(["-c", probe]);
+    #[cfg(windows)]
     {
-        if let Ok(home) = std::env::var("HOME") {
-            let venv_py = PathBuf::from(home).join(".pizza-converter-venv/bin/python3");
-            if venv_py.is_file() {
-                return Some(venv_py);
-            }
-        }
-        for p in [
-            "/opt/homebrew/bin/python3",
-            "/usr/local/bin/python3",
-            "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3",
-            "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3",
-        ] {
-            let pb = PathBuf::from(p);
-            if pb.is_file() {
-                return Some(pb);
-            }
-        }
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000);
     }
-    std::env::var_os("PATH").and_then(|paths| {
-        std::env::split_paths(&paths).find_map(|dir| {
-            let s = dir.to_string_lossy().to_ascii_lowercase();
-            if s.contains("windowsapps") {
-                return None;
+    match cmd.output() {
+        Ok(out) if out.status.success() => String::from_utf8_lossy(&out.stdout)
+            .trim()
+            .parse::<i32>()
+            .unwrap_or(1),
+        _ => -1,
+    }
+}
+
+/// Locate the highest-scoring working Python 3 interpreter on the machine (skipping WindowsApps stub).
+/// Result is cached for the lifetime of the process to avoid repeated subprocess probes.
+pub fn find_python() -> Option<PathBuf> {
+    static CACHED_PYTHON: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
+    CACHED_PYTHON
+        .get_or_init(|| {
+            let mut candidates: Vec<PathBuf> = Vec::new();
+            let mut push_unique = |p: PathBuf| {
+                if p.is_file() {
+                    let key = p.to_string_lossy().to_ascii_lowercase();
+                    if !key.contains("windowsapps")
+                        && !candidates
+                            .iter()
+                            .any(|c| c.to_string_lossy().to_ascii_lowercase() == key)
+                    {
+                        candidates.push(p);
+                    }
+                }
+            };
+
+            #[cfg(windows)]
+            {
+                if let Ok(home) = std::env::var("USERPROFILE") {
+                    push_unique(
+                        PathBuf::from(&home)
+                            .join(".pizza-converter-venv")
+                            .join("Scripts")
+                            .join("python.exe"),
+                    );
+                }
+                if let Ok(local) = std::env::var("LOCALAPPDATA") {
+                    let base = PathBuf::from(local).join("Programs").join("Python");
+                    for ver in ["Python312", "Python311", "Python313", "Python310"] {
+                        push_unique(base.join(ver).join("python.exe"));
+                    }
+                }
+                for env_pf in ["ProgramFiles", "ProgramW6432"] {
+                    if let Ok(pf) = std::env::var(env_pf) {
+                        let base = PathBuf::from(pf);
+                        for ver in ["Python312", "Python311", "Python313", "Python310"] {
+                            push_unique(base.join(ver).join("python.exe"));
+                        }
+                    }
+                }
             }
-            ["python.exe", "python3", "python"]
-                .iter()
-                .map(|n| dir.join(n))
-                .find(|p| p.is_file())
+
+            #[cfg(not(windows))]
+            {
+                if let Ok(home) = std::env::var("HOME") {
+                    push_unique(PathBuf::from(home).join(".pizza-converter-venv/bin/python3"));
+                }
+                #[cfg(target_os = "macos")]
+                for p in [
+                    "/opt/homebrew/bin/python3",
+                    "/usr/local/bin/python3",
+                    "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3",
+                    "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3",
+                    "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+                    "/Library/Frameworks/Python.framework/Versions/3.10/bin/python3",
+                ] {
+                    push_unique(PathBuf::from(p));
+                }
+            }
+
+            if let Some(paths) = std::env::var_os("PATH") {
+                for dir in std::env::split_paths(&paths) {
+                    let s = dir.to_string_lossy().to_ascii_lowercase();
+                    if s.contains("windowsapps") {
+                        continue;
+                    }
+                    for name in ["python.exe", "python3", "python"] {
+                        push_unique(dir.join(name));
+                    }
+                }
+            }
+
+            let mut best: Option<(i32, PathBuf)> = None;
+            for cand in candidates {
+                let mut score = score_python_candidate(&cand);
+                if score > 0
+                    && cand
+                        .to_string_lossy()
+                        .to_ascii_lowercase()
+                        .contains(".pizza-converter-venv")
+                {
+                    // Prefer dedicated Pizza Converter virtualenv when equally or well equipped
+                    score += 15;
+                }
+                if score > 0 {
+                    if best.as_ref().map(|(bs, _)| score > *bs).unwrap_or(true) {
+                        best = Some((score, cand));
+                    }
+                }
+            }
+            best.map(|(_, p)| p)
         })
-    })
+        .clone()
+}
+
+struct TempScriptGuard(PathBuf);
+impl Drop for TempScriptGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
 }
 
 /// Run an inline Python script via a temporary `.py` file (avoids Windows 32,767-char command-line limit `os error 206`)
@@ -234,11 +333,15 @@ pub fn run_python(script: &str, args: &[&str]) -> Result<()> {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    let tmp_py = std::env::temp_dir().join(format!("pizza_py_{}_{}.py", std::process::id(), nanos));
+    let tmp_base = std::env::temp_dir().join("pizza_converter_tmp");
+    let _ = std::fs::create_dir_all(&tmp_base);
+    let tmp_py = tmp_base.join(format!("pizza_py_{}_{}.py", std::process::id(), nanos));
     std::fs::write(&tmp_py, script).map_err(|e| ConvertError::Encode(e.to_string()))?;
+    let _guard = TempScriptGuard(tmp_py.clone());
 
     let mut cmd = std::process::Command::new(py);
     cmd.env("PYTHONIOENCODING", "utf-8")
+        .env("PYTHONUTF8", "1")
         .arg("-u")
         .arg(&tmp_py)
         .args(args);
@@ -253,9 +356,7 @@ pub fn run_python(script: &str, args: &[&str]) -> Result<()> {
         let cur_path = std::env::var("PATH").unwrap_or_default();
         cmd.env("PATH", format!("/opt/homebrew/bin:/usr/local/bin:{cur_path}"));
     }
-    let out = cmd.output();
-    let _ = std::fs::remove_file(&tmp_py);
-    let out = out.map_err(|e| ConvertError::Encode(e.to_string()))?;
+    let out = cmd.output().map_err(|e| ConvertError::Encode(e.to_string()))?;
     if !out.status.success() {
         let stderr = String::from_utf8_lossy(&out.stderr);
         return Err(ConvertError::Encode(format!(
@@ -1030,7 +1131,7 @@ fn extract_binary_doc_text(data: &[u8]) -> String {
     }
 }
 
-fn extract_doc_text(input: &Path) -> Result<String> {
+pub fn extract_doc_text(input: &Path) -> Result<String> {
     let ext = input
         .extension()
         .and_then(|e| e.to_str())

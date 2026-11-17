@@ -21,7 +21,36 @@ import tempfile
 import subprocess
 import concurrent.futures
 import numpy as np
-import cv2
+
+try:
+    import cv2
+except ImportError:
+    cv2 = None
+
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+
+try:
+    from cloud_ai_bridge import (
+        configure_utf8_stdio,
+        install_pyav19_compat_shim,
+        read_stdin_payload,
+        is_cloud_ai_usable,
+        select_viral_highlights_cloud,
+        translate_timed_segments_cloud,
+    )
+    configure_utf8_stdio()
+    install_pyav19_compat_shim()
+except Exception:
+    def read_stdin_payload():
+        return {}
+    def is_cloud_ai_usable(_cfg):
+        return False
+    def select_viral_highlights_cloud(*_a, **_kw):
+        return None
+    def translate_timed_segments_cloud(cues, *_a, **_kw):
+        return cues, False
 
 CREATE_NO_WINDOW = (0x08000000 | 0x00004000) if os.name == "nt" else 0
 
@@ -141,23 +170,44 @@ def run_cmd(cmd):
     )
 
 
-def get_video_info(in_path):
-    cap = cv2.VideoCapture(in_path)
-    if not cap.isOpened():
-        return 1920, 1080, 30.0, 300.0
-    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1920)
-    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 1080)
-    fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0)
-    if fps <= 1.0 or fps > 240.0:
-        fps = 30.0
-    frames = float(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-    dur = frames / fps if fps > 0 and frames > 0 else 300.0
-    cap.release()
-    return w, h, fps, dur
+def get_video_info(in_path, ffmpeg_bin=None):
+    w, h, fps, dur = 1920, 1080, 30.0, 0.0
+    if cv2 is not None:
+        cap = cv2.VideoCapture(in_path)
+        if cap.isOpened():
+            w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1920)
+            h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 1080)
+            fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0)
+            if fps <= 1.0 or fps > 240.0:
+                fps = 30.0
+            frames = float(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+            if fps > 0 and frames > 0:
+                dur = frames / fps
+            cap.release()
+    if dur <= 0.5 and ffmpeg_bin:
+        try:
+            r = subprocess.run(
+                [ffmpeg_bin, "-hide_banner", "-i", in_path],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                encoding="utf-8", errors="replace",
+                creationflags=CREATE_NO_WINDOW, timeout=12, check=False,
+            )
+            info_txt = r.stderr or ""
+            m_dur = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", info_txt)
+            if m_dur:
+                dur = int(m_dur.group(1)) * 3600.0 + int(m_dur.group(2)) * 60.0 + float(m_dur.group(3))
+            m_dim = re.search(r"Stream #.*Video:.*?,\s*(\d{2,5})x(\d{2,5})\b", info_txt)
+            if m_dim:
+                w, h = int(m_dim.group(1)), int(m_dim.group(2))
+        except Exception:
+            pass
+    return w, h, fps, (dur if dur > 0.5 else 300.0)
 
 
 def get_exact_media_duration(path, fallback_dur):
     """Read exact encoded duration of a segment MP4 so subtitle offsets never drift."""
+    if cv2 is None:
+        return fallback_dur
     try:
         cap = cv2.VideoCapture(path)
         if cap.isOpened():
@@ -463,7 +513,7 @@ def merge_close_intervals(intervals, max_gap=1.8):
     return merged
 
 
-def select_clips_by_mode(segments, rms_profile, total_dur, mode, clean_fillers, clip_count_cfg="auto", clip_dur_cfg="mix"):
+def select_clips_by_mode(segments, rms_profile, total_dur, mode, clean_fillers, clip_count_cfg="auto", clip_dur_cfg="mix", ai_cfg=None):
     salience_map = compute_transcript_salience(segments)
     cleaned = []
     for seg in segments:
@@ -487,6 +537,44 @@ def select_clips_by_mode(segments, rms_profile, total_dur, mode, clean_fillers, 
 
     if mode == "ai_clean_um":
         return [("Clean", merge_close_intervals(cleaned, max_gap=0.85))]
+
+    # Resolve target clip count upfront so Cloud AI and local fallback share the exact same target
+    try:
+        if str(clip_count_cfg).strip().isdigit():
+            resolved_max_clips = max(1, min(15, int(str(clip_count_cfg).strip())))
+        else:
+            raise ValueError()
+    except Exception:
+        if total_dur >= 1800:
+            resolved_max_clips = 10
+        elif total_dur >= 1080:
+            resolved_max_clips = 8
+        elif total_dur >= 600:
+            resolved_max_clips = 6
+        elif total_dur >= 240:
+            resolved_max_clips = 5
+        else:
+            resolved_max_clips = 3
+
+    # Cloud AI Viral Story Arc & Hook Ranking (falls back seamlessly to local acoustic + TF-IDF scorer)
+    if mode in ("ai_shorts", "ai_summary", "ai_compilation") and is_cloud_ai_usable(ai_cfg) and len(cleaned) >= 3:
+        try:
+            prov_name = (ai_cfg.get("provider") or "Cloud AI").upper()
+            emit_prog(53, f"Cloud AI ({prov_name}): ranking viral story arcs & hooks...")
+            ai_groups = select_viral_highlights_cloud(
+                cleaned, total_dur, mode, resolved_max_clips, clip_dur_cfg, ai_cfg
+            )
+            if ai_groups:
+                merged_ai = [
+                    (tag_lbl, merge_close_intervals(grp_segs, max_gap=2.2))
+                    for tag_lbl, grp_segs in ai_groups
+                    if grp_segs
+                ]
+                merged_ai = [(t, g) for t, g in merged_ai if g]
+                if merged_ai:
+                    return merged_ai
+        except Exception as e:
+            print(f"Cloud AI highlight selection fallback: {e}", file=sys.stderr)
 
     if mode == "ai_summary":
         target_dur = min(360.0, max(60.0, total_dur * (0.32 if total_dur < 600 else 0.16)))
@@ -710,6 +798,9 @@ def build_segment_re_layout_filter(in_path, seg, orig_w, orig_h, aspect_mode):
     default_x = (orig_w - crop_w) // 2
     default_x = default_x - (default_x % 2)
 
+    if cv2 is None:
+        return fit_center_filter if aspect_mode != "9:16_crop" else f"crop={crop_w}:{orig_h}:{default_x}:0,scale=1080:1920,setsar=1"
+
     try:
         cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
         face_cascade = cv2.CascadeClassifier(cascade_path)
@@ -930,11 +1021,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         f.write(header + "\n".join(events) + "\n")
 
 
-def render_clip_with_ffmpeg(ffmpeg_bin, in_path, out_path, segs, aspect, captions_on, orig_w, orig_h, tier="auto", cap_style="beasty", clip_idx=1, total_clips=1):
+def render_clip_with_ffmpeg(
+    ffmpeg_bin, in_path, out_path, segs, aspect, captions_on, orig_w, orig_h,
+    tier="auto", cap_style="beasty", clip_idx=1, total_clips=1, ai_cfg=None, target_lang=""
+):
     """
     Frame-accurate multi-core segment extraction with GPU Hardware Encoder auto-offload (NVENC/AMF/QSV -> libx264),
     75% CPU budget cap (never overloads the PC), and direct post-cut Whisper transcription of `joined.mp4`.
     """
+    abs_out_path = os.path.abspath(out_path)
     tmp_dir = tempfile.mkdtemp(prefix="pizza_ai_clip_")
     try:
         is_vertical = (aspect != "16:9")
@@ -1021,17 +1116,46 @@ def render_clip_with_ffmpeg(ffmpeg_bin, in_path, out_path, segs, aspect, caption
             emit_prog(84, "Aligning exact post-cut word timestamps...")
             joined_wav = os.path.join(tmp_dir, "joined_audio.wav")
             extract_audio_wav(ffmpeg_bin, joined_mp4, joined_wav)
-            jw, jh, _, joined_dur = get_video_info(joined_mp4)
-            direct_segs = transcribe_with_whisper(joined_wav, tier, total_dur=joined_dur, prog_range=(85, 92))
+            jw, jh, _, joined_dur = get_video_info(joined_mp4, ffmpeg_bin=ffmpeg_bin)
+            direct_segs = transcribe_with_whisper(joined_wav, tier, total_dur=joined_dur, prog_range=(85, 91))
+            t_lang = (target_lang or "").strip().lower()
+            if direct_segs and t_lang and t_lang != "orig" and is_cloud_ai_usable(ai_cfg):
+                loc_segs, ok_loc = translate_timed_segments_cloud(
+                    direct_segs, t_lang, mode="burn_captions", ai_cfg=ai_cfg
+                )
+                if ok_loc and loc_segs:
+                    # Redistribute translated words evenly across each segment's timeframe
+                    rebuilt = []
+                    for ls in loc_segs:
+                        s0 = float(ls.get("start", 0.0))
+                        e0 = max(s0 + 0.2, float(ls.get("end", s0 + 1.0)))
+                        toks = [t for t in str(ls.get("text") or "").split() if t]
+                        new_words = []
+                        if toks:
+                            step_d = (e0 - s0) / float(len(toks))
+                            for wi, tok in enumerate(toks):
+                                new_words.append({
+                                    "word": tok,
+                                    "start": s0 + wi * step_d,
+                                    "end": s0 + (wi + 1) * step_d,
+                                    "is_filler": False,
+                                })
+                        rebuilt.append({
+                            "start": s0,
+                            "end": e0,
+                            "text": ls.get("text", ""),
+                            "words": new_words,
+                        })
+                    direct_segs = rebuilt
             ass_path = os.path.join(tmp_dir, "captions.ass")
             build_direct_ass_subtitles(direct_segs, ass_path, is_vertical, style_id=cap_style, auto_emoji=True)
             emit_prog(94, f"Burning {cap_style.upper()} captions ({enc_name.upper()})...")
-            flt_chk = subprocess.run([ffmpeg_bin, "-hide_banner", "-filters"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, creationflags=CREATE_NO_WINDOW, check=False)
+            flt_chk = subprocess.run([ffmpeg_bin, "-hide_banner", "-filters"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8", errors="replace", creationflags=CREATE_NO_WINDOW, check=False)
             has_sub_flt = (" subtitles " in (flt_chk.stdout or ""))
             sub_tail = [
                 "-c:a", "copy",
                 "-movflags", "+faststart",
-                out_path
+                abs_out_path
             ]
             if has_sub_flt:
                 sub_base = [
@@ -1048,7 +1172,7 @@ def render_clip_with_ffmpeg(ffmpeg_bin, in_path, out_path, segs, aspect, caption
                     creationflags=CREATE_NO_WINDOW,
                     check=False,
                 )
-                if (not os.path.isfile(out_path) or os.path.getsize(out_path) < 1024) and enc_name != "libx264":
+                if (not os.path.isfile(abs_out_path) or os.path.getsize(abs_out_path) < 1024) and enc_name != "libx264":
                     subprocess.run(
                         sub_base + cpu_fallback_flags + sub_tail,
                         cwd=tmp_dir,
@@ -1057,7 +1181,7 @@ def render_clip_with_ffmpeg(ffmpeg_bin, in_path, out_path, segs, aspect, caption
                         creationflags=CREATE_NO_WINDOW,
                         check=False,
                     )
-            if not os.path.isfile(out_path) or os.path.getsize(out_path) < 1024:
+            if not os.path.isfile(abs_out_path) or os.path.getsize(abs_out_path) < 1024:
                 # Universal Pillow PNG concat-overlay fallback for macOS FFmpeg builds without libass
                 try:
                     from PIL import Image, ImageDraw, ImageFont
@@ -1145,20 +1269,21 @@ def render_clip_with_ffmpeg(ffmpeg_bin, in_path, out_path, segs, aspect, caption
                         "-map", "[v]", "-map", "0:a?",
                     ]
                     subprocess.run(pil_base + enc_flags + sub_tail, cwd=tmp_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False)
-                    if (not os.path.isfile(out_path) or os.path.getsize(out_path) < 1024) and enc_name != "libx264":
+                    if (not os.path.isfile(abs_out_path) or os.path.getsize(abs_out_path) < 1024) and enc_name != "libx264":
                         subprocess.run(pil_base + cpu_fallback_flags + sub_tail, cwd=tmp_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False)
                 except Exception:
                     pass
-            if not os.path.isfile(out_path) or os.path.getsize(out_path) < 1024:
-                shutil.copyfile(joined_mp4, out_path)
+            if not os.path.isfile(abs_out_path) or os.path.getsize(abs_out_path) < 1024:
+                shutil.copyfile(joined_mp4, abs_out_path)
         else:
-            shutil.copyfile(joined_mp4, out_path)
+            shutil.copyfile(joined_mp4, abs_out_path)
         emit_prog(99, "Finalizing highlight video...")
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 def main():
+    ai_cfg = read_stdin_payload()
     in_path = sys.argv[1]
     out_path = sys.argv[2]
     out_dir = sys.argv[3]
@@ -1171,9 +1296,10 @@ def main():
     cap_style = sys.argv[10] if len(sys.argv) > 10 else "beasty"
     clip_count_cfg = sys.argv[11] if len(sys.argv) > 11 else "auto"
     clip_dur_cfg = sys.argv[12] if len(sys.argv) > 12 else "mix"
+    target_lang = sys.argv[13] if len(sys.argv) > 13 else str(ai_cfg.get("target_lang") or "")
 
     emit_prog(4, "Probing video timeframe & hardware encoders...")
-    orig_w, orig_h, _fps, total_dur = get_video_info(in_path)
+    orig_w, orig_h, _fps, total_dur = get_video_info(in_path, ffmpeg_bin=ffmpeg_bin)
 
     tmp_wav = tempfile.mktemp(suffix=".wav", prefix="pizza_ai_aud_")
     try:
@@ -1190,7 +1316,9 @@ def main():
                 pass
 
     emit_prog(52, "Scoring & selecting best highlight scenes...")
-    clip_groups = select_clips_by_mode(segments, rms_profile, total_dur, mode, clean_fillers, clip_count_cfg, clip_dur_cfg)
+    clip_groups = select_clips_by_mode(
+        segments, rms_profile, total_dur, mode, clean_fillers, clip_count_cfg, clip_dur_cfg, ai_cfg=ai_cfg
+    )
 
     if mode == "ai_shorts" and len(clip_groups) > 1:
         stem = os.path.splitext(os.path.basename(in_path))[0]
@@ -1201,7 +1329,7 @@ def main():
             clip_out = os.path.join(shorts_dir, f"{stem}_Highlight_{idx:02d}_{tag_label}.mp4")
             render_clip_with_ffmpeg(
                 ffmpeg_bin, in_path, clip_out, seg_grp, aspect, captions_on, orig_w, orig_h, tier,
-                cap_style=cap_style, clip_idx=idx, total_clips=len(clip_groups)
+                cap_style=cap_style, clip_idx=idx, total_clips=len(clip_groups), ai_cfg=ai_cfg, target_lang=target_lang
             )
             if os.path.isfile(clip_out):
                 produced.append(clip_out)
@@ -1213,7 +1341,7 @@ def main():
     first_segs = clip_groups[0][1] if isinstance(clip_groups[0], tuple) else clip_groups[0]
     render_clip_with_ffmpeg(
         ffmpeg_bin, in_path, out_path, first_segs, aspect, captions_on, orig_w, orig_h, tier,
-        cap_style=cap_style, clip_idx=1, total_clips=1
+        cap_style=cap_style, clip_idx=1, total_clips=1, ai_cfg=ai_cfg, target_lang=target_lang
     )
     print("RESULT_PATH:" + out_path, flush=True)
 

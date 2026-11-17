@@ -215,11 +215,70 @@ with open(sys.argv[1], "w", encoding="utf-8") as f:
         "caption_engine": "Dynamic Word-by-Word .ASS / .SRT / .VTT Engine"
     }))
 "#;
-    let tmp_json = std::env::temp_dir().join("pizza_ai_hw_profile.json");
-    let tmp_s = tmp_json.to_string_lossy().into_owned();
+    let tmp_guard = TempFileGuard::new("pizza_ai_hw_profile", "json");
+    let tmp_s = tmp_guard.path().to_string_lossy().into_owned();
     convertx_engine::office::run_python(script, &[&tmp_s]).map_err(|e| e.to_string())?;
-    let json_str = std::fs::read_to_string(&tmp_json).map_err(|e| e.to_string())?;
+    let json_str = std::fs::read_to_string(tmp_guard.path()).map_err(|e| e.to_string())?;
     serde_json::from_str(&json_str).map_err(|e| e.to_string())
+}
+
+struct TempFileGuard(PathBuf);
+
+impl TempFileGuard {
+    fn new(prefix: &str, ext: &str) -> Self {
+        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let seq = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let fname = format!("{prefix}_{}_{nanos}_{seq}.{ext}", std::process::id());
+        Self(crate::voice_studio::pizza_voice_temp_dir().join(fname))
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for TempFileGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+fn extract_concise_py_error(stderr_text: &str) -> String {
+    let mut last_meaningful = "";
+    let mut last_warn = "";
+    for raw in stderr_text.lines() {
+        let ln = raw.trim();
+        if ln.is_empty()
+            || ln.starts_with("Traceback (most recent call last)")
+            || ln.starts_with("File \"")
+            || ln.chars().all(|c| matches!(c, '^' | '~' | ' '))
+            || ln.starts_with("[DEBUG]")
+            || ln.starts_with("[INFO]")
+        {
+            continue;
+        }
+        if ln.starts_with("[WARN]") {
+            last_warn = ln;
+            continue;
+        }
+        last_meaningful = ln;
+    }
+    let chosen = if !last_meaningful.is_empty() {
+        last_meaningful
+    } else if !last_warn.is_empty() {
+        last_warn
+    } else {
+        stderr_text.trim()
+    };
+    if chosen.is_empty() {
+        "Python worker exited with an unexpected error".to_string()
+    } else {
+        chosen.chars().take(320).collect()
+    }
 }
 
 #[tauri::command(async)]
@@ -231,25 +290,35 @@ pub fn prepare_ai_models(app: tauri::AppHandle, tier: Option<String>) -> Result<
     );
     let script = r#"
 import sys, os
+try:
+    import cloud_ai_bridge
+    cloud_ai_bridge.install_pyav19_compat_shim()
+except Exception:
+    pass
 tier = sys.argv[1] if len(sys.argv) > 1 else "auto"
 hf_cache = os.path.expanduser("~/.cache/huggingface/hub")
 has_medium = os.path.isdir(os.path.join(hf_cache, "models--Systran--faster-whisper-medium"))
 has_base = os.path.isdir(os.path.join(hf_cache, "models--Systran--faster-whisper-base"))
 
 from faster_whisper import WhisperModel
-import cv2
+try:
+    import cv2
+except ImportError:
+    cv2 = None
 
 model_name = "medium" if (tier in ("studio", "ultra", "auto") and has_medium) else "base"
 _m = WhisperModel(model_name, device="cpu", compute_type="int8", cpu_threads=max(4, (os.cpu_count() or 8) - 2))
-cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-if not os.path.isfile(cascade_path):
-    raise RuntimeError("OpenCV Haar Cascade XML missing")
+if cv2 is not None:
+    cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    if not os.path.isfile(cascade_path):
+        raise RuntimeError("OpenCV Haar Cascade XML missing")
 print("OK:" + model_name)
 "#;
     let _ = app.emit(
         "ai-model-progress",
         serde_json::json!({ "pct": 60, "status": "Loading Neural VAD, Whisper INT8 & OpenCV 9:16 Face Tracker..." }),
     );
+    let _ = crate::voice_studio::ensure_tts_provider_module_dir();
     convertx_engine::office::run_python(script, &[&chosen_tier]).map_err(|e| e.to_string())?;
     let _ = app.emit(
         "ai-model-progress",
@@ -258,38 +327,46 @@ print("OK:" + model_name)
     detect_ai_hardware()
 }
 
-/// Run a Python script via a temporary `.py` file (avoids Windows 32,767-char command-line limit `os error 206`)
-/// while streaming real-time `PROGRESS:<pct>:<stage>` lines from stdout directly into the HUD window.
-/// Runs with `BELOW_NORMAL_PRIORITY_CLASS` so background AI/FFmpeg tasks never lag the user's PC.
-pub fn run_python_streaming(
+/// Run a Python script via a temporary `.py` file inside `%TEMP%/pizza_converter_tmp`
+/// while staging shared modules (`cloud_ai_bridge.py`, `tts_provider.py`) onto `PYTHONPATH`,
+/// optionally piping unified OS Vault Cloud AI credentials over `stdin`, and streaming
+/// real-time `PROGRESS:<pct>:<stage>` lines from stdout directly into the HUD window.
+pub fn run_python_streaming_with_ai(
     app: &tauri::AppHandle,
     target_id: &str,
     file_label: &str,
+    feature_id: Option<&str>,
     script: &str,
     args: &[&str],
 ) -> Result<(), String> {
-    use std::io::{BufRead, BufReader};
+    use std::io::{BufRead, BufReader, Write};
     use std::process::Stdio;
 
     let py = convertx_engine::office::find_python()
         .ok_or_else(|| "Python runtime not found".to_string())?;
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let tmp_py = std::env::temp_dir().join(format!(
-        "pizza_py_stream_{}_{}.py",
-        std::process::id(),
-        nanos
-    ));
-    std::fs::write(&tmp_py, script).map_err(|e| e.to_string())?;
+    let mod_dir = crate::voice_studio::ensure_tts_provider_module_dir()?;
+    let tmp_py_guard = TempFileGuard::new("pizza_py_stream", "py");
+    std::fs::write(tmp_py_guard.path(), script).map_err(|e| e.to_string())?;
+
+    let sep = if cfg!(windows) { ";" } else { ":" };
+    let py_path = match std::env::var("PYTHONPATH") {
+        Ok(cur) if !cur.trim().is_empty() => format!("{}{sep}{cur}", mod_dir.display()),
+        _ => mod_dir.display().to_string(),
+    };
 
     let mut cmd = std::process::Command::new(py);
-    cmd.env("PYTHONIOENCODING", "utf-8")
+    cmd.env("PYTHONPATH", py_path)
+        .env("PYTHONUTF8", "1")
+        .env("PYTHONIOENCODING", "utf-8")
         .env("PYTHONUNBUFFERED", "1")
         .arg("-u")
-        .arg(&tmp_py)
+        .arg(tmp_py_guard.path())
         .args(args)
+        .stdin(if feature_id.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     #[cfg(windows)]
@@ -304,16 +381,21 @@ pub fn run_python_streaming(
         cmd.env("PATH", format!("/opt/homebrew/bin:/usr/local/bin:{cur_path}"));
     }
 
-    let mut child = match cmd.spawn() {
-        Ok(c) => c,
-        Err(e) => {
-            let _ = std::fs::remove_file(&tmp_py);
-            return Err(e.to_string());
-        }
-    };
+    let mut child = cmd.spawn().map_err(|e| e.to_string())?;
     let child_pid = child.id();
     let task_id = format!("{file_label}::{target_id}");
     crate::convert_cmd::register_task_child_pid(child_pid, target_id, Some(&task_id));
+
+    if let Some(fid) = feature_id {
+        let payload = crate::cloud_ai::build_worker_ai_payload(app, fid, false);
+        if let Some(mut stdin_pipe) = child.stdin.take() {
+            let payload_bytes = payload.to_string().into_bytes();
+            let _ = stdin_pipe.write_all(&payload_bytes);
+            let _ = stdin_pipe.flush();
+            // Dropping `stdin_pipe` immediately signals EOF so `read_stdin_payload()` returns in <1ms.
+        }
+    }
+
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
 
@@ -371,16 +453,26 @@ pub fn run_python_streaming(
 
     let status = child.wait();
     crate::convert_cmd::unregister_child_pid(child_pid);
-    let _ = std::fs::remove_file(&tmp_py);
     if crate::convert_cmd::is_task_cancelled(Some(&task_id), Some(target_id)) {
         return Err("STOPPED_BY_USER".to_string());
     }
     let status = status.map_err(|e| e.to_string())?;
     let err_out = stderr_handle.join().unwrap_or_default();
     if !status.success() {
-        return Err(format!("python helper failed: {}", err_out.trim()));
+        let concise = extract_concise_py_error(&err_out);
+        return Err(concise);
     }
     Ok(())
+}
+
+pub fn run_python_streaming(
+    app: &tauri::AppHandle,
+    target_id: &str,
+    file_label: &str,
+    script: &str,
+    args: &[&str],
+) -> Result<(), String> {
+    run_python_streaming_with_ai(app, target_id, file_label, None, script, args)
 }
 
 /// Execute the AI Video Highlight pipeline for `ai_shorts`, `ai_summary`, `ai_compilation`, or `ai_clean_um`.
@@ -427,11 +519,18 @@ pub fn run_ai_video_studio(
     let cap_style_s = cfg.ai_cap_style.clone();
     let clip_count_s = cfg.ai_clip_count.clone();
     let clip_dur_s = cfg.ai_clip_duration.clone();
+    let cap_lang_s = match cfg.ai_cap_lang.as_str() {
+        "vi" => "vi".to_string(),
+        "en" => "en".to_string(),
+        "custom" => cfg.ai_custom_lang_code.clone(),
+        _ => String::new(),
+    };
 
-    run_python_streaming(
+    run_python_streaming_with_ai(
         app,
         mode,
         file_label,
+        Some("ai_highlight"),
         script,
         &[
             &in_s,
@@ -446,9 +545,16 @@ pub fn run_ai_video_studio(
             &cap_style_s,
             &clip_count_s,
             &clip_dur_s,
+            &cap_lang_s,
         ],
     )
-    .map_err(|e| format!("AI Highlight Engine error: {e}"))?;
+    .map_err(|e| {
+        if e == "STOPPED_BY_USER" {
+            e
+        } else {
+            format!("AI Highlight Engine error: {e}")
+        }
+    })?;
 
     if primary_out.is_file() {
         Ok(out_s)
@@ -472,16 +578,20 @@ pub fn merge_videos(app: &tauri::AppHandle, inputs: &[PathBuf]) -> Result<String
     let fake_in = first.with_file_name(format!("{stem}_merged.mp4"));
     let out_path = crate::config::resolve_output(app, &fake_in, "mp4");
 
-    let list_json = std::env::temp_dir().join("pizza_merge_videos.json");
+    let list_guard = TempFileGuard::new("pizza_merge_videos", "json");
     let in_strs: Vec<String> = inputs.iter().map(|p| p.to_string_lossy().into_owned()).collect();
     std::fs::write(
-        &list_json,
+        list_guard.path(),
         serde_json::to_string(&in_strs).unwrap_or_else(|_| "[]".into()),
     )
     .map_err(|e| e.to_string())?;
 
     let script = r#"
-import sys, os, json, tempfile, shutil, subprocess, concurrent.futures, cv2
+import sys, os, re, json, tempfile, shutil, subprocess, concurrent.futures
+try:
+    import cv2
+except ImportError:
+    cv2 = None
 
 CREATE_NO_WINDOW = (0x08000000 | 0x00004000) if os.name == "nt" else 0
 SAFE_CPU = max(2, min((os.cpu_count() or 8) - 2, int((os.cpu_count() or 8) * 0.75)))
@@ -498,12 +608,19 @@ if len(inputs) < 2:
 emit_prog(6, f"Inspecting {len(inputs)} video streams...")
 dims = []
 for p in inputs:
-    cap = cv2.VideoCapture(p)
-    if cap.isOpened():
-        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1920)
-        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 1080)
-        dims.append((w, h))
-        cap.release()
+    if cv2 is not None:
+        cap = cv2.VideoCapture(p)
+        if cap.isOpened():
+            w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1920)
+            h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 1080)
+            dims.append((w, h))
+            cap.release()
+            continue
+    pr = subprocess.run([ffmpeg_bin, "-hide_banner", "-i", p], stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False)
+    err_txt = (pr.stderr or b"").decode("utf-8", errors="ignore")
+    m = re.search(r"Stream #.*Video:.*?,\s*(\d{2,5})x(\d{2,5})\b", err_txt)
+    if m:
+        dims.append((int(m.group(1)), int(m.group(2))))
     else:
         dims.append((1920, 1080))
 
@@ -587,17 +704,284 @@ finally:
     shutil.rmtree(tmp_dir, ignore_errors=True)
 "#;
 
-    let list_s = list_json.to_string_lossy().into_owned();
+    let list_s = list_guard.path().to_string_lossy().into_owned();
     let out_s = out_path.to_string_lossy().into_owned();
     let ff_s = ffmpeg_bin.to_string_lossy().into_owned();
     let first_label = first.file_name().and_then(|s| s.to_str()).unwrap_or(stem);
     run_python_streaming(app, "merge_video", first_label, script, &[&list_s, &out_s, &ff_s])
-        .map_err(|e| format!("Video Merge error: {e}"))?;
+        .map_err(|e| {
+            if e == "STOPPED_BY_USER" {
+                e
+            } else {
+                format!("Video Merge error: {e}")
+            }
+        })?;
 
     if out_path.is_file() {
         Ok(out_s)
     } else {
         Err("Merged video file was not created".into())
+    }
+}
+
+fn smart_title_from_clips(clips: &[PathBuf], parent_name: &str, script_path: Option<&str>) -> String {
+    // 1. If script exists, check its first heading or title
+    if let Some(sp) = script_path {
+        if let Ok(content) = std::fs::read_to_string(sp) {
+            for line in content.lines() {
+                let trimmed = line.trim().trim_start_matches('#').trim();
+                if !trimmed.is_empty() && trimmed.len() <= 60 {
+                    let safe = trimmed
+                        .chars()
+                        .map(|c| if c.is_alphanumeric() { c } else { '_' })
+                        .collect::<String>();
+                    let clean = safe.split('_').filter(|s| !s.is_empty()).collect::<Vec<_>>().join("_");
+                    if clean.len() >= 3 {
+                        return clean;
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. If parent folder has a meaningful semantic name (e.g. "Echo_Dot_Review", "Vlog_Tokyo"), use it!
+    let lower_parent = parent_name.to_lowercase();
+    let is_generic_parent = lower_parent.starts_with("nov ")
+        || lower_parent.starts_with("dec ")
+        || lower_parent.starts_with("jan ")
+        || lower_parent.starts_with("feb ")
+        || lower_parent.starts_with("mar ")
+        || lower_parent.starts_with("apr ")
+        || lower_parent.starts_with("may ")
+        || lower_parent.starts_with("jun ")
+        || lower_parent.starts_with("jul ")
+        || lower_parent.starts_with("aug ")
+        || lower_parent.starts_with("sep ")
+        || lower_parent.starts_with("oct ")
+        || lower_parent.contains("new folder")
+        || lower_parent == "video"
+        || lower_parent == "videos"
+        || lower_parent == "clips"
+        || lower_parent == "dcim";
+
+    if !is_generic_parent && parent_name.len() >= 4 {
+        return parent_name.to_string();
+    }
+
+    // 3. Extract top recurring keywords across clips (e.g. Mimi_Echo_Dot)
+    let stopwords = [
+        "woman", "man", "person", "and", "the", "for", "with", "video", "clip",
+        "shot", "final", "out", "in", "on", "at", "by", "near", "from"
+    ];
+    let mut word_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+
+    for p in clips {
+        if let Some(stem) = p.file_stem().and_then(|s| s.to_str()) {
+            let clean = if let Some(idx) = stem.rfind('_') {
+                let suffix = &stem[idx + 1..];
+                if suffix.len() >= 6 && suffix.chars().all(|c| c.is_ascii_hexdigit()) {
+                    &stem[..idx]
+                } else {
+                    stem
+                }
+            } else {
+                stem
+            };
+            for part in clean.split(['_', '-', ' ']) {
+                let lower = part.to_lowercase();
+                if lower.len() >= 3
+                    && !stopwords.contains(&lower.as_str())
+                    && !lower.chars().all(|c| c.is_ascii_digit())
+                {
+                    *word_counts.entry(part.to_string()).or_insert(0) += 1;
+                }
+            }
+        }
+    }
+    let mut sorted_words: Vec<(String, usize)> = word_counts.into_iter().collect();
+    sorted_words.sort_by(|a, b| b.1.cmp(&a.1));
+    let top_keywords: Vec<String> = sorted_words.into_iter().take(3).map(|(w, _)| w).collect();
+    if !top_keywords.is_empty() {
+        return top_keywords.join("_");
+    }
+
+    parent_name.to_string()
+}
+
+/// Auto-Montage Video Studio:
+/// Automatically cuts fillers & dead air, removes stutters / false starts, scales to chosen aspect ratio (16:9, 9:16, 1:1),
+/// overlays logo watermark, burns captions, and prepends/appends intro & outro.
+pub fn run_auto_montage_task(
+    app: &tauri::AppHandle,
+    inputs: &[PathBuf],
+    aspect_override: Option<&str>,
+) -> Result<String, String> {
+    if inputs.is_empty() {
+        return Err("No input videos provided for Auto Montage".into());
+    }
+    let cfg = crate::config::load(app);
+    let ffmpeg_bin = convertx_engine::av::find_ffmpeg()
+        .ok_or_else(|| "FFmpeg not found".to_string())?;
+
+    // Expand directories into video files & scan for script/metadata
+    let mut resolved_inputs: Vec<PathBuf> = Vec::new();
+    let mut discovered_script: Option<String> = None;
+    let is_single_folder = inputs.len() == 1 && inputs[0].is_dir();
+
+    for inp in inputs {
+        if inp.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(inp) {
+                let mut folder_vids: Vec<PathBuf> = Vec::new();
+                for entry in entries.flatten() {
+                    let p = entry.path();
+                    if p.is_file() {
+                        let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+                        if matches!(ext.as_str(), "mp4" | "mov" | "mkv" | "webm" | "avi" | "m4v" | "ts") {
+                            let fname = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
+                            if !fname.contains("_montage_") && !fname.contains("_final_") {
+                                folder_vids.push(p);
+                            }
+                        } else if matches!(ext.as_str(), "txt" | "md" | "json") && discovered_script.is_none() {
+                            let lower = p.to_string_lossy().to_lowercase();
+                            if lower.contains("script") || lower.contains("kich") || lower.contains("story") || lower.contains("prompt") {
+                                discovered_script = Some(p.to_string_lossy().into_owned());
+                            }
+                        }
+                    }
+                }
+                folder_vids.sort();
+                resolved_inputs.extend(folder_vids);
+            }
+        } else if inp.is_file() {
+            resolved_inputs.push(inp.clone());
+            if discovered_script.is_none() {
+                if let Some(parent) = inp.parent() {
+                    if let Ok(entries) = std::fs::read_dir(parent) {
+                        for entry in entries.flatten() {
+                            let p = entry.path();
+                            if p.is_file() {
+                                let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+                                if matches!(ext.as_str(), "txt" | "md") {
+                                    let lower = p.to_string_lossy().to_lowercase();
+                                    if lower.contains("script") || lower.contains("kich") || lower.contains("story") || lower.contains("prompt") {
+                                        discovered_script = Some(p.to_string_lossy().into_owned());
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if resolved_inputs.is_empty() {
+        return Err("No valid video files (.mp4, .mov, .mkv, .webm) found in the selected input(s)".into());
+    }
+
+    let total_inputs = resolved_inputs.len();
+    let first = &resolved_inputs[0];
+    let parent_name = first
+        .parent()
+        .and_then(|p| p.file_name())
+        .and_then(|s| s.to_str())
+        .unwrap_or("clips");
+
+    let smart_base = smart_title_from_clips(&resolved_inputs, parent_name, discovered_script.as_deref());
+    let stem = if is_single_folder || total_inputs > 1 {
+        smart_base
+    } else {
+        first.file_stem().and_then(|s| s.to_str()).unwrap_or("video").to_string()
+    };
+    let file_label_string = if is_single_folder || total_inputs > 1 {
+        format!("{stem} ({total_inputs} clips)")
+    } else {
+        first.file_name().and_then(|s| s.to_str()).unwrap_or(&stem).to_string()
+    };
+    let file_label = &file_label_string;
+
+    let aspect = aspect_override
+        .unwrap_or(&cfg.montage_aspect)
+        .to_string();
+    let aspect_suffix = match aspect.as_str() {
+        "9:16" => "9x16",
+        "1:1" => "1x1",
+        _ => "16x9",
+    };
+
+    let fake_in = if is_single_folder {
+        inputs[0].join(format!("{stem}_final_{aspect_suffix}.mp4"))
+    } else if total_inputs > 1 {
+        first.with_file_name(format!("{stem}_final_{aspect_suffix}.mp4"))
+    } else {
+        first.with_file_name(format!("{stem}_montage_{aspect_suffix}.mp4"))
+    };
+    let primary_out = crate::config::resolve_output(app, &fake_in, "mp4");
+    let out_s = primary_out.to_string_lossy().into_owned();
+
+    let in_strs: Vec<String> = resolved_inputs.iter().map(|p| p.to_string_lossy().into_owned()).collect();
+    let job_guard = TempFileGuard::new("pizza_montage_job", "json");
+    let montage_cap_lang = match cfg.ai_cap_lang.as_str() {
+        "vi" => "vi".to_string(),
+        "en" => "en".to_string(),
+        "custom" => cfg.ai_custom_lang_code.clone(),
+        _ => String::new(),
+    };
+
+    let job_payload = serde_json::json!({
+        "inputs": in_strs,
+        "out_path": out_s,
+        "ffmpeg_bin": ffmpeg_bin.to_string_lossy().into_owned(),
+        "aspect": aspect,
+        "clean_fillers": cfg.montage_clean_fillers,
+        "remove_repetition": cfg.montage_remove_repetition,
+        "max_silence": cfg.montage_max_silence,
+        "logo_enabled": cfg.montage_logo_enabled,
+        "logo_path": cfg.montage_logo_path,
+        "logo_position": cfg.montage_logo_position,
+        "logo_scale": cfg.montage_logo_scale,
+        "logo_opacity": cfg.montage_logo_opacity,
+        "intro_enabled": cfg.montage_intro_enabled,
+        "intro_path": cfg.montage_intro_path,
+        "outro_enabled": cfg.montage_outro_enabled,
+        "outro_path": cfg.montage_outro_path,
+        "captions_enabled": cfg.montage_captions_enabled,
+        "cap_style": cfg.montage_cap_style,
+        "caption_path": cfg.montage_caption_path,
+        "caption_lang": montage_cap_lang,
+        "director_mode": cfg.montage_director_mode,
+        "story_arc": cfg.montage_story_arc,
+        "discovered_script": discovered_script,
+        "tier": cfg.ai_tier,
+    });
+
+    std::fs::write(job_guard.path(), serde_json::to_string_pretty(&job_payload).unwrap_or_default())
+        .map_err(|e| format!("Failed to create montage job config: {e}"))?;
+
+    let job_json_s = job_guard.path().to_string_lossy().into_owned();
+    let script = include_str!("montage_worker.py");
+
+    run_python_streaming_with_ai(
+        app,
+        "auto_montage",
+        file_label,
+        Some("auto_montage"),
+        script,
+        &[&job_json_s],
+    )
+    .map_err(|e| {
+        if e == "STOPPED_BY_USER" {
+            e
+        } else {
+            format!("Auto Montage Engine error: {e}")
+        }
+    })?;
+
+    if primary_out.is_file() {
+        Ok(out_s)
+    } else {
+        Err("Auto Montage output file was not created".into())
     }
 }
 
@@ -645,7 +1029,12 @@ pub fn run_ai_subtitle_task(
     let out_path = crate::config::resolve_output(app, &fake_in, out_ext);
 
     let script = r#"
-import sys, os, re, json, tempfile, subprocess, urllib.request, urllib.parse
+import sys, os, re, json, tempfile, subprocess, urllib.request, urllib.parse, concurrent.futures
+import cloud_ai_bridge
+
+cloud_ai_bridge.configure_utf8_stdio()
+cloud_ai_bridge.install_pyav19_compat_shim()
+AI_CFG = cloud_ai_bridge.read_stdin_payload()
 
 CREATE_NO_WINDOW = (0x08000000 | 0x00004000) if os.name == "nt" else 0
 
@@ -706,7 +1095,6 @@ def parse_subtitle_file(path, ext):
                         cues.append({"start": s, "end": e, "text": txt})
         return cues
 
-    # SRT or VTT parser
     blocks = re.split(r"\r?\n\r?\n+", raw.strip())
     for blk in blocks:
         lines = [ln.strip() for ln in blk.splitlines() if ln.strip()]
@@ -728,125 +1116,18 @@ def parse_subtitle_file(path, ext):
             cues.append({"start": s, "end": e, "text": txt})
     return cues
 
-import concurrent.futures, difflib
-
 _RE_STANDALONE_TOI_CAP = re.compile(r"(?<![Cc]húng\s)(?<![Vv]ôi\s)\bTôi\b(?!\s+luyện)")
 _RE_STANDALONE_TOI_LOW = re.compile(r"(?<![Cc]húng\s)(?<![Vv]ôi\s)\btôi\b(?!\s+luyện)")
 
-def extract_brand_tokens_from_filename(fpath):
-    stem = re.sub(r"\(\d+\)", "", os.path.basename(fpath).rsplit(".", 1)[0])
-    parts = re.split(r"[-_\s.]+", stem)
-    stop = {
-        "video", "intro", "outro", "short", "shorts", "reel", "reels", "tiktok", "yt", "youtube",
-        "final", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "16x9", "9x16", "1x1",
-        "1080p", "720p", "4k", "dub", "vi", "en", "sub", "cap", "test", "clip", "demo", "edit",
-        "mp4", "mov", "mkv", "webm", "30s", "60s", "15s", "10s", "1m", "2m", "full", "hd", "transcript"
-    }
-    brands = []
-    for p in parts:
-        cl = p.strip()
-        if len(cl) >= 4 and cl.lower() not in stop and not re.match(r"^\d+[smhd]?$", cl.lower()):
-            brands.append(cl.capitalize() if cl.islower() else cl)
-    return brands
-
-BRAND_TOKENS = extract_brand_tokens_from_filename(in_path)
-
-def restore_brand_names_in_english(text, brands=None):
-    if not text:
-        return text
-    b_list = brands if brands is not None else BRAND_TOKENS
-    if not b_list:
-        return text
-    t = text
-    for b in b_list:
-        bl = b.lower()
-        def repl_word(m):
-            w = m.group(0)
-            wl = w.lower()
-            if wl in ("the", "and", "for", "you", "are", "not", "one", "all", "day", "way", "hey", "now", "new", "more", "with", "that", "this", "from", "have", "your", "week", "post", "plan", "copy"):
-                return w
-            if difflib.SequenceMatcher(None, wl, bl).ratio() >= 0.65:
-                return b
-            return w
-        t = re.sub(r"\b[A-Za-z]{4,14}\b", repl_word, t)
-        if len(bl) >= 5:
-            pattern_2w = re.compile(r"\b([A-Za-z]{2,6})\s+([A-Za-z]{2,6})\b")
-            def repl_2w(m):
-                combined = (m.group(1) + m.group(2)).lower()
-                if difflib.SequenceMatcher(None, combined, bl).ratio() >= 0.68:
-                    return b
-                return m.group(0)
-            t = pattern_2w.sub(repl_2w, t)
-    return t
-
-def pre_normalize_spoken_english(txt):
-    if not txt:
-        return txt
-    s = restore_brand_names_in_english(txt.strip())
-    low = s.lower()
-    if re.match(r"^(?:let'?s\s+go+)[!.\s]*$", low):
-        return "That is awesome!"
-    if re.match(r"^(?:no\s+way|there'?s\s+no\s+way)[!.\s]*$", low):
-        return "That is unbelievable!"
-    s = re.sub(r"\b[Dd]rowning in ([a-zA-Z\s]+?),", r"Overwhelmed by too many \1,", s)
-    s = re.sub(r"\b[Dd]rowning in ([a-zA-Z\s]+)\b", r"Overwhelmed by \1", s)
-    s = re.sub(r"\bendless grind\b", "endless exhausting work", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bdaily grind\b", "exhausting daily work", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bin one sitting\b", "in just one session", s, flags=re.IGNORECASE)
-    s = re.sub(r"\b[Hh]ours of your week gone\b", "You lose hours every week", s)
-    s = re.sub(r"\b[Mm]iss a day,\s*the algorithm forgets you\b", "If you skip one day, the algorithm ignores you", s)
-    s = re.sub(r"\b[Oo]ne click,\s*and you'?re everywhere\b", "Just one click to post everywhere", s)
-    s = re.sub(r"\bmore on the way\b", "and more coming soon", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bplan once,\s*post everywhere\b", "schedule once, publish everywhere", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bcontent command center\b", "all-in-one content hub", s, flags=re.IGNORECASE)
-    s = re.sub(r"\b[Cc]lients approved,\s*analytics approved\b", "Client approval and analytics ready", s)
-    s = re.sub(r"\b[Aa]re you kidding me\b", "Is this a joke", s)
-    s = re.sub(r"\b[Yy]ou(?:'ve)? got(?:ta| to) be kidding me\b", "That is unbelievable", s)
-    return s
-
-def polish_spoken_vi(text, orig="", is_creator=False):
+def polish_offline_vi(text, is_creator=False):
     if not text:
         return text
     t = text
-    for b in BRAND_TOKENS:
-        t = re.sub(re.escape(b), b, t, flags=re.IGNORECASE)
     t = re.sub(r"\b[Ôô]i\s+[Cc]húa\s+ơi\b", "Trời ơi", t)
     t = re.sub(r"\b[Cc]húa\s+ơi\b", "Trời ơi", t)
     t = re.sub(r"\b[Nn]hững người hâm mộ\b", "các fan", t)
     t = re.sub(r"\b[Nn]gười hâm mộ\b", "fan", t)
     t = re.sub(r"(\d+(?:[\.,]\d+)*)\s+đô\s+la(?:\s+Mỹ)?\b", r"\1 đô", t, flags=re.IGNORECASE)
-    t = re.sub(r"\b[Bb]ạn đang đùa tôi à\b", "Đùa đấy à", t)
-    t = re.sub(r"\b[Bb]ạn đùa tôi à\b", "Đùa đấy à", t)
-    t = re.sub(r"\b[Kk]hông có cách nào\b", "Không thể nào", t)
-    t = re.sub(r"\b[Cc]huyện gì đang xảy ra vậy\b", "Chuyện gì thế này", t)
-    t = re.sub(r"\b[Đđ]iều gì đang xảy ra vậy\b", "Chuyện gì thế này", t)
-    t = re.sub(r"\bở thời điểm hiện tại\b", "hiện giờ", t)
-    t = re.sub(r"\bvào thời điểm này\b", "lúc này", t)
-    t = re.sub(r"\bmột cách nhanh chóng\b", "nhanh chóng", t)
-    t = re.sub(r"\b[Qq]uá tải vì quá nhiều nền tảng\b", "Quá tải vì hàng tá nền tảng", t)
-    t = re.sub(r"\b[Bb]ị choáng ngợp bởi quá nhiều nền tảng\b", "Quá tải vì quá nhiều nền tảng", t)
-    t = re.sub(r"\bcông việc mệt mỏi bất tận\b", "cày cuốc mệt nghỉ", t, flags=re.IGNORECASE)
-    t = re.sub(r"\bcông việc kiệt sức vô tận\b", "cày cuốc không hồi kết", t, flags=re.IGNORECASE)
-    t = re.sub(r"\bthay đổi kích thước\b", "chỉnh kích cỡ", t, flags=re.IGNORECASE)
-    t = re.sub(r"\b[Bb]ạn mất hàng giờ mỗi tuần\b", "Tốn hàng giờ mỗi tuần", t)
-    t = re.sub(r"\b[Nn]ếu bạn bỏ qua một ngày,\s*thuật toán sẽ bỏ qua bạn\b", "Lỡ một ngày là thuật toán lãng quên ngay", t)
-    t = re.sub(r"\b[Gg]ặp gỡ\s+", "Khám phá ", t)
-    t = re.sub(r"\b[Gg]ặp\s+([A-Z][a-zA-Z0-9]+)", r"Khám phá \1", t)
-    t = re.sub(r"\btrung tâm nội dung tất cả trong một của bạn\b", "trung tâm quản lý nội dung toàn diện", t, flags=re.IGNORECASE)
-    t = re.sub(r"\btrong một phiên duy nhất\b", "ngay trong một buổi", t, flags=re.IGNORECASE)
-    t = re.sub(r"\bchỉ trong một phiên\b", "ngay trong một buổi", t, flags=re.IGNORECASE)
-    t = re.sub(r"\b[Cc]hỉ cần một cú nhấp chuột để đăng ở mọi nơi\b", "Chỉ một chạm, phủ sóng mọi nơi", t)
-    t = re.sub(r"\b[Cc]hỉ cần một cú nhấp chuột để đăng bài ở mọi nơi\b", "Chỉ một chạm, đăng khắp mọi nơi", t)
-    t = re.sub(r"\b[Cc]hú thích AI\b", "Caption AI", t)
-    t = re.sub(r"\bchú thích AI\b", "caption AI", t)
-    t = re.sub(r"\b[Ss]ự chấp thuận của khách hàng và phân tích đã sẵn sàng\b", "Khách duyệt bài nhanh, báo cáo sẵn sàng", t)
-    t = re.sub(r"\bvà nhiều thứ khác sẽ sớm ra mắt\b", "và còn cập nhật thêm nữa", t, flags=re.IGNORECASE)
-    t = re.sub(r"\bvà nhiều hơn nữa sẽ sớm ra mắt\b", "và còn mở rộng hơn nữa", t, flags=re.IGNORECASE)
-    t = re.sub(r"\blên lịch một lần,\s*xuất bản ở mọi nơi\b", "lên lịch một lần, đăng khắp mọi nơi", t, flags=re.IGNORECASE)
-    t = re.sub(r"\b[Nn]ày,\s*", "", t)
-    if re.search(r"\blet'?s\s+go+\b", (orig or "").lower()):
-        t = re.sub(r"\b[Hh]ãy đi nào\b", "Tuyệt vời", t)
-        t = re.sub(r"\b[Cc]húng ta đi thôi\b", "Chiến thôi", t)
     if is_creator:
         t = re.sub(r"\bChúng tôi\b", "Tụi mình", t)
         t = re.sub(r"\bchúng tôi\b", "tụi mình", t)
@@ -854,15 +1135,37 @@ def polish_spoken_vi(text, orig="", is_creator=False):
         t = _RE_STANDALONE_TOI_LOW.sub("mình", t)
     return t
 
-def translate_batch(texts, target_lang):
+def translate_batch_offline(texts, target_lang):
     if not texts or not target_lang:
         return texts
     full_txt = " ".join((x or "").lower() for x in texts)
-    creator_clues = ["subscribe", "channel", "welcome back", "in this video", "challenge", "dollars", "fans", "hundred thousand", "million", "points", "goal", "keeper", "penalty", "let's see", "you guys", "$"]
+    creator_clues = ["subscribe", "channel", "welcome back", "in this video", "challenge", "dollars", "fans", "let's see", "you guys", "$"]
     is_creator = sum(1 for k in creator_clues if k in full_txt) >= 2
-    norm_texts = [pre_normalize_spoken_english(t) for t in texts]
+
+    if target_lang.lower().startswith("vi"):
+        try:
+            v_dir = os.path.join(os.environ.get("APPDATA", ""), "NeelFlow.PizzaConverter", "models", "vinai-en2vi-v2-ct2-int8")
+            if os.path.isfile(os.path.join(v_dir, "model.bin")):
+                import ctranslate2
+                from tokenizers import Tokenizer
+                tok = Tokenizer.from_file(os.path.join(v_dir, "tokenizer.json"))
+                trans = ctranslate2.Translator(v_dir, device="cpu", compute_type="int8", intra_threads=max(2, (os.cpu_count() or 4) // 2))
+                vi_tok = "vi_VN"
+                src_toks = [tok.encode(t).tokens for t in texts]
+                res = trans.translate_batch(src_toks, target_prefix=[[vi_tok] for _ in texts], beam_size=1, max_decoding_length=128)
+                out = []
+                for r in res:
+                    hyp = r.hypotheses[0]
+                    hyp_tokens = [tk for tk in hyp if tk not in ("vi_VN", "</s>", "en_XX")]
+                    ids = [tok.token_to_id(tk) for tk in hyp_tokens if tok.token_to_id(tk) is not None]
+                    out.append(tok.decode(ids).strip())
+                if len(out) == len(texts):
+                    return [polish_offline_vi(tr, is_creator) for tr in out]
+        except Exception as e:
+            sys.stderr.write(f"[WARN] VinAI subtitle translation fallback to Google: {e}\n")
+
     sep = "\n ||| \n"
-    chunks = [(i, norm_texts[i:i + 20]) for i in range(0, len(norm_texts), 20)]
+    chunks = [(i, texts[i:i + 20]) for i in range(0, len(texts), 20)]
 
     def trans_one(item):
         base_idx, chunk = item
@@ -894,8 +1197,40 @@ def translate_batch(texts, target_lang):
     for _, plist in results:
         out.extend(plist)
     if target_lang.lower().startswith("vi"):
-        out = [polish_spoken_vi(tr, orig, is_creator) for tr, orig in zip(out, texts)]
+        out = [polish_offline_vi(tr, is_creator) for tr in out]
     return out
+
+def localize_cues(cues, target_lang, bilingual_flag, p_start, p_end):
+    if not cues or not target_lang:
+        return cues
+    orig_texts = [c["text"] for c in cues]
+    cloud_cues, used_cloud = cloud_ai_bridge.translate_timed_segments_cloud(
+        cues,
+        target_lang,
+        mode="subtitle",
+        ai_cfg=AI_CFG,
+        progress_cb=lambda frac, msg: print(
+            f"PROGRESS:{max(1, min(98, int(round(p_start + frac * (p_end - p_start)))))}:{msg}",
+            flush=True,
+        ),
+    )
+    if used_cloud and len(cloud_cues) == len(cues):
+        for orig, cc in zip(orig_texts, cloud_cues):
+            tr = (cc.get("text") or "").strip() or orig
+            if bilingual_flag and tr.strip().lower() != orig.strip().lower():
+                cc["text"] = f"{orig}\n{tr}"
+            else:
+                cc["text"] = tr
+        return cloud_cues
+
+    print(f"PROGRESS:{p_start}:Translating {len(cues)} subtitle lines -> {target_lang.upper()}...", flush=True)
+    trans_texts = translate_batch_offline(orig_texts, target_lang)
+    for c, orig, tr in zip(cues, orig_texts, trans_texts):
+        if bilingual_flag and tr.strip().lower() != orig.strip().lower():
+            c["text"] = f"{orig}\n{tr}"
+        else:
+            c["text"] = tr
+    return cues
 
 def write_cues(cues, path, ext):
     if ext == "srt":
@@ -931,7 +1266,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         with open(path, "w", encoding="utf-8") as f:
             f.write(header + "\n".join(events) + "\n")
     else:
-        # Clean timestamped transcript (.txt)
         lines = []
         for c in cues:
             m = int(c["start"] // 60)
@@ -944,20 +1278,13 @@ if in_ext in ("srt", "vtt", "ass"):
     print("PROGRESS:15:Parsing subtitle file...", flush=True)
     cues = parse_subtitle_file(in_path, in_ext)
     if lang_code:
-        print(f"PROGRESS:45:Translating {len(cues)} subtitle lines -> {lang_code.upper()}...", flush=True)
-        orig_texts = [c["text"] for c in cues]
-        trans_texts = translate_batch(orig_texts, lang_code)
-        for c, tr in zip(cues, trans_texts):
-            if bilingual and tr.strip().lower() != c["text"].strip().lower():
-                c["text"] = f"{c['text']}\n{tr}"
-            else:
-                c["text"] = tr
-    print("PROGRESS:92:Writing output subtitles...", flush=True)
+        cues = localize_cues(cues, lang_code, bilingual, 30, 90)
+    print("PROGRESS:94:Writing output subtitles...", flush=True)
     write_cues(cues, out_path, out_ext)
     print("PROGRESS:99:Done!", flush=True)
 else:
-    # Input is Video or Audio -> Extract 16kHz mono WAV and run local Faster-Whisper with Auto-Language Detection
-    tmp_wav = tempfile.mktemp(suffix=".wav", prefix="pizza_sub_aud_")
+    fd_wav, tmp_wav = tempfile.mkstemp(suffix=".wav", prefix="pizza_sub_aud_")
+    os.close(fd_wav)
     try:
         print("PROGRESS:8:Extracting 16kHz audio stream...", flush=True)
         SAFE_CPU = max(2, min((os.cpu_count() or 8) - 2, int((os.cpu_count() or 8) * 0.75)))
@@ -968,6 +1295,8 @@ else:
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             creationflags=CREATE_NO_WINDOW, check=False
         )
+        if not os.path.isfile(tmp_wav) or os.path.getsize(tmp_wav) < 512:
+            raise RuntimeError("Input media contains no audio stream to transcribe.")
         print("PROGRESS:15:Loading Whisper AI (GPU/CUDA + 75% CPU Budget)...", flush=True)
         from faster_whisper import WhisperModel
         hf_cache = os.path.expanduser("~/.cache/huggingface/hub")
@@ -985,31 +1314,33 @@ else:
             model = WhisperModel(model_name, device="cpu", compute_type="int8", cpu_threads=SAFE_CPU, num_workers=max(1, min(3, SAFE_CPU // 4)))
         segments_gen, info = model.transcribe(
             tmp_wav,
-            language=None,  # Auto-detect 99+ languages
+            language=None,
             beam_size=2,
             word_timestamps=True,
             vad_filter=False,
             condition_on_previous_text=False,
             no_speech_threshold=0.6,
-            initial_prompt=(", ".join(BRAND_TOKENS) if BRAND_TOKENS else None),
         )
         dur_est = max(1.0, float(getattr(info, "duration", 60.0) or 60.0))
+        transcribe_span = 54 if lang_code else 74
         last_p = -1
         cues = []
         for seg in segments_gen:
             if getattr(seg, "no_speech_prob", 0.0) > 0.85:
                 continue
-            cur_p = 18 + int(min(1.0, float(seg.end) / dur_est) * 74)
+            cur_p = 18 + int(min(1.0, float(seg.end) / dur_est) * transcribe_span)
             if cur_p >= last_p + 2:
                 last_p = cur_p
                 print(f"PROGRESS:{cur_p}:Transcribing speech ({int(seg.end)}s / {int(dur_est)}s)...", flush=True)
-            txt = restore_brand_names_in_english((seg.text or "").strip())
+            txt = (seg.text or "").strip()
             if txt:
                 cues.append({
                     "start": float(seg.start),
                     "end": float(seg.end),
                     "text": txt,
                 })
+        if lang_code and cues:
+            cues = localize_cues(cues, lang_code, bilingual, 74, 93)
         print("PROGRESS:95:Writing subtitle file...", flush=True)
         write_cues(cues, out_path, out_ext)
         print("PROGRESS:99:Done!", flush=True)
@@ -1026,10 +1357,11 @@ else:
     let ff_s = ffmpeg_bin.to_string_lossy().into_owned();
     let file_label = input.file_name().and_then(|s| s.to_str()).unwrap_or(stem);
 
-    run_python_streaming(
+    run_python_streaming_with_ai(
         app,
         target,
         file_label,
+        Some("sub_translate"),
         script,
         &[
             &in_s,
@@ -1042,34 +1374,15 @@ else:
             &ff_s,
         ],
     )
-    .map_err(|e| format!("AI Subtitle Engine error: {e}"))?;
+    .map_err(|e| {
+        if e == "STOPPED_BY_USER" {
+            e
+        } else {
+            format!("AI Subtitle Engine error: {e}")
+        }
+    })?;
 
     if out_path.is_file() {
-        // Optional Cloud AI Subtitle Translation & Context Polish (`sub_translate`)
-        if !lang_code.is_empty() && crate::cloud_ai::feature_provider(app, "sub_translate").is_some() {
-            if let Ok(srt_raw) = std::fs::read_to_string(&out_path) {
-                if srt_raw.len() <= 18_000 {
-                    if let Some(ai_srt) = crate::cloud_ai::run_feature_chat(
-                        app,
-                        "sub_translate",
-                        "You are a professional subtitle localization expert. Preserve every cue index and timestamp line EXACTLY as given. Polish or translate ONLY the dialogue lines into natural, context-aware spoken phrasing in the target language. Output ONLY the valid subtitle file content without markdown code fences.",
-                        &format!("Target language code: {lang_code}\nBilingual mode: {bi_s}\n\nSubtitle file:\n{srt_raw}"),
-                        &[],
-                    ) {
-                        let cleaned = ai_srt
-                            .trim()
-                            .trim_start_matches("```srt")
-                            .trim_start_matches("```vtt")
-                            .trim_start_matches("```")
-                            .trim_end_matches("```")
-                            .trim();
-                        if cleaned.contains("-->") {
-                            let _ = std::fs::write(&out_path, format!("{cleaned}\n"));
-                        }
-                    }
-                }
-            }
-        }
         Ok(out_s)
     } else {
         Err("Subtitle output file was not created".into())
@@ -1111,7 +1424,17 @@ pub fn run_ai_burn_captions(
     };
 
     let script = r#"
-import sys, os, re, json, shutil, tempfile, subprocess, urllib.request, urllib.parse, cv2
+import sys, os, re, json, shutil, tempfile, subprocess, threading, concurrent.futures, urllib.request, urllib.parse
+import cloud_ai_bridge
+
+cloud_ai_bridge.configure_utf8_stdio()
+cloud_ai_bridge.install_pyav19_compat_shim()
+AI_CFG = cloud_ai_bridge.read_stdin_payload()
+
+try:
+    import cv2
+except ImportError:
+    cv2 = None
 
 CREATE_NO_WINDOW = (0x08000000 | 0x00004000) if os.name == "nt" else 0
 
@@ -1125,11 +1448,33 @@ tier = sys.argv[7]
 ffmpeg_bin = sys.argv[8]
 cap_emoji = (sys.argv[9] == "1") if len(sys.argv) > 9 else True
 
-cap = cv2.VideoCapture(in_path)
-orig_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1920) if cap.isOpened() else 1920
-orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 1080) if cap.isOpened() else 1080
-if cap.isOpened():
-    cap.release()
+def probe_video_dims(vpath):
+    if cv2 is not None:
+        try:
+            cap = cv2.VideoCapture(vpath)
+            if cap.isOpened():
+                w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+                h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+                cap.release()
+                if w > 0 and h > 0:
+                    return w, h
+        except Exception:
+            pass
+    try:
+        r = subprocess.run(
+            [ffmpeg_bin, "-hide_banner", "-i", vpath],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, encoding="utf-8", errors="replace",
+            creationflags=CREATE_NO_WINDOW, check=False
+        )
+        m = re.search(r"Stream #\d+:\d+[^\n]*Video:[^\n]*?\b(\d{2,5})x(\d{2,5})\b", r.stderr or "")
+        if m:
+            return int(m.group(1)), int(m.group(2))
+    except Exception:
+        pass
+    return 1920, 1080
+
+orig_w, orig_h = probe_video_dims(in_path)
 is_vertical = orig_h > orig_w
 play_x, play_y = (1080, 1920) if is_vertical else (1920, 1080)
 
@@ -1144,91 +1489,30 @@ def fmt_ass_ts(sec):
     m = int((sec % 3600) // 60)
     s = int(sec % 60)
     cs = int(round((sec - int(sec)) * 100))
-    if cs >= 100: cs = 99
+    if cs >= 100:
+        cs = 99
     return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
-
-import concurrent.futures, difflib
 
 _RE_STANDALONE_TOI_CAP = re.compile(r"(?<![Cc]húng\s)(?<![Vv]ôi\s)\bTôi\b(?!\s+luyện)")
 _RE_STANDALONE_TOI_LOW = re.compile(r"(?<![Cc]húng\s)(?<![Vv]ôi\s)\btôi\b(?!\s+luyện)")
 
-def extract_brand_tokens_from_filename(fpath):
-    stem = re.sub(r"\(\d+\)", "", os.path.basename(fpath).rsplit(".", 1)[0])
-    parts = re.split(r"[-_\s.]+", stem)
-    stop = {
-        "video", "intro", "outro", "short", "shorts", "reel", "reels", "tiktok", "yt", "youtube",
-        "final", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "16x9", "9x16", "1x1",
-        "1080p", "720p", "4k", "dub", "vi", "en", "sub", "cap", "test", "clip", "demo", "edit",
-        "mp4", "mov", "mkv", "webm", "30s", "60s", "15s", "10s", "1m", "2m", "full", "hd", "transcript"
-    }
-    brands = []
-    for p in parts:
-        cl = p.strip()
-        if len(cl) >= 4 and cl.lower() not in stop and not re.match(r"^\d+[smhd]?$", cl.lower()):
-            brands.append(cl.capitalize() if cl.islower() else cl)
-    return brands
-
-BRAND_TOKENS = extract_brand_tokens_from_filename(in_path)
-
-def restore_brand_names_in_english(text, brands=None):
-    if not text:
-        return text
-    b_list = brands if brands is not None else BRAND_TOKENS
-    if not b_list:
-        return text
-    t = text
-    for b in b_list:
-        bl = b.lower()
-        def repl_word(m):
-            w = m.group(0)
-            wl = w.lower()
-            if wl in ("the", "and", "for", "you", "are", "not", "one", "all", "day", "way", "hey", "now", "new", "more", "with", "that", "this", "from", "have", "your", "week", "post", "plan", "copy"):
-                return w
-            if difflib.SequenceMatcher(None, wl, bl).ratio() >= 0.65:
-                return b
-            return w
-        t = re.sub(r"\b[A-Za-z]{4,14}\b", repl_word, t)
-        if len(bl) >= 5:
-            pattern_2w = re.compile(r"\b([A-Za-z]{2,6})\s+([A-Za-z]{2,6})\b")
-            def repl_2w(m):
-                combined = (m.group(1) + m.group(2)).lower()
-                if difflib.SequenceMatcher(None, combined, bl).ratio() >= 0.68:
-                    return b
-                return m.group(0)
-            t = pattern_2w.sub(repl_2w, t)
-    return t
-
-def pre_normalize_spoken_english(txt):
+def pre_normalize_spoken_english_offline(txt):
     if not txt:
         return txt
-    s = restore_brand_names_in_english(txt.strip())
+    s = txt.strip()
     low = s.lower()
     if re.match(r"^(?:let'?s\s+go+)[!.\s]*$", low):
         return "That is awesome!"
     if re.match(r"^(?:no\s+way|there'?s\s+no\s+way)[!.\s]*$", low):
         return "That is unbelievable!"
-    s = re.sub(r"\b[Dd]rowning in ([a-zA-Z\s]+?),", r"Overwhelmed by too many \1,", s)
-    s = re.sub(r"\b[Dd]rowning in ([a-zA-Z\s]+)\b", r"Overwhelmed by \1", s)
-    s = re.sub(r"\bendless grind\b", "endless exhausting work", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bdaily grind\b", "exhausting daily work", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bin one sitting\b", "in just one session", s, flags=re.IGNORECASE)
-    s = re.sub(r"\b[Hh]ours of your week gone\b", "You lose hours every week", s)
-    s = re.sub(r"\b[Mm]iss a day,\s*the algorithm forgets you\b", "If you skip one day, the algorithm ignores you", s)
-    s = re.sub(r"\b[Oo]ne click,\s*and you'?re everywhere\b", "Just one click to post everywhere", s)
-    s = re.sub(r"\bmore on the way\b", "and more coming soon", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bplan once,\s*post everywhere\b", "schedule once, publish everywhere", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bcontent command center\b", "all-in-one content hub", s, flags=re.IGNORECASE)
-    s = re.sub(r"\b[Cc]lients approved,\s*analytics approved\b", "Client approval and analytics ready", s)
     s = re.sub(r"\b[Aa]re you kidding me\b", "Is this a joke", s)
     s = re.sub(r"\b[Yy]ou(?:'ve)? got(?:ta| to) be kidding me\b", "That is unbelievable", s)
-    return s
+    return s.strip()
 
-def polish_spoken_vi(text, orig="", is_creator=False):
+def polish_spoken_vi_offline(text, orig="", is_creator=False):
     if not text:
         return text
     t = text
-    for b in BRAND_TOKENS:
-        t = re.sub(re.escape(b), b, t, flags=re.IGNORECASE)
     t = re.sub(r"\b[Ôô]i\s+[Cc]húa\s+ơi\b", "Trời ơi", t)
     t = re.sub(r"\b[Cc]húa\s+ơi\b", "Trời ơi", t)
     t = re.sub(r"\b[Nn]hững người hâm mộ\b", "các fan", t)
@@ -1242,27 +1526,6 @@ def polish_spoken_vi(text, orig="", is_creator=False):
     t = re.sub(r"\bở thời điểm hiện tại\b", "hiện giờ", t)
     t = re.sub(r"\bvào thời điểm này\b", "lúc này", t)
     t = re.sub(r"\bmột cách nhanh chóng\b", "nhanh chóng", t)
-    t = re.sub(r"\b[Qq]uá tải vì quá nhiều nền tảng\b", "Quá tải vì hàng tá nền tảng", t)
-    t = re.sub(r"\b[Bb]ị choáng ngợp bởi quá nhiều nền tảng\b", "Quá tải vì quá nhiều nền tảng", t)
-    t = re.sub(r"\bcông việc mệt mỏi bất tận\b", "cày cuốc mệt nghỉ", t, flags=re.IGNORECASE)
-    t = re.sub(r"\bcông việc kiệt sức vô tận\b", "cày cuốc không hồi kết", t, flags=re.IGNORECASE)
-    t = re.sub(r"\bthay đổi kích thước\b", "chỉnh kích cỡ", t, flags=re.IGNORECASE)
-    t = re.sub(r"\b[Bb]ạn mất hàng giờ mỗi tuần\b", "Tốn hàng giờ mỗi tuần", t)
-    t = re.sub(r"\b[Nn]ếu bạn bỏ qua một ngày,\s*thuật toán sẽ bỏ qua bạn\b", "Lỡ một ngày là thuật toán lãng quên ngay", t)
-    t = re.sub(r"\b[Gg]ặp gỡ\s+", "Khám phá ", t)
-    t = re.sub(r"\b[Gg]ặp\s+([A-Z][a-zA-Z0-9]+)", r"Khám phá \1", t)
-    t = re.sub(r"\btrung tâm nội dung tất cả trong một của bạn\b", "trung tâm quản lý nội dung toàn diện", t, flags=re.IGNORECASE)
-    t = re.sub(r"\btrong một phiên duy nhất\b", "ngay trong một buổi", t, flags=re.IGNORECASE)
-    t = re.sub(r"\bchỉ trong một phiên\b", "ngay trong một buổi", t, flags=re.IGNORECASE)
-    t = re.sub(r"\b[Cc]hỉ cần một cú nhấp chuột để đăng ở mọi nơi\b", "Chỉ một chạm, phủ sóng mọi nơi", t)
-    t = re.sub(r"\b[Cc]hỉ cần một cú nhấp chuột để đăng bài ở mọi nơi\b", "Chỉ một chạm, đăng khắp mọi nơi", t)
-    t = re.sub(r"\b[Cc]hú thích AI\b", "Caption AI", t)
-    t = re.sub(r"\bchú thích AI\b", "caption AI", t)
-    t = re.sub(r"\b[Ss]ự chấp thuận của khách hàng và phân tích đã sẵn sàng\b", "Khách duyệt bài nhanh, báo cáo sẵn sàng", t)
-    t = re.sub(r"\bvà nhiều thứ khác sẽ sớm ra mắt\b", "và còn cập nhật thêm nữa", t, flags=re.IGNORECASE)
-    t = re.sub(r"\bvà nhiều hơn nữa sẽ sớm ra mắt\b", "và còn mở rộng hơn nữa", t, flags=re.IGNORECASE)
-    t = re.sub(r"\blên lịch một lần,\s*xuất bản ở mọi nơi\b", "lên lịch một lần, đăng khắp mọi nơi", t, flags=re.IGNORECASE)
-    t = re.sub(r"\b[Nn]ày,\s*", "", t)
     if re.search(r"\blet'?s\s+go+\b", (orig or "").lower()):
         t = re.sub(r"\b[Hh]ãy đi nào\b", "Tuyệt vời", t)
         t = re.sub(r"\b[Cc]húng ta đi thôi\b", "Chiến thôi", t)
@@ -1273,13 +1536,36 @@ def polish_spoken_vi(text, orig="", is_creator=False):
         t = _RE_STANDALONE_TOI_LOW.sub("mình", t)
     return t
 
-def translate_batch(texts, target_lang):
+def translate_batch_offline(texts, target_lang):
     if not texts or not target_lang:
         return texts
     full_txt = " ".join((x or "").lower() for x in texts)
-    creator_clues = ["subscribe", "channel", "welcome back", "in this video", "challenge", "dollars", "fans", "hundred thousand", "million", "points", "goal", "keeper", "penalty", "let's see", "you guys", "$"]
+    creator_clues = ["subscribe", "channel", "welcome back", "in this video", "challenge", "dollars", "fans", "million", "let's see", "you guys", "$"]
     is_creator = sum(1 for k in creator_clues if k in full_txt) >= 2
-    norm_texts = [pre_normalize_spoken_english(t) for t in texts]
+    norm_texts = [pre_normalize_spoken_english_offline(t) for t in texts]
+
+    if target_lang.lower().startswith("vi"):
+        try:
+            v_dir = os.path.join(os.environ.get("APPDATA", ""), "NeelFlow.PizzaConverter", "models", "vinai-en2vi-v2-ct2-int8")
+            if os.path.isfile(os.path.join(v_dir, "model.bin")):
+                import ctranslate2
+                from tokenizers import Tokenizer
+                tok = Tokenizer.from_file(os.path.join(v_dir, "tokenizer.json"))
+                trans = ctranslate2.Translator(v_dir, device="cpu", compute_type="int8", intra_threads=max(2, (os.cpu_count() or 4) // 2))
+                vi_tok = "vi_VN"
+                src_toks = [tok.encode(t).tokens for t in norm_texts]
+                res = trans.translate_batch(src_toks, target_prefix=[[vi_tok] for _ in norm_texts], beam_size=1, max_decoding_length=128)
+                out = []
+                for r in res:
+                    hyp = r.hypotheses[0]
+                    hyp_tokens = [tk for tk in hyp if tk not in ("vi_VN", "</s>", "en_XX")]
+                    ids = [tok.token_to_id(tk) for tk in hyp_tokens if tok.token_to_id(tk) is not None]
+                    out.append(tok.decode(ids).strip())
+                if len(out) == len(texts):
+                    return [polish_spoken_vi_offline(tr, orig, is_creator) for tr, orig in zip(out, texts)]
+        except Exception as e:
+            sys.stderr.write(f"[WARN] VinAI subtitle translation fallback to Google: {e}\n")
+
     sep = "\n ||| \n"
     chunks = [(i, norm_texts[i:i + 20]) for i in range(0, len(norm_texts), 20)]
 
@@ -1313,7 +1599,7 @@ def translate_batch(texts, target_lang):
     for _, plist in results:
         out.extend(plist)
     if target_lang.lower().startswith("vi"):
-        out = [polish_spoken_vi(tr, orig, is_creator) for tr, orig in zip(out, texts)]
+        out = [polish_spoken_vi_offline(tr, orig, is_creator) for tr, orig in zip(out, texts)]
     return out
 
 tmp_dir = tempfile.mkdtemp(prefix="pizza_burn_cap_")
@@ -1327,6 +1613,9 @@ try:
          "-i", in_path, "-vn", "-ac", "1", "-ar", "16000", "-f", "wav", tmp_wav],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False
     )
+    if not os.path.isfile(tmp_wav) or os.path.getsize(tmp_wav) < 512:
+        raise RuntimeError("Input video contains no audio stream to caption.")
+
     print("PROGRESS:15:Loading Whisper AI (GPU/CUDA + 75% CPU Budget)...", flush=True)
     from faster_whisper import WhisperModel
     hf_cache = os.path.expanduser("~/.cache/huggingface/hub")
@@ -1344,8 +1633,7 @@ try:
         model = WhisperModel(model_name, device="cpu", compute_type="int8", cpu_threads=SAFE_CPU, num_workers=max(1, min(3, SAFE_CPU // 4)))
     segs_gen, info = model.transcribe(
         tmp_wav, language=None, beam_size=2, word_timestamps=True,
-        vad_filter=False, condition_on_previous_text=False, no_speech_threshold=0.6,
-        initial_prompt=(", ".join(BRAND_TOKENS) if BRAND_TOKENS else None)
+        vad_filter=False, condition_on_previous_text=False, no_speech_threshold=0.6
     )
     dur_est = max(1.0, float(getattr(info, "duration", 60.0) or 60.0))
     last_p = -1
@@ -1360,57 +1648,80 @@ try:
         wlist = []
         if s.words:
             for w in s.words:
-                wt = restore_brand_names_in_english((w.word or "").strip())
+                wt = (w.word or "").strip()
                 if wt:
                     ws = float(w.start)
                     we = float(w.end)
                     if we - ws > 0.72:
                         ws = max(ws, we - 0.50)
                     wlist.append({"word": wt, "start": ws, "end": we})
-        txt = restore_brand_names_in_english((s.text or "").strip())
+        txt = (s.text or "").strip()
         if txt:
             segs.append({"start": float(s.start), "end": float(s.end), "text": txt, "words": wlist})
 
+    if not segs:
+        raise RuntimeError("No spoken dialogue detected in video to caption.")
+
     if target_lang and segs:
-        print(f"PROGRESS:65:Translating captions -> {target_lang.upper()}...", flush=True)
-        tr_list = translate_batch([s["text"] for s in segs], target_lang)
-        for s, tr in zip(segs, tr_list):
-            s["text"] = tr
-            # Re-distribute translated words evenly across segment duration
-            tws = [w for w in tr.split() if w]
-            dur = max(0.2, s["end"] - s["start"])
-            step = dur / max(1, len(tws))
-            s["words"] = [
-                {"word": w, "start": s["start"] + idx * step, "end": s["start"] + (idx + 1) * step}
-                for idx, w in enumerate(tws)
-            ]
+        print(f"PROGRESS:63:Translating captions -> {target_lang.upper()}...", flush=True)
+        cloud_segs, used_cloud = cloud_ai_bridge.translate_timed_segments_cloud(
+            segs,
+            target_lang,
+            mode="burn_captions",
+            ai_cfg=AI_CFG,
+            context_hint=os.path.basename(in_path),
+            progress_cb=lambda frac, msg: print(f"PROGRESS:{63 + int(min(1.0, max(0.0, frac)) * 8)}:{msg}", flush=True),
+        )
+        if used_cloud and cloud_segs and len(cloud_segs) == len(segs):
+            segs = cloud_segs
+            for s in segs:
+                tr = (s.get("text") or "").strip()
+                ai_em = (s.get("ai_emoji") or "").strip()
+                ai_hl = (s.get("ai_highlight_word") or "").strip()
+                tws = [w for w in tr.split() if w]
+                if len(tws) <= 1 and len(tr) > 4:
+                    tws = [tr[i:i+3] for i in range(0, len(tr), 3)]
+                dur = max(0.2, s["end"] - s["start"])
+                step = dur / max(1, len(tws))
+                s["words"] = [
+                    {
+                        "word": w,
+                        "start": s["start"] + idx * step,
+                        "end": s["start"] + (idx + 1) * step,
+                        "ai_emoji": ai_em if idx == len(tws) - 1 else "",
+                        "ai_highlight_word": ai_hl,
+                    }
+                    for idx, w in enumerate(tws)
+                ]
+        else:
+            tr_list = translate_batch_offline([s["text"] for s in segs], target_lang)
+            for s, tr in zip(segs, tr_list):
+                s["text"] = tr
+                tws = [w for w in tr.split() if w]
+                if len(tws) <= 1 and len(tr) > 4:
+                    tws = [tr[i:i+3] for i in range(0, len(tr), 3)]
+                dur = max(0.2, s["end"] - s["start"])
+                step = dur / max(1, len(tws))
+                s["words"] = [
+                    {"word": w, "start": s["start"] + idx * step, "end": s["start"] + (idx + 1) * step}
+                    for idx, w in enumerate(tws)
+                ]
 
     print(f"PROGRESS:72:Building {style_id.upper()} kinetic .ASS captions...", flush=True)
     # Build style-specific .ASS header & events
     # ASS colors use &HAABBGGRR format
     if style_id == "beasty":
-        # Bold uppercase Impact/Arial Black, thick black border, yellow active word pop
         style_line = f"Style: CapStyle,Arial Black,{base_fs},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,1.0,0,1,4.2,2.0,{alignment},60,60,{margin_v},1"
     elif style_id == "roleplay":
-        # Role-Play / Skit Style: Condensed Impact uppercase + Yellow Speaker Pill Badge on top + Red Box active word
-        badge_fs = max(18, int(round(base_fs * 0.52)))
-        badge_mv = margin_v + int(round(base_fs * 1.45))
-        style_line = (
-            f"Style: CapStyle,Impact,{int(round(base_fs * 1.12))},&H00FFFFFF,&H00FFFFFF,&H00000000,&H85000000,-1,0,0,0,102,102,0.8,0,1,4.5,2.0,{alignment},55,55,{margin_v},1\n"
-            f"Style: RoleBadge,Arial Black,{badge_fs},&H00000000,&H00000000,&H0015CCFA,&H0015CCFA,-1,0,0,0,100,100,1.2,0,3,6.0,0.0,{alignment},60,60,{badge_mv},1"
-        )
+        style_line = f"Style: CapStyle,Impact,{int(round(base_fs * 1.12))},&H00FFFFFF,&H00FFFFFF,&H00000000,&H85000000,-1,0,0,0,102,102,0.8,0,1,4.5,2.0,{alignment},55,55,{margin_v},1"
     elif style_id == "popline":
-        # Clean bold white with purple highlight accents
         style_line = f"Style: CapStyle,Segoe UI Black,{base_fs},&H00FFFFFF,&H00FFFFFF,&H00281018,&H90ED3A7C,-1,0,0,0,100,100,0.5,0,1,3.2,1.5,{alignment},60,60,{margin_v},1"
     elif style_id == "deep_diver":
-        # Frosted pill box (BorderStyle=3) with dark background box & cyan/white active word
         style_line = f"Style: CapStyle,Segoe UI Semibold,{base_fs},&H00F8FAFC,&H00FFFFFF,&H301E293B,&H451E293B,-1,0,0,0,100,100,0.5,0,3,14.0,0.0,{alignment},70,70,{margin_v},1"
     elif style_id == "one_punch":
-        # Giant 1-2 word punchy center kinetic text
         punch_fs = int(base_fs * 1.32)
         style_line = f"Style: CapStyle,Impact,{punch_fs},&H0000EAFF,&H00FFFFFF,&H00000000,&H90000000,-1,0,0,0,105,105,1.2,0,1,5.0,2.5,{alignment},50,50,{margin_v},1"
     else:
-        # Glow (Soft Neon Studio)
         style_line = f"Style: CapStyle,Segoe UI Bold,{base_fs},&H00FFFFFF,&H00D4EA5E,&H00D4B814,&H60000000,-1,0,0,0,100,100,0.8,0,1,3.5,0.0,{alignment},60,60,{margin_v},1"
 
     header = f"""[Script Info]
@@ -1428,18 +1739,22 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     events = []
     emoji_map = [
-        (["phone", "smart", "tech", "ai", "robot", "future", "app", "software", "code", "digital"], "😎"),
-        (["fire", "hot", "viral", "boom", "insane", "crazy", "amazing", "awesome"], "🔥"),
-        (["idea", "think", "brain", "secret", "tip", "hack", "learn", "strategy", "know"], "💡"),
-        (["grow", "launch", "scale", "rocket", "fast", "speed", "boost", "next"], "🚀"),
-        (["money", "cash", "profit", "price", "dollar", "rich", "revenue", "sales", "buy", "free"], "💰"),
-        (["power", "energy", "action", "impact", "strong"], "⚡"),
-        (["goal", "win", "best", "top", "number", "first", "100%"], "🎯"),
-        (["love", "heart", "great", "good", "happy"], "❤️"),
+        (["phone", "smart", "tech", "ai", "robot", "future", "app", "software", "code", "digital", "công nghệ", "phần mềm", "ứng dụng"], "😎"),
+        (["fire", "hot", "viral", "boom", "insane", "crazy", "amazing", "awesome", "đỉnh", "cháy", "bùng nổ", "tuyệt vời"], "🔥"),
+        (["idea", "think", "brain", "secret", "tip", "hack", "learn", "strategy", "know", "bí quyết", "mẹo", "ý tưởng", "chiến lược"], "💡"),
+        (["grow", "launch", "scale", "rocket", "fast", "speed", "boost", "next", "tăng tốc", "ra mắt", "nhanh", "bứt phá"], "🚀"),
+        (["money", "cash", "profit", "price", "dollar", "rich", "revenue", "sales", "buy", "free", "tiền", "doanh thu", "lợi nhuận", "giá", "miễn phí", "đô"], "💰"),
+        (["power", "energy", "action", "impact", "strong", "sức mạnh", "năng lượng", "mạnh mẽ"], "⚡"),
+        (["goal", "win", "best", "top", "number", "first", "100%", "mục tiêu", "chiến thắng", "số một", "nhất"], "🎯"),
+        (["love", "heart", "great", "good", "happy", "yêu", "hạnh phúc", "thích"], "❤️"),
     ]
     def get_chunk_emoji(chunk_words):
         if not cap_emoji:
             return ""
+        for w in chunk_words:
+            em_ai = (w.get("ai_emoji") or "").strip()
+            if em_ai:
+                return f" {em_ai}"
         low = " ".join(w.get("word", "").lower() for w in chunk_words)
         for keys, em in emoji_map:
             if any(k in low for k in keys):
@@ -1480,9 +1795,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         if prev_chunk_end > 0.0 and (chunk_start - prev_chunk_end) >= 0.65:
             speaker_idx = 1 - speaker_idx
         prev_chunk_end = chunk_end
-        if style_id == "roleplay":
-            role_label = f" PERSON {speaker_idx + 1} "
-            events.append(f"Dialogue: 1,{fmt_ass_ts(chunk_start)},{fmt_ass_ts(chunk_end)},RoleBadge,,0,0,0,,{role_label}")
         if style_id == "one_punch":
             w = chunk[0]
             ws = max(0.0, w["start"])
@@ -1493,7 +1805,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             txt = f"{{\\fscx118\\fscy118\\t(0,120,\\fscx100\\fscy100)\\c&H0000E5FF&}}{clean_w}{em_tail}"
             events.append(f"Dialogue: 0,{fmt_ass_ts(ws)},{fmt_ass_ts(we)},CapStyle,,0,0,0,,{txt}")
         else:
-            # Word-by-word active highlight state across the natural timed chunk
             for active_idx, aw in enumerate(chunk):
                 ws = max(0.0, aw["start"])
                 if active_idx + 1 < len(chunk):
@@ -1569,18 +1880,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     break
                 except Exception:
                     pass
-        badge_fnt = ImageFont.load_default()
-        for fp in [
-            "C:/Windows/Fonts/arialbd.ttf",
-            "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-            "/System/Library/Fonts/Helvetica.ttc",
-        ]:
-            if os.path.isfile(fp):
-                try:
-                    badge_fnt = ImageFont.truetype(fp, max(14, int(fs_px * 0.52)))
-                    break
-                except Exception:
-                    pass
 
         blank_p = os.path.join(tmp_dir, "sub_blank.png")
         Image.new("RGBA", (orig_w, band_h), (0, 0, 0, 0)).save(blank_p, "PNG")
@@ -1589,7 +1888,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             p = s.strip().split(":")
             return int(p[0]) * 3600.0 + int(p[1]) * 60.0 + float(p[2])
 
-        role_ev = []
         cap_ev = []
         for ev_line in events:
             if not ev_line.startswith("Dialogue:"):
@@ -1601,9 +1899,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             lyr = int(parts[0].strip() or "0")
             st_s, en_s = parse_ts(parts[1]), parse_ts(parts[2])
             raw_t = parts[9]
-            if lyr == 1:
-                role_ev.append((st_s, en_s, re.sub(r"\{[^}]*\}", "", raw_t).strip()))
-            else:
+            if lyr == 0:
                 cap_ev.append((st_s, en_s, raw_t))
 
         concat_lines = []
@@ -1650,14 +1946,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 y0 = (band_h - max_h) // 2
                 if style_id == "deep_diver":
                     dr.rounded_rectangle([x0 - 20, y0 - 12, x0 + tot_w + 20, y0 + max_h + 14], radius=18, fill=(30, 41, 59, 210))
-                if style_id == "roleplay":
-                    active_role = next((r[2] for r in role_ev if r[0] <= (s_t + e_t) * 0.5 <= r[1]), "PERSON 1")
-                    rb = dr.textbbox((0, 0), active_role, font=badge_fnt)
-                    rw, rh = rb[2] - rb[0], rb[3] - rb[1]
-                    rx0 = (orig_w - rw) // 2 - 12
-                    ry0 = max(6, y0 - rh - 24)
-                    dr.rounded_rectangle([rx0, ry0, rx0 + rw + 24, ry0 + rh + 12], radius=10, fill=(250, 204, 21, 255))
-                    dr.text((rx0 + 12, ry0 + 4), active_role, font=badge_fnt, fill=(15, 23, 42, 255))
                 cx = x0
                 for cw_txt, col, is_act, ww, wh in word_objs:
                     if is_act and style_id == "roleplay":
@@ -1678,7 +1966,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             cf.write("\n".join(concat_lines) + "\n")
         return c_file, band_y
 
-    caption_state = {"concat_info": None if has_sub_flt else build_pil_caption_concat()}
+    caption_state = {"concat_info": None if has_sub_flt else build_pil_caption_concat(), "last_err": ""}
 
     def run_burn_ff(v_flags, force_pil=False):
         use_pil = force_pil or (not has_sub_flt)
@@ -1694,15 +1982,24 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 "-f", "concat", "-safe", "0", "-i", c_file,
                 "-filter_complex", f"[0:v][1:v]overlay=0:{band_y}:format=auto:shortest=1[v]",
                 "-map", "[v]", "-map", "0:a?",
-            ] + v_flags + ["-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "48000", "-movflags", "+faststart", tmp_out]
+            ] + v_flags + ["-c:a", "aac", "-b:a", "256k", "-ac", "2", "-ar", "48000", "-movflags", "+faststart", tmp_out]
         else:
             cmd = [
                 ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error",
                 "-progress", "pipe:1", "-nostats",
                 "-threads", str(SAFE_CPU),
                 "-i", in_path, "-vf", "subtitles=styled_captions.ass",
-            ] + v_flags + ["-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "48000", "-movflags", "+faststart", tmp_out]
+            ] + v_flags + ["-c:a", "aac", "-b:a", "256k", "-ac", "2", "-ar", "48000", "-movflags", "+faststart", tmp_out]
         proc = subprocess.Popen(cmd, cwd=tmp_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", creationflags=CREATE_NO_WINDOW)
+        err_chunks = []
+        def _drain_err():
+            if proc.stderr:
+                try:
+                    err_chunks.append(proc.stderr.read())
+                except Exception:
+                    pass
+        err_t = threading.Thread(target=_drain_err, daemon=True)
+        err_t.start()
         last_p = 80
         if proc.stdout:
             for line in proc.stdout:
@@ -1717,6 +2014,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     except Exception:
                         pass
         proc.wait()
+        err_t.join(timeout=2.0)
+        err_txt = "".join(err_chunks).strip()
+        if err_txt:
+            caption_state["last_err"] = err_txt[-400:]
 
     run_burn_ff(enc_flags)
     if (not os.path.isfile(tmp_out) or os.path.getsize(tmp_out) < 1024) and enc_label != "LIBX264":
@@ -1725,6 +2026,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         run_burn_ff(["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p"], force_pil=True)
     if os.path.isfile(tmp_out) and os.path.getsize(tmp_out) >= 1024:
         shutil.move(tmp_out, out_path)
+    else:
+        detail = caption_state["last_err"] or "FFmpeg produced an empty video file."
+        raise RuntimeError(f"Failed to burn captions onto video: {detail}")
     print("PROGRESS:99:Done!", flush=True)
 finally:
     shutil.rmtree(tmp_dir, ignore_errors=True)
@@ -1735,10 +2039,11 @@ finally:
     let ff_s = ffmpeg_bin.to_string_lossy().into_owned();
     let cap_emoji_s = if cfg.ai_cap_emoji { "1" } else { "0" };
     let file_label = input.file_name().and_then(|s| s.to_str()).unwrap_or(stem);
-    run_python_streaming(
+    run_python_streaming_with_ai(
         app,
         style_target,
         file_label,
+        Some("burn_captions"),
         script,
         &[
             &in_s,
@@ -1752,7 +2057,13 @@ finally:
             cap_emoji_s,
         ],
     )
-    .map_err(|e| format!("AI Burn Captions error: {e}"))?;
+    .map_err(|e| {
+        if e == "STOPPED_BY_USER" {
+            e
+        } else {
+            format!("AI Burn Captions error: {e}")
+        }
+    })?;
 
     if out_path.is_file() {
         Ok(out_s)
@@ -1766,50 +2077,90 @@ pub fn resolve_voice_alias_or_clone(app: &tauri::AppHandle, raw: &str) -> String
     if clean.is_empty() || clean == "auto" {
         return "auto".to_string();
     }
-    match clean {
-        "andrew" | "en_andrew" | "cinematic" | "rev_vc_andrew" | "dub_vc_andrew" => {
-            "en-US-AndrewMultilingualNeural".to_string()
-        }
-        "ava" | "en_ava" | "expressive" | "rev_vc_ava" | "dub_vc_ava" => {
-            "en-US-AvaMultilingualNeural".to_string()
-        }
-        "brian" | "en_brian" | "documentary" | "rev_vc_brian" | "dub_vc_brian" => {
-            "en-US-BrianMultilingualNeural".to_string()
-        }
-        "emma" | "en_emma" | "rev_vc_emma" | "dub_vc_emma" => {
-            "en-US-EmmaMultilingualNeural".to_string()
-        }
-        "namminh" | "vi_namminh" | "rev_vc_namminh" | "dub_vc_namminh" => {
+    let clean_lower = clean.to_lowercase();
+    if clean_lower.starts_with("elevenlabs:")
+        || clean_lower.starts_with("openai:")
+        || clean_lower.starts_with("gemini:")
+    {
+        return clean.to_string();
+    }
+    let stripped = clean
+        .strip_prefix("dub_vc_")
+        .or_else(|| clean.strip_prefix("rev_vc_"))
+        .or_else(|| clean.strip_prefix("spk_vc_"))
+        .unwrap_or(clean);
+    if stripped == "auto" {
+        return "auto".to_string();
+    }
+    match stripped {
+        "andrew" | "en_andrew" | "cinematic" => "en-US-AndrewMultilingualNeural".to_string(),
+        "ava" | "en_ava" | "expressive" => "en-US-AvaMultilingualNeural".to_string(),
+        "brian" | "en_brian" | "documentary" => "en-US-BrianMultilingualNeural".to_string(),
+        "emma" | "en_emma" => "en-US-EmmaMultilingualNeural".to_string(),
+        "namminh" | "vi_namminh" | "vi_nam_minh" | "namminh_recap" | "vi_nam_minh_recap"
+        | "namminh_news" | "vi_nam_minh_news" | "namminh_story" | "vi_nam_minh_story" => {
             "vi-VN-NamMinhNeural".to_string()
         }
-        "hoaimy" | "vi_hoaimy" | "rev_vc_hoaimy" | "dub_vc_hoaimy" => {
+        "hoaimy" | "vi_hoaimy" | "vi_hoai_my" | "hoaimy_story" | "vi_hoai_my_story"
+        | "hoaimy_review" | "vi_hoai_my_review" | "hoaimy_news" | "vi_hoai_my_news" => {
             "vi-VN-HoaiMyNeural".to_string()
         }
-        "active" | "vs_active" | "rev_vc_active" | "dub_vc_active" => {
+        // 12 Curated VieNeu v3-Turbo Native Personas
+        "vi_thai_son" | "thai_son" | "Thái Sơn" => "Thái Sơn".to_string(),
+        "vi_minh_duc" | "minh_duc" | "Minh Đức" => "Minh Đức".to_string(),
+        "vi_truc_ly" | "truc_ly" | "Trúc Ly" => "Trúc Ly".to_string(),
+        "vi_xuan_vinh" | "xuan_vinh" | "Xuân Vĩnh" => "Xuân Vĩnh".to_string(),
+        "vi_thuc_doan" | "thuc_doan" | "Thục Đoan" => "Thục Đoan".to_string(),
+        "vi_pham_tuyen" | "pham_tuyen" | "Phạm Tuyên" => "Phạm Tuyên".to_string(),
+        "vi_thanh_binh" | "thanh_binh" | "Thanh Bình" => "Thanh Bình".to_string(),
+        "vi_doan_trang" | "doan_trang" | "Đoan Trang" => "Đoan Trang".to_string(),
+        "vi_minh_triet" | "minh_triet" | "Minh Triết" => "Minh Triết".to_string(),
+        "vi_thuy_dung" | "thuy_dung" | "Thùy Dung" => "Thùy Dung".to_string(),
+        "vi_quang_son" | "quang_son" | "Quang Sơn" => "Quang Sơn".to_string(),
+        "vi_ngoc_tran" | "ngoc_tran" | "Ngọc Trân" => "Ngọc Trân".to_string(),
+        // World Neural Voice Aliases
+        "keita" | "ja_keita" => "ja-JP-KeitaNeural".to_string(),
+        "nanami" | "ja_nanami" => "ja-JP-NanamiNeural".to_string(),
+        "yunxi" | "zh_yunxi" => "zh-CN-YunxiNeural".to_string(),
+        "xiaoxiao" | "zh_xiaoxiao" => "zh-CN-XiaoxiaoNeural".to_string(),
+        "injoon" | "ko_injoon" => "ko-KR-InJoonNeural".to_string(),
+        "sunhi" | "ko_sunhi" => "ko-KR-SunHiNeural".to_string(),
+        "alvaro" | "es_alvaro" => "es-ES-AlvaroNeural".to_string(),
+        "elvira" | "es_elvira" => "es-ES-ElviraNeural".to_string(),
+        "henri" | "fr_henri" => "fr-FR-HenriNeural".to_string(),
+        "denise" | "fr_denise" => "fr-FR-DeniseNeural".to_string(),
+        "conrad" | "de_conrad" => "de-DE-ConradNeural".to_string(),
+        "katja" | "de_katja" => "de-DE-KatjaNeural".to_string(),
+        "dmitry" | "ru_dmitry" => "ru-RU-DmitryNeural".to_string(),
+        "svetlana" | "ru_svetlana" => "ru-RU-SvetlanaNeural".to_string(),
+        "antonio" | "pt_antonio" => "pt-BR-AntonioNeural".to_string(),
+        "francisca" | "pt_francisca" => "pt-BR-FranciscaNeural".to_string(),
+        "active" | "vs_active" => {
             let cfg = crate::config::load(app);
-            if !cfg.vs_active_voice.is_empty() {
+            if !cfg.vs_active_voice.is_empty() && cfg.vs_active_voice != "active" && cfg.vs_active_voice != "vs_active" {
                 resolve_voice_alias_or_clone(app, &cfg.vs_active_voice)
             } else {
                 "auto".to_string()
             }
         }
-        "namminh_recap" | "vi_nam_minh_recap" => "vi_nam_minh_recap".to_string(),
-        "namminh_news" | "vi_nam_minh_news" => "vi_nam_minh_news".to_string(),
-        "namminh_story" | "vi_nam_minh_story" => "vi_nam_minh_story".to_string(),
-        "hoaimy_story" | "vi_hoai_my_story" => "vi_hoai_my_story".to_string(),
-        "hoaimy_review" | "vi_hoai_my_review" => "vi_hoai_my_review".to_string(),
-        "hoaimy_news" | "vi_hoai_my_news" => "vi_hoai_my_news".to_string(),
-        "male" | "dub_vc_male" => "male".to_string(),
-        "female" | "dub_vc_female" => "female".to_string(),
-        "cloned" | "active_clone" | "rev_vc_cloned" | "dub_vc_cloned" => {
+        "male" => "male".to_string(),
+        "female" => "female".to_string(),
+        "cloned" | "active_clone" => {
             let cfg = crate::config::load(app);
-            if !cfg.vs_active_voice.is_empty() {
+            if !cfg.vs_active_voice.is_empty() && cfg.vs_active_voice != "cloned" && cfg.vs_active_voice != "active_clone" {
                 resolve_voice_alias_or_clone(app, &cfg.vs_active_voice)
+            } else if let Ok(clones) = crate::voice_studio::get_cloned_voices(app.clone()) {
+                if let Some(first_clone) = clones.first() {
+                    resolve_voice_alias_or_clone(app, &first_clone.id)
+                } else {
+                    "auto".to_string()
+                }
             } else {
-                "en-US-AndrewMultilingualNeural".to_string()
+                "auto".to_string()
             }
         }
-        other if other.starts_with("clone_") || other.ends_with(".json") => {
+        other if other.contains("Neural") => other.to_string(),
+        other => {
             if let Ok(pdir) = crate::voice_studio::voice_profiles_dir(app) {
                 let pjson = if other.ends_with(".json") {
                     pdir.join(other)
@@ -1819,11 +2170,26 @@ pub fn resolve_voice_alias_or_clone(app: &tauri::AppHandle, raw: &str) -> String
                 if pjson.is_file() {
                     return pjson.to_string_lossy().to_string();
                 }
+                let other_lower = other.to_lowercase();
+                if let Ok(entries) = std::fs::read_dir(&pdir) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.extension().map_or(false, |ext| ext == "json") {
+                            if let Ok(txt) = std::fs::read_to_string(&path) {
+                                if txt.contains(&format!("\"id\": \"{other}\""))
+                                    || txt.contains(&format!("\"id\":\"{other}\""))
+                                    || txt.to_lowercase().contains(&format!("\"name\": \"{other_lower}\""))
+                                    || txt.to_lowercase().contains(&format!("\"name\":\"{other_lower}\""))
+                                {
+                                    return path.to_string_lossy().to_string();
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            other.to_string()
+            stripped.to_string()
         }
-        other if other.contains("Neural") => other.to_string(),
-        _ => clean.to_string(),
     }
 }
 
@@ -1845,7 +2211,7 @@ pub fn run_ai_dubbing_task(
     let parts: Vec<&str> = dub_target.split(':').collect();
     let base_dub = parts.first().copied().unwrap_or(dub_target);
     let mut style_override: Option<&str> = None;
-    let mut voice_override: Option<&str> = None;
+    let mut voice_parts: Vec<&str> = Vec::new();
 
     const STYLE_KEYS: &[&str] = &[
         "default", "beasty", "popline", "deep_diver", "one_punch", "glow", "roleplay", "none",
@@ -1855,9 +2221,14 @@ pub fn run_ai_dubbing_task(
         if STYLE_KEYS.contains(&part) {
             style_override = Some(part);
         } else if !part.is_empty() {
-            voice_override = Some(part);
+            voice_parts.push(part);
         }
     }
+    let voice_override_joined = if voice_parts.is_empty() {
+        None
+    } else {
+        Some(voice_parts.join(":"))
+    };
 
     let lang_code = match base_dub {
         "dub_vi" => "vi",
@@ -1867,6 +2238,7 @@ pub fn run_ai_dubbing_task(
         "dub_ko" => "ko",
         "dub_es" => "es",
         "dub_fr" => "fr",
+        "dub_de" => "de",
         "dub_custom" => cfg.ai_custom_lang_code.as_str(),
         _ => "vi",
     };
@@ -1883,10 +2255,20 @@ pub fn run_ai_dubbing_task(
     let fake_in = input.with_file_name(format!("{stem}_dub_{lang_code}.mp4"));
     let out_path = crate::config::resolve_output(app, &fake_in, "mp4");
 
-    let script = r#"
-import sys, os, re, math, json, wave, shutil, asyncio, tempfile, subprocess, concurrent.futures, urllib.request, urllib.parse, difflib
+    let script = r####"
+import sys, os, re, math, json, wave, shutil, tempfile, subprocess, threading, concurrent.futures, urllib.request, urllib.parse
 import numpy as np
-import cv2
+import cloud_ai_bridge
+import tts_provider
+
+cloud_ai_bridge.configure_utf8_stdio()
+cloud_ai_bridge.install_pyav19_compat_shim()
+AI_CFG = cloud_ai_bridge.read_stdin_payload()
+
+try:
+    import cv2
+except ImportError:
+    cv2 = None
 
 CREATE_NO_WINDOW = (0x08000000 | 0x00004000) if os.name == "nt" else 0
 SAFE_CPU = max(2, min((os.cpu_count() or 8) - 2, int((os.cpu_count() or 8) * 0.75)))
@@ -1898,7 +2280,7 @@ in_path = sys.argv[1]
 out_path = sys.argv[2]
 lang_code = sys.argv[3]
 dub_context = sys.argv[4]    # auto | family | review | formal
-dub_voice = sys.argv[5]      # auto | male | female
+dub_voice = sys.argv[5]      # auto | male | female | persona | clone | provider:voice
 burn_sub = sys.argv[6] == "1"
 eleven_key = sys.argv[7]
 tier = sys.argv[8]
@@ -1908,89 +2290,38 @@ cap_size = sys.argv[11] if len(sys.argv) > 11 else "medium"
 cap_pos = sys.argv[12] if len(sys.argv) > 12 else "bottom"
 cap_emoji = (sys.argv[13] == "1") if len(sys.argv) > 13 else True
 
-def extract_brand_tokens_from_filename(fpath):
-    stem = re.sub(r"\(\d+\)", "", os.path.basename(fpath).rsplit(".", 1)[0])
-    parts = re.split(r"[-_\s.]+", stem)
-    stop = {
-        "video", "intro", "outro", "short", "shorts", "reel", "reels", "tiktok", "yt", "youtube",
-        "final", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "16x9", "9x16", "1x1",
-        "1080p", "720p", "4k", "dub", "vi", "en", "sub", "cap", "test", "clip", "demo", "edit",
-        "mp4", "mov", "mkv", "webm", "30s", "60s", "15s", "10s", "1m", "2m", "full", "hd", "transcript"
-    }
-    brands = []
-    for p in parts:
-        cl = p.strip()
-        if len(cl) >= 4 and cl.lower() not in stop and not re.match(r"^\d+[smhd]?$", cl.lower()):
-            brands.append(cl.capitalize() if cl.islower() else cl)
-    return brands
+if eleven_key and eleven_key.strip():
+    if not AI_CFG.get("elevenlabs_key"):
+        AI_CFG["elevenlabs_key"] = eleven_key.strip()
+    vk = AI_CFG.setdefault("vault_keys", {})
+    if not vk.get("elevenlabs"):
+        vk["elevenlabs"] = eleven_key.strip()
 
-BRAND_TOKENS = extract_brand_tokens_from_filename(in_path)
-
-def restore_brand_names_in_english(text, brands=None):
-    if not text:
-        return text
-    b_list = brands if brands is not None else BRAND_TOKENS
-    if not b_list:
-        return text
-    t = text
-    for b in b_list:
-        bl = b.lower()
-        def repl_word(m):
-            w = m.group(0)
-            wl = w.lower()
-            if wl in ("the", "and", "for", "you", "are", "not", "one", "all", "day", "way", "hey", "now", "new", "more", "with", "that", "this", "from", "have", "your", "week", "post", "plan", "copy"):
-                return w
-            if difflib.SequenceMatcher(None, wl, bl).ratio() >= 0.65:
-                return b
-            return w
-        t = re.sub(r"\b[A-Za-z]{4,14}\b", repl_word, t)
-        if len(bl) >= 5:
-            pattern_2w = re.compile(r"\b([A-Za-z]{2,6})\s+([A-Za-z]{2,6})\b")
-            def repl_2w(m):
-                combined = (m.group(1) + m.group(2)).lower()
-                if difflib.SequenceMatcher(None, combined, bl).ratio() >= 0.68:
-                    return b
-                return m.group(0)
-            t = pattern_2w.sub(repl_2w, t)
-    return t
-
-# Neural Male & Female Voice Map across major & world languages
-VOICE_MAP = {
-    "vi": ("vi-VN-NamMinhNeural", "vi-VN-HoaiMyNeural"),
-    "en": ("en-US-AndrewMultilingualNeural", "en-US-AvaMultilingualNeural"),
-    "zh-cn": ("zh-CN-YunxiNeural", "zh-CN-XiaoxiaoNeural"),
-    "zh": ("zh-CN-YunxiNeural", "zh-CN-XiaoxiaoNeural"),
-    "ja": ("ja-JP-KeitaNeural", "ja-JP-NanamiNeural"),
-    "ko": ("ko-KR-InJoonNeural", "ko-KR-SunHiNeural"),
-    "es": ("es-ES-AlvaroNeural", "es-ES-ElviraNeural"),
-    "fr": ("fr-FR-HenriNeural", "fr-FR-DeniseNeural"),
-    "de": ("de-DE-ConradNeural", "de-DE-KatjaNeural"),
-    "ru": ("ru-RU-DmitryNeural", "ru-RU-SvetlanaNeural"),
-    "th": ("th-TH-NiwatNeural", "th-TH-PremwadeeNeural"),
-    "id": ("id-ID-ArdiNeural", "id-ID-GadisNeural"),
-    "pt": ("pt-BR-AntonioNeural", "pt-BR-FranciscaNeural"),
-    "it": ("it-IT-DiegoNeural", "it-IT-ElsaNeural"),
-    "ar": ("ar-SA-HamedNeural", "ar-SA-ZariyahNeural"),
-    "hi": ("hi-IN-MadhurNeural", "hi-IN-SwaraNeural"),
-    "tr": ("tr-TR-AhmetNeural", "tr-TR-EmelNeural"),
-    "nl": ("nl-NL-MaartenNeural", "nl-NL-FennaNeural"),
-    "pl": ("pl-PL-MarekNeural", "pl-PL-ZofiaNeural"),
-    "km": ("km-KH-PisethNeural", "km-KH-SreymomNeural"),
-    "lo": ("lo-LA-ChanthavongNeural", "lo-LA-KeomanyNeural"),
-    "ms": ("ms-MY-OsmanNeural", "ms-MY-YasminNeural"),
-    "fil": ("fil-PH-AngeloNeural", "fil-PH-BlessicaNeural"),
-    "tl": ("fil-PH-AngeloNeural", "fil-PH-BlessicaNeural"),
-    "uk": ("uk-UA-OstapNeural", "uk-UA-PolinaNeural"),
-    "cs": ("cs-CZ-AntoninNeural", "cs-CZ-VlastaNeural"),
-    "sv": ("sv-SE-MattiasNeural", "sv-SE-SofieNeural"),
-    "el": ("el-GR-NestorasNeural", "el-GR-AthinaNeural"),
-    "he": ("el-IL-AvriNeural", "he-IL-HilaNeural"),
-    "hu": ("hu-HU-TamasNeural", "hu-HU-NoemiNeural"),
-    "ro": ("ro-RO-EmilNeural", "ro-RO-AlinaNeural"),
-    "da": ("da-DK-JeppeNeural", "da-DK-ChristelNeural"),
-    "fi": ("fi-FI-HarriNeural", "fi-FI-NooraNeural"),
-    "no": ("nb-NO-FinnNeural", "nb-NO-PernilleNeural"),
-}
+def probe_video_dims(vpath):
+    if cv2 is not None:
+        try:
+            cap = cv2.VideoCapture(vpath)
+            if cap.isOpened():
+                w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+                h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+                cap.release()
+                if w > 0 and h > 0:
+                    return w, h
+        except Exception:
+            pass
+    try:
+        r = subprocess.run(
+            [ffmpeg_bin, "-hide_banner", "-i", vpath],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, encoding="utf-8", errors="replace",
+            creationflags=CREATE_NO_WINDOW, check=False
+        )
+        m = re.search(r"Stream #\d+:\d+[^\n]*Video:[^\n]*?\b(\d{2,5})x(\d{2,5})\b", r.stderr or "")
+        if m:
+            return int(m.group(1)), int(m.group(2))
+    except Exception:
+        pass
+    return 1920, 1080
 
 def detect_segment_gender(samples, sr, start_s, end_s):
     """
@@ -2003,7 +2334,6 @@ def detect_segment_gender(samples, sr, start_s, end_s):
     if len(seg) < int(sr * 0.16):
         return "male", 130.0, False
 
-    # Low-pass moving average filter (~260Hz cutoff) to strip high-frequency harmonics & sibilants
     k_len = max(3, int(sr / 260))
     kernel = np.ones(k_len, dtype=np.float32) / float(k_len)
     seg_lp = np.convolve(seg, kernel, mode="same")
@@ -2011,8 +2341,8 @@ def detect_segment_gender(samples, sr, start_s, end_s):
     win_len = int(sr * 0.045)
     step = max(win_len // 2, len(seg_lp) // 10)
     f0_list = []
-    min_lag = int(sr / 255.0)  # 255 Hz max fundamental F0
-    max_lag = int(sr / 75.0)   # 75 Hz min fundamental F0
+    min_lag = int(sr / 255.0)
+    max_lag = int(sr / 75.0)
 
     for pos in range(0, max(1, len(seg_lp) - win_len), step):
         w = seg_lp[pos:pos + win_len]
@@ -2029,11 +2359,8 @@ def detect_segment_gender(samples, sr, start_s, end_s):
             if len(sub) > 0:
                 best_idx = int(np.argmax(sub))
                 peak_val = float(sub[best_idx])
-                # Require strong periodicity (voiced vowel) to reject unvoiced consonants
                 if peak_val >= 0.35:
                     lag = min_lag + best_idx
-                    # Subharmonic octave check: if 2*lag (half frequency F0/2) also has a strong peak,
-                    # then `lag` is the 2nd harmonic of a male voice (e.g. 220Hz harmonic of 110Hz male F0).
                     double_lag = lag * 2
                     if double_lag < min(len(corr), max_lag + 20):
                         w_lo = max(min_lag, double_lag - 6)
@@ -2049,19 +2376,12 @@ def detect_segment_gender(samples, sr, start_s, end_s):
     return ("female" if med_f0 >= 185.0 else "male"), med_f0, True
 
 def unify_speaker_genders(segs, dub_voice):
-    """
-    Global Speaker Consistency Lock:
-    - If user explicitly selected 'male' or 'female', lock 100% of segments to that voice.
-    - In 'auto' mode, analyze the pitch distribution across the entire video:
-      If one gender accounts for >=72% of spoken duration OR the F0 cluster separation is <42Hz
-      (indicating a single speaker or uniform-gender cast with occasional pitch inflection),
-      lock 100% of segments in the video to the single dominant gender so voices NEVER flip mid-video!
-    """
     if not segs:
         return
     if dub_voice in ("male", "female"):
         for s in segs:
             s["gender"] = dub_voice
+            s["speaker"] = "S1"
         return
 
     male_dur = 0.0
@@ -2088,7 +2408,6 @@ def unify_speaker_genders(segs, dub_voice):
     female_ratio = female_dur / total_dur
     dominant_gender = "female" if female_dur > male_dur else "male"
 
-    # Check if there are genuinely two distinct Male & Female speaker clusters
     f0_gap = (float(np.median(female_f0s)) - float(np.median(male_f0s))) if (male_f0s and female_f0s) else 0.0
     iqr = (float(np.percentile(all_f0s, 80)) - float(np.percentile(all_f0s, 20))) if len(all_f0s) >= 4 else 0.0
 
@@ -2099,11 +2418,10 @@ def unify_speaker_genders(segs, dub_voice):
     )
 
     if not is_true_dual_gender:
-        # Single speaker or single-gender video -> Lock 100% of segments to the dominant gender!
         for s in segs:
             s["gender"] = dominant_gender
+            s["speaker"] = "S1"
     else:
-        # True multi-speaker dialogue -> fill invalid segments & smooth isolated 1-segment borderline flips
         for idx, s in enumerate(segs):
             if not s.get("f0_valid"):
                 s["gender"] = segs[idx - 1]["gender"] if idx > 0 else dominant_gender
@@ -2113,6 +2431,8 @@ def unify_speaker_genders(segs, dub_voice):
             if prev_g == next_g and segs[idx]["gender"] != prev_g:
                 if abs(segs[idx]["f0"] - 185.0) < 18.0:
                     segs[idx]["gender"] = prev_g
+        for s in segs:
+            s["speaker"] = "S2" if s["gender"] == "female" else "S1"
 
 def analyze_kinship_context(segs, mode):
     if mode in ("family", "review", "formal"):
@@ -2120,21 +2440,14 @@ def analyze_kinship_context(segs, mode):
     full_txt = " ".join(s.get("text", "").lower() for s in segs)
     creator_clues = [
         "subscribe", "channel", "welcome back", "in this video", "challenge", "dollars",
-        "fans", "hundred thousand", "million", "points", "goal", "keeper", "penalty",
-        "let's see", "you guys", "$", "kênh", "video này", "thử thách"
+        "fans", "million", "let's see", "you guys", "$", "kênh", "video này", "thử thách"
     ]
-    hits = sum(1 for k in creator_clues if k in full_txt)
-    if hits >= 2:
+    if sum(1 for k in creator_clues if k in full_txt) >= 2:
         return "creator"
     return "auto"
 
-# Strict Vietnamese grammar guards so compound words like "Chúng tôi", "người bạn", "bạn bè", "các bạn" are NEVER split!
-_RE_STANDALONE_TOI_CAP = re.compile(
-    r"(?<![Cc]húng\s)(?<![Vv]ôi\s)\bTôi\b(?!\s+luyện)"
-)
-_RE_STANDALONE_TOI_LOW = re.compile(
-    r"(?<![Cc]húng\s)(?<![Vv]ôi\s)\btôi\b(?!\s+luyện)"
-)
+_RE_STANDALONE_TOI_CAP = re.compile(r"(?<![Cc]húng\s)(?<![Vv]ôi\s)\bTôi\b(?!\s+luyện)")
+_RE_STANDALONE_TOI_LOW = re.compile(r"(?<![Cc]húng\s)(?<![Vv]ôi\s)\btôi\b(?!\s+luyện)")
 _RE_STANDALONE_BAN_CAP = re.compile(
     r"(?<![Cc]ác\s)(?<![Nn]gười\s)(?<![Tt]ình\s)(?<![Kk]ết\s)(?<![Nn]hóm\s)(?<![Đđ]ội\s)(?<![Nn]ước\s)(?<![Mm]ột\s)(?<![Vv]ài\s)(?<![Nn]hững\s)\bBạn\b(?!\s+(?:bè|thân|gái|trai|học|đọc|đời|đồng|hữu|diễn|cùng))"
 )
@@ -2142,47 +2455,23 @@ _RE_STANDALONE_BAN_LOW = re.compile(
     r"(?<![Cc]ác\s)(?<![Nn]gười\s)(?<![Tt]ình\s)(?<![Kk]ết\s)(?<![Nn]hóm\s)(?<![Đđ]ội\s)(?<![Nn]ước\s)(?<![Mm]ột\s)(?<![Vv]ài\s)(?<![Nn]hững\s)\bbạn\b(?!\s+(?:bè|thân|gái|trai|học|đọc|đời|đồng|hữu|diễn|cùng))"
 )
 
-def pre_normalize_spoken_english(txt):
-    """Rewrite English idioms/slang that literal NMT translates word-by-word unnaturaly."""
+def pre_normalize_spoken_english_offline(txt):
     if not txt:
         return txt
-    s = restore_brand_names_in_english(txt.strip())
+    s = txt.strip()
     low = s.lower()
     if re.match(r"^(?:let'?s\s+go+)[!.\s]*$", low):
         return "That is awesome!"
     if re.match(r"^(?:no\s+way|there'?s\s+no\s+way)[!.\s]*$", low):
         return "That is unbelievable!"
-    s = re.sub(r"\b[Dd]rowning in ([a-zA-Z\s]+?),", r"Overwhelmed by too many \1,", s)
-    s = re.sub(r"\b[Dd]rowning in ([a-zA-Z\s]+)\b", r"Overwhelmed by \1", s)
-    s = re.sub(r"\bendless grind\b", "endless exhausting work", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bdaily grind\b", "exhausting daily work", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bin one sitting\b", "in just one session", s, flags=re.IGNORECASE)
-    s = re.sub(r"\b[Hh]ours of your week gone\b", "You lose hours every week", s)
-    s = re.sub(r"\b[Mm]iss a day,\s*the algorithm forgets you\b", "If you skip one day, the algorithm ignores you", s)
-    s = re.sub(r"\b[Oo]ne click,\s*and you'?re everywhere\b", "Just one click to post everywhere", s)
-    s = re.sub(r"\bmore on the way\b", "and more coming soon", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bplan once,\s*post everywhere\b", "schedule once, publish everywhere", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bcontent command center\b", "all-in-one content hub", s, flags=re.IGNORECASE)
-    s = re.sub(r"\b[Cc]lients approved,\s*analytics approved\b", "Client approval and analytics ready", s)
     s = re.sub(r"\b[Aa]re you kidding me\b", "Is this a joke", s)
     s = re.sub(r"\b[Yy]ou(?:'ve)? got(?:ta| to) be kidding me\b", "That is unbelievable", s)
-    return s
+    return s.strip()
 
-def adapt_vietnamese_kinship(text, gender, role_mode, local_orig="", neighbor_gender=None):
-    """
-    Local Spoken Vietnamese Dubbing Naturalizer + Grammar-Safe Pronoun Adapter:
-    1. Converts stiff literal machine-translation phrases into natural, concise spoken Vietnamese dubbing.
-    2. Adapts pronouns safely by content vibe ('creator', 'review', 'family', 'auto', 'formal')
-       while strictly protecting compound words ('Chúng tôi', 'các bạn', 'người bạn', 'bạn bè')
-       and NEVER forcing 'Mẹ / Dì / Bố / Cháu'.
-    """
+def adapt_vietnamese_kinship_offline(text, gender, role_mode, local_orig=""):
     if not text:
         return text
-
     t = text
-    for b in BRAND_TOKENS:
-        t = re.sub(re.escape(b), b, t, flags=re.IGNORECASE)
-    # 1. Spoken Vietnamese Dubbing Idiom & Cadence Polish
     t = re.sub(r"\b[Ôô]i\s+[Cc]húa\s+ơi\b", "Trời ơi", t)
     t = re.sub(r"\b[Cc]húa\s+ơi\b", "Trời ơi", t)
     t = re.sub(r"\b[Nn]hững người hâm mộ\b", "các fan", t)
@@ -2196,48 +2485,23 @@ def adapt_vietnamese_kinship(text, gender, role_mode, local_orig="", neighbor_ge
     t = re.sub(r"\bở thời điểm hiện tại\b", "hiện giờ", t)
     t = re.sub(r"\bvào thời điểm này\b", "lúc này", t)
     t = re.sub(r"\bmột cách nhanh chóng\b", "nhanh chóng", t)
-    t = re.sub(r"\b[Qq]uá tải vì quá nhiều nền tảng\b", "Quá tải vì hàng tá nền tảng", t)
-    t = re.sub(r"\b[Bb]ị choáng ngợp bởi quá nhiều nền tảng\b", "Quá tải vì quá nhiều nền tảng", t)
-    t = re.sub(r"\bcông việc mệt mỏi bất tận\b", "cày cuốc mệt nghỉ", t, flags=re.IGNORECASE)
-    t = re.sub(r"\bcông việc kiệt sức vô tận\b", "cày cuốc không hồi kết", t, flags=re.IGNORECASE)
-    t = re.sub(r"\bthay đổi kích thước\b", "chỉnh kích cỡ", t, flags=re.IGNORECASE)
-    t = re.sub(r"\b[Bb]ạn mất hàng giờ mỗi tuần\b", "Tốn hàng giờ mỗi tuần", t)
-    t = re.sub(r"\b[Nn]ếu bạn bỏ qua một ngày,\s*thuật toán sẽ bỏ qua bạn\b", "Lỡ một ngày là thuật toán lãng quên ngay", t)
-    t = re.sub(r"\b[Gg]ặp gỡ\s+", "Khám phá ", t)
-    t = re.sub(r"\b[Gg]ặp\s+([A-Z][a-zA-Z0-9]+)", r"Khám phá \1", t)
-    t = re.sub(r"\btrung tâm nội dung tất cả trong một của bạn\b", "trung tâm quản lý nội dung toàn diện", t, flags=re.IGNORECASE)
-    t = re.sub(r"\btrong một phiên duy nhất\b", "ngay trong một buổi", t, flags=re.IGNORECASE)
-    t = re.sub(r"\bchỉ trong một phiên\b", "ngay trong một buổi", t, flags=re.IGNORECASE)
-    t = re.sub(r"\b[Cc]hỉ cần một cú nhấp chuột để đăng ở mọi nơi\b", "Chỉ một chạm, phủ sóng mọi nơi", t)
-    t = re.sub(r"\b[Cc]hỉ cần một cú nhấp chuột để đăng bài ở mọi nơi\b", "Chỉ một chạm, đăng khắp mọi nơi", t)
-    t = re.sub(r"\b[Cc]hú thích AI\b", "Caption AI", t)
-    t = re.sub(r"\bchú thích AI\b", "caption AI", t)
-    t = re.sub(r"\b[Ss]ự chấp thuận của khách hàng và phân tích đã sẵn sàng\b", "Khách duyệt bài nhanh, báo cáo sẵn sàng", t)
-    t = re.sub(r"\bvà nhiều thứ khác sẽ sớm ra mắt\b", "và còn cập nhật thêm nữa", t, flags=re.IGNORECASE)
-    t = re.sub(r"\bvà nhiều hơn nữa sẽ sớm ra mắt\b", "và còn mở rộng hơn nữa", t, flags=re.IGNORECASE)
-    t = re.sub(r"\blên lịch một lần,\s*xuất bản ở mọi nơi\b", "lên lịch một lần, đăng khắp mọi nơi", t, flags=re.IGNORECASE)
-    t = re.sub(r"\b[Nn]ày,\s*", "", t)
     if re.search(r"\blet'?s\s+go+\b", (local_orig or "").lower()):
         t = re.sub(r"\b[Hh]ãy đi nào\b", "Tuyệt vời", t)
         t = re.sub(r"\b[Cc]húng ta đi thôi\b", "Chiến thôi", t)
-
     if role_mode in ("auto", "formal"):
         return t
-
     if role_mode == "creator":
         t = re.sub(r"\bChúng tôi\b", "Tụi mình", t)
         t = re.sub(r"\bchúng tôi\b", "tụi mình", t)
         t = _RE_STANDALONE_TOI_CAP.sub("Mình", t)
         t = _RE_STANDALONE_TOI_LOW.sub("mình", t)
         return t
-
     if role_mode == "review":
         t = re.sub(r"\bChúng tôi\b", "Chúng mình", t)
         t = re.sub(r"\bchúng tôi\b", "chúng mình", t)
         t = _RE_STANDALONE_TOI_CAP.sub("Mình", t)
         t = _RE_STANDALONE_TOI_LOW.sub("mình", t)
         return t
-
     if role_mode == "family":
         if gender == "male":
             t = _RE_STANDALONE_TOI_CAP.sub("Anh", t)
@@ -2251,10 +2515,61 @@ def adapt_vietnamese_kinship(text, gender, role_mode, local_orig="", neighbor_ge
             t = _RE_STANDALONE_BAN_LOW.sub("anh", t)
     return t
 
-def translate_batch_parallel(texts, tl):
+_LOCAL_VINAI = {"trans": None, "tok": None, "vi_token": None, "tried": False}
+
+def _load_local_vinai():
+    if _LOCAL_VINAI["tried"]:
+        return _LOCAL_VINAI["trans"], _LOCAL_VINAI["tok"], _LOCAL_VINAI["vi_token"]
+    _LOCAL_VINAI["tried"] = True
+    try:
+        import ctranslate2
+        mdir = os.path.join(os.environ.get("APPDATA", ""), "NeelFlow.PizzaConverter", "models", "vinai-en2vi-v2-ct2-int8")
+        if not os.path.isfile(os.path.join(mdir, "model.bin")):
+            return None, None, None
+        from tokenizers import Tokenizer
+        tok = Tokenizer.from_file(os.path.join(mdir, "tokenizer.json"))
+        device, ctype = "cpu", "int8"
+        try:
+            if ctranslate2.get_cuda_device_count() > 0:
+                device, ctype = "cuda", "int8_float16"
+        except Exception:
+            device, ctype = "cpu", "int8"
+        trans = ctranslate2.Translator(
+            mdir, device=device, compute_type=ctype,
+            inter_threads=1, intra_threads=max(2, (os.cpu_count() or 4) // 2)
+        )
+        _LOCAL_VINAI["trans"] = trans
+        _LOCAL_VINAI["tok"] = tok
+        _LOCAL_VINAI["vi_token"] = "vi_VN"
+    except Exception as e:
+        sys.stderr.write(f"[DEBUG] Local VinAI unavailable: {e}\n")
+    return _LOCAL_VINAI["trans"], _LOCAL_VINAI["tok"], _LOCAL_VINAI["vi_token"]
+
+def translate_batch_vinai(texts, tl):
+    if not texts or not tl.lower().startswith("vi"):
+        return None
+    trans, tok, vi_token = _load_local_vinai()
+    if trans is None or tok is None:
+        return None
+    try:
+        source_tokens = [tok.encode(t).tokens for t in texts]
+        target_prefix = [[vi_token] for _ in texts]
+        results = trans.translate_batch(source_tokens, target_prefix=target_prefix, beam_size=1, max_decoding_length=128)
+        out = []
+        for res in results:
+            hyp = res.hypotheses[0]
+            hyp_tokens = [tk for tk in hyp if tk not in ("vi_VN", "</s>", "en_XX")]
+            ids = [tok.token_to_id(tk) for tk in hyp_tokens if tok.token_to_id(tk) is not None]
+            out.append(tok.decode(ids).strip())
+        return out
+    except Exception as e:
+        sys.stderr.write(f"[WARN] VinAI translation batch error: {e}\n")
+        return None
+
+def translate_batch_google(texts, tl):
     if not texts or not tl:
         return texts
-    norm_texts = [pre_normalize_spoken_english(t) for t in texts]
+    norm_texts = [pre_normalize_spoken_english_offline(t) for t in texts]
     sep = "\n ||| \n"
     chunks = [(i, norm_texts[i:i+20]) for i in range(0, len(norm_texts), 20)]
 
@@ -2284,50 +2599,20 @@ def translate_batch_parallel(texts, tl):
         out.extend(part_list)
     return out
 
+def translate_batch_offline(texts, tl):
+    if not texts or not tl:
+        return texts
+    norm_texts = [pre_normalize_spoken_english_offline(t) for t in texts]
+    if tl.lower().startswith("vi"):
+        vinai_out = translate_batch_vinai(norm_texts, tl)
+        if vinai_out and len(vinai_out) == len(texts):
+            return vinai_out
+    return translate_batch_google(texts, tl)
+
 def has_speakable_text(txt):
     if not txt:
         return False
-    # Check if string contains at least one letter or digit in any language script
     return bool(re.search(r"[\w\u00C0-\u024F\u1E00-\u1EFF\u3040-\u30FF\u4E00-\u9FFF\uAC00-\uD7AF\u0400-\u04FF\u0E00-\u0E7F]", txt))
-
-def trim_pcm_silence(pcm, thresh=0.008, pad_samples=360):
-    """Trim leading and trailing dead air from TTS output so sentences never spill into the next slot."""
-    if len(pcm) == 0:
-        return pcm
-    idx = np.where(np.abs(pcm) > thresh)[0]
-    if len(idx) == 0:
-        return pcm[:0]
-    s = max(0, int(idx[0]) - pad_samples)
-    e = min(len(pcm), int(idx[-1]) + pad_samples)
-    return pcm[s:e]
-
-def wsola_stretch_pcm(pcm, speed_ratio, sr=24000):
-    """
-    Fast in-memory pitch-preserving Overlap-Add (OLA) time-stretcher for 24kHz mono speech.
-    Stretches a 3-second speech segment in ~1ms without spawning an external ffmpeg process!
-    """
-    if speed_ratio <= 1.01 or len(pcm) < 960:
-        return pcm
-    speed_ratio = min(1.88, float(speed_ratio))
-    win_size = 600          # 25ms window at 24kHz
-    hop_syn = 300           # 12.5ms synthesis hop (50% overlap)
-    hop_ana = max(1, int(round(hop_syn * speed_ratio)))
-    out_len = int(len(pcm) / speed_ratio) + win_size
-    out = np.zeros(out_len, dtype=np.float32)
-    norm = np.zeros(out_len, dtype=np.float32)
-    win = np.hanning(win_size).astype(np.float32)
-
-    ana_pos = 0
-    syn_pos = 0
-    while ana_pos + win_size <= len(pcm) and syn_pos + win_size <= out_len:
-        out[syn_pos:syn_pos + win_size] += pcm[ana_pos:ana_pos + win_size] * win
-        norm[syn_pos:syn_pos + win_size] += win
-        ana_pos += hop_ana
-        syn_pos += hop_syn
-
-    valid = norm > 1e-4
-    out[valid] /= norm[valid]
-    return out[:max(240, syn_pos)]
 
 def merge_short_dub_segments(segs):
     """
@@ -2355,119 +2640,6 @@ def merge_short_dub_segments(segs):
             merged.append(dict(nxt))
     return merged
 
-async def resolve_voices_and_synthesize(segs, lang_code, tmp_dir):
-    import edge_tts
-    lc = lang_code.lower()
-    pair = VOICE_MAP.get(lc) or VOICE_MAP.get(lc.split("-")[0]) or ("en-US-AndrewMultilingualNeural", "en-US-AvaMultilingualNeural")
-
-    clone_profile = None
-    pitch_shift_st = 0.0
-    bass_gain_db = 0.0
-    treble_gain_db = 0.0
-    explicit_voice = None
-
-    if os.path.isfile(dub_voice):
-        try:
-            with open(dub_voice, "r", encoding="utf-8") as pf:
-                clone_profile = json.load(pf)
-                base_v = clone_profile.get("base_neural_voice")
-                if base_v:
-                    explicit_voice = base_v
-                pitch_shift_st = float(clone_profile.get("pitch_shift_st", 0.0))
-                bass_gain_db = float(clone_profile.get("eq_preset", {}).get("bass_gain_db", 0.0))
-                treble_gain_db = float(clone_profile.get("eq_preset", {}).get("treble_gain_db", 0.0))
-        except Exception:
-            pass
-    elif "Neural" in dub_voice:
-        explicit_voice = dub_voice
-    elif dub_voice == "male":
-        explicit_voice = pair[0]
-    elif dub_voice == "female":
-        explicit_voice = pair[1]
-
-    if not explicit_voice and not pair:
-        try:
-            vm = await asyncio.wait_for(edge_tts.VoicesManager.create(), timeout=10.0)
-            lang_prefix = lc.split("-")[0]
-            m_voices = [v["ShortName"] for v in vm.voices if v.get("Locale", "").lower().startswith(lang_prefix) and v.get("Gender") == "Male"]
-            f_voices = [v["ShortName"] for v in vm.voices if v.get("Locale", "").lower().startswith(lang_prefix) and v.get("Gender") == "Female"]
-            male_v = m_voices[0] if m_voices else (f_voices[0] if f_voices else "en-US-AndrewMultilingualNeural")
-            fem_v = f_voices[0] if f_voices else male_v
-            pair = (male_v, fem_v)
-        except Exception:
-            pair = ("en-US-AndrewMultilingualNeural", "en-US-AvaMultilingualNeural")
-
-    sem = asyncio.Semaphore(6)
-    total_segs = max(1, len(segs))
-    done_count = 0
-
-    async def synth_one(idx, s):
-        nonlocal done_count
-        txt = (s.get("trans_text") or "").strip()
-        if not has_speakable_text(txt):
-            s["tts_raw"] = None
-            done_count += 1
-            return
-        if explicit_voice:
-            voice_name = explicit_voice
-        else:
-            voice_name = pair[1] if s.get("gender") == "female" else pair[0]
-        raw_mp3 = os.path.join(tmp_dir, f"tts_raw_{idx:04d}.mp3")
-        # Calculate adaptive neural prosody rate when slot is tight so consonants stay 100% crisp
-        slot_avail = max(0.6, float(s["end"] - s["start"]))
-        if idx + 1 < len(segs):
-            slot_avail = max(slot_avail, min(float(segs[idx + 1]["start"] - s["start"]) - 0.05, slot_avail + 0.35))
-        words_cnt = max(1, len(txt.split()))
-        est_natural_dur = words_cnt * 0.31
-        rate_str = "+0%"
-        if est_natural_dur > slot_avail * 1.04:
-            boost_pct = min(28, max(6, int(round(((est_natural_dur / slot_avail) - 1.0) * 85))))
-            rate_str = f"+{boost_pct}%"
-        async with sem:
-            for attempt in range(3):
-                try:
-                    if os.path.isfile(raw_mp3):
-                        try: os.remove(raw_mp3)
-                        except Exception: pass
-                    comm = edge_tts.Communicate(txt, voice_name, rate=rate_str)
-                    # Strict 14-second timeout per segment so a hung WebSocket NEVER freezes at 79%!
-                    await asyncio.wait_for(comm.save(raw_mp3), timeout=14.0)
-                    if os.path.isfile(raw_mp3) and os.path.getsize(raw_mp3) > 128:
-                        if (abs(pitch_shift_st) > 0.1 or abs(bass_gain_db) > 0.5 or abs(treble_gain_db) > 0.5):
-                            morphed_mp3 = os.path.join(tmp_dir, f"tts_morphed_{idx:04d}.mp3")
-                            f_parts = []
-                            if abs(pitch_shift_st) > 0.1:
-                                ratio = 2.0 ** (pitch_shift_st / 12.0)
-                                f_parts.append(f"asetrate=24000*{ratio:.4f},aresample=24000,atempo={1.0/ratio:.4f}")
-                            if abs(bass_gain_db) > 0.5:
-                                f_parts.append(f"bass=g={bass_gain_db:.1f}:f=150")
-                            if abs(treble_gain_db) > 0.5:
-                                f_parts.append(f"treble=g={treble_gain_db:.1f}:f=3500")
-                            f_str = ",".join(f_parts)
-                            cmd_morph = [ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error", "-i", raw_mp3, "-af", f_str, "-c:a", "libmp3lame", "-q:a", "2", morphed_mp3]
-                            r_m = subprocess.run(cmd_morph, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False)
-                            if r_m.returncode == 0 and os.path.isfile(morphed_mp3) and os.path.getsize(morphed_mp3) > 64:
-                                shutil.move(morphed_mp3, raw_mp3)
-                        s["tts_raw"] = raw_mp3
-                        break
-                except Exception:
-                    await asyncio.sleep(0.3 * (attempt + 1))
-            if not s.get("tts_raw") and sys.platform == "darwin":
-                try:
-                    raw_aiff = os.path.join(tmp_dir, f"tts_say_{idx:04d}.aiff")
-                    subprocess.run(["/usr/bin/say", "-o", raw_aiff, txt], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=12)
-                    if os.path.isfile(raw_aiff) and os.path.getsize(raw_aiff) > 128:
-                        subprocess.run([ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error", "-i", raw_aiff, "-c:a", "libmp3lame", "-q:a", "3", raw_mp3], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=12)
-                        if os.path.isfile(raw_mp3) and os.path.getsize(raw_mp3) > 128:
-                            s["tts_raw"] = raw_mp3
-                except Exception:
-                    pass
-        done_count += 1
-        pct = 50 + int((done_count / total_segs) * 30)
-        emit_prog(pct, f"Synthesizing AI Voice ({done_count}/{total_segs})...")
-
-    await asyncio.gather(*(synth_one(idx, s) for idx, s in enumerate(segs)))
-
 tmp_dir = tempfile.mkdtemp(prefix="pizza_dub_")
 try:
     emit_prog(6, "Extracting 16kHz audio stream...")
@@ -2478,11 +2650,16 @@ try:
          "-i", in_path, "-vn", "-ac", "1", "-ar", "16000", "-f", "wav", tmp_wav],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False
     )
+    if not os.path.isfile(tmp_wav) or os.path.getsize(tmp_wav) < 1024:
+        raise RuntimeError("Input video contains no audio stream to dub.")
+
     with wave.open(tmp_wav, "rb") as wf:
         sr = wf.getframerate()
         raw_pcm = wf.readframes(wf.getnframes())
     samples = np.frombuffer(raw_pcm, dtype=np.int16).astype(np.float32) / 32768.0
     audio_dur = max(1.0, float(len(samples)) / max(1, sr))
+    if len(samples) < int(sr * 0.25):
+        raise RuntimeError("Input video audio stream is empty or too short to dub.")
 
     emit_prog(12, "Loading Whisper AI (GPU/CUDA + 75% CPU Budget)...")
     from faster_whisper import WhisperModel
@@ -2500,20 +2677,21 @@ try:
     if model is None:
         model = WhisperModel(model_name, device="cpu", compute_type="int8", cpu_threads=SAFE_CPU, num_workers=max(1, min(3, SAFE_CPU // 4)))
     segs_gen, _info = model.transcribe(
-        tmp_wav, language=None, beam_size=2, word_timestamps=False,
-        vad_filter=False, condition_on_previous_text=False, no_speech_threshold=0.6,
-        initial_prompt=(", ".join(BRAND_TOKENS) if BRAND_TOKENS else None)
+        tmp_wav, language=None, beam_size=2, word_timestamps=True,
+        vad_filter=True,
+        vad_parameters=dict(min_silence_duration_ms=250),
+        condition_on_previous_text=False, no_speech_threshold=0.6,
     )
     segs = []
     last_p = -1
     for s in segs_gen:
         if getattr(s, "no_speech_prob", 0.0) > 0.85:
             continue
-        cur_p = 14 + int(min(1.0, float(s.end) / audio_dur) * 28)
+        cur_p = 14 + int(min(1.0, float(s.end) / audio_dur) * 20)
         if cur_p >= last_p + 2:
             last_p = cur_p
             emit_prog(cur_p, f"Transcribing speech ({int(s.end)}s / {int(audio_dur)}s)...")
-        txt = restore_brand_names_in_english((s.text or "").strip())
+        txt = (s.text or "").strip()
         if not has_speakable_text(txt):
             continue
         det_gender, f0_hz, f0_valid = detect_segment_gender(samples, sr, float(s.start), float(s.end))
@@ -2527,151 +2705,60 @@ try:
         })
 
     if not segs:
-        shutil.copyfile(in_path, out_path)
-        sys.exit(0)
+        raise RuntimeError("No spoken dialogue detected in video to dub.")
 
-    # Lock consistent speaker gender across the video (prevents single-speaker Male/Female voice mixing!)
+    # Lock consistent speaker gender & speaker labels across the video
     unify_speaker_genders(segs, dub_voice)
     segs = merge_short_dub_segments(segs)
 
-    emit_prog(45, f"Translating {len(segs)} dialogue segments -> {lang_code.upper()}...")
-    role_mode = analyze_kinship_context(segs, dub_context)
-    trans_list = translate_batch_parallel([s["text"] for s in segs], lang_code)
-    for idx_s, (s, tr) in enumerate(zip(segs, trans_list)):
-        if lang_code.lower().startswith("vi"):
-            local_parts = [s["text"]]
-            neigh_gender = None
-            if idx_s > 0 and (s["start"] - segs[idx_s - 1]["end"]) <= 6.0:
-                local_parts.append(segs[idx_s - 1]["text"])
-                neigh_gender = segs[idx_s - 1].get("gender")
-            if idx_s + 1 < len(segs) and (segs[idx_s + 1]["start"] - s["end"]) <= 6.0:
-                local_parts.append(segs[idx_s + 1]["text"])
-                if neigh_gender is None:
-                    neigh_gender = segs[idx_s + 1].get("gender")
-            tr = adapt_vietnamese_kinship(tr, s["gender"], role_mode, " ".join(local_parts), neigh_gender)
-        s["trans_text"] = tr
-
-    emit_prog(50, f"Synthesizing {len(segs)} neural voice segments (8x parallel)...")
-    asyncio.run(resolve_voices_and_synthesize(segs, lang_code, tmp_dir))
-
-    # Multi-core parallel decode of raw TTS MP3s to 24kHz mono WAV + silence trimming
-    emit_prog(82, "Decoding & trimming TTS voice segments across CPU cores...")
-    def decode_tts_mp3(item):
-        idx, s = item
-        raw_mp3 = s.get("tts_raw")
-        if not raw_mp3 or not os.path.isfile(raw_mp3):
-            return (idx, None)
-        seg_wav = os.path.join(tmp_dir, f"tts_{idx:04d}.wav")
-        subprocess.run(
-            [ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error",
-             "-threads", "1",
-             "-i", raw_mp3, "-ac", "1", "-ar", "24000", "-f", "wav", seg_wav],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False
-        )
-        if not os.path.isfile(seg_wav):
-            return (idx, None)
-        with wave.open(seg_wav, "rb") as swf:
-            pcm = np.frombuffer(swf.readframes(swf.getnframes()), dtype=np.int16).astype(np.float32) / 32768.0
-        pcm = trim_pcm_silence(pcm)
-        if len(pcm) < 240:
-            return (idx, None)
-        with wave.open(seg_wav, "wb") as wout:
-            wout.setnchannels(1)
-            wout.setsampwidth(2)
-            wout.setframerate(24000)
-            wout.writeframes((np.clip(pcm, -0.99, 0.99) * 32767.0).astype(np.int16).tobytes())
-        return (idx, seg_wav)
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=SAFE_CPU) as ex:
-        for idx, wav_p in ex.map(decode_tts_mp3, enumerate(segs)):
-            segs[idx]["tts_wav"] = wav_p
-
-    # Build strict zero-overlap timeline-aligned dubbed audio track with monotonic audio_cursor
-    emit_prog(86, "Aligning non-overlapping voice timeline & audio ducking...")
-    total_dur_sec = max(audio_dur, segs[-1]["end"] + 1.5)
-    dub_mix = np.zeros(int(total_dur_sec * 24000) + 24000, dtype=np.float32)
-    duck_env = np.ones(len(dub_mix), dtype=np.float32)
-    audio_cursor = 0  # Monotonic sample cursor in 24kHz so Segment i NEVER overlaps Segment i+1!
-
-    for idx, s in enumerate(segs):
-        seg_wav = s.get("tts_wav")
-        if not seg_wav or not os.path.isfile(seg_wav):
-            continue
-        with wave.open(seg_wav, "rb") as swf:
-            tts_pcm = np.frombuffer(swf.readframes(swf.getnframes()), dtype=np.int16).astype(np.float32) / 32768.0
-        if len(tts_pcm) < 240:
-            continue
-
-        start_pos = max(int(s["start"] * 24000), audio_cursor)
-        actual_start_sec = start_pos / 24000.0
-        next_seg_start_sec = segs[idx + 1]["start"] if (idx + 1 < len(segs)) else (total_dur_sec)
-        hard_limit_sec = max(actual_start_sec + 0.22, next_seg_start_sec - 0.03)
-        target_end_sec = min(max(s["end"] + 0.25, actual_start_sec + 0.35), hard_limit_sec)
-        slot_dur = max(0.22, target_end_sec - actual_start_sec)
-        tts_dur = len(tts_pcm) / 24000.0
-
-        if tts_dur > slot_dur * 1.02:
-            ratio = min(1.55, tts_dur / slot_dur)
-            if ratio >= 1.14:
-                stretch_wav = os.path.join(tmp_dir, f"tts_atempo_{idx:04d}.wav")
-                subprocess.run(
-                    [ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error",
-                     "-threads", "1", "-i", seg_wav,
-                     "-filter:a", f"atempo={ratio:.3f}",
-                     "-ac", "1", "-ar", "24000", "-f", "wav", stretch_wav],
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False
-                )
-                if os.path.isfile(stretch_wav) and os.path.getsize(stretch_wav) > 256:
-                    with wave.open(stretch_wav, "rb") as awf:
-                        tts_pcm = np.frombuffer(awf.readframes(awf.getnframes()), dtype=np.int16).astype(np.float32) / 32768.0
-                else:
-                    tts_pcm = wsola_stretch_pcm(tts_pcm, ratio, sr=24000)
-            else:
-                tts_pcm = wsola_stretch_pcm(tts_pcm, ratio, sr=24000)
-            tts_pcm = trim_pcm_silence(tts_pcm)
-
-        max_end_pos = min(len(dub_mix), int(hard_limit_sec * 24000))
-        end_pos = min(max_end_pos, start_pos + len(tts_pcm))
-        if end_pos > start_pos + 120:
-            clip_len = end_pos - start_pos
-            seg_slice = tts_pcm[:clip_len].copy()
-            # Smooth 12ms fade-in/out to prevent clicks at boundaries
-            fade_n = min(288, clip_len // 4)
-            if fade_n > 8:
-                seg_slice[:fade_n] *= np.linspace(0.0, 1.0, fade_n, dtype=np.float32)
-                seg_slice[-fade_n:] *= np.linspace(1.0, 0.0, fade_n, dtype=np.float32)
-            dub_mix[start_pos:end_pos] = seg_slice
-            duck_env[max(0, start_pos - 2400):min(len(duck_env), end_pos + 2400)] = 0.15
-            s["dub_start"] = start_pos / 24000.0
-            s["dub_end"] = end_pos / 24000.0
-            audio_cursor = end_pos + int(0.025 * 24000)
-
-    # Mix ducked original audio + dubbed voice track
-    emit_prog(91, "Mixing background audio & dubbed voice track...")
-    orig_24k_wav = os.path.join(tmp_dir, "orig_24k.wav")
-    subprocess.run(
-        [ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error",
-         "-threads", str(SAFE_CPU),
-         "-i", in_path, "-vn", "-ac", "1", "-ar", "24000", "-f", "wav", orig_24k_wav],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False
+    emit_prog(35, f"Translating {len(segs)} dialogue segments -> {lang_code.upper()}...")
+    cloud_segs, used_cloud = cloud_ai_bridge.translate_timed_segments_cloud(
+        segs,
+        lang_code,
+        mode="dubbing",
+        ai_cfg=AI_CFG,
+        context_hint=os.path.basename(in_path),
+        style_hint=dub_context,
+        progress_cb=lambda frac, msg: emit_prog(35 + int(min(1.0, max(0.0, frac)) * 7), msg),
     )
-    if os.path.isfile(orig_24k_wav):
-        with wave.open(orig_24k_wav, "rb") as owf:
-            orig_24k = np.frombuffer(owf.readframes(owf.getnframes()), dtype=np.int16).astype(np.float32) / 32768.0
-        min_l = min(len(dub_mix), len(orig_24k))
-        final_aud = orig_24k[:min_l] * duck_env[:min_l] + dub_mix[:min_l] * 1.15
+    if used_cloud and cloud_segs and len(cloud_segs) == len(segs):
+        segs = cloud_segs
+        for s in segs:
+            s["trans_text"] = (s.get("text") or "").strip()
     else:
-        final_aud = dub_mix
+        role_mode = analyze_kinship_context(segs, dub_context)
+        trans_list = translate_batch_offline([s["text"] for s in segs], lang_code)
+        for idx_s, (s, tr) in enumerate(zip(segs, trans_list)):
+            if lang_code.lower().startswith("vi"):
+                local_parts = [s["text"]]
+                if idx_s > 0 and (s["start"] - segs[idx_s - 1]["end"]) <= 6.0:
+                    local_parts.append(segs[idx_s - 1]["text"])
+                if idx_s + 1 < len(segs) and (segs[idx_s + 1]["start"] - s["end"]) <= 6.0:
+                    local_parts.append(segs[idx_s + 1]["text"])
+                tr = adapt_vietnamese_kinship_offline(tr, s["gender"], role_mode, " ".join(local_parts))
+            s["text"] = tr
+            s["trans_text"] = tr
 
-    final_aud = np.clip(final_aud, -0.98, 0.98)
-    mixed_wav = os.path.join(tmp_dir, "dub_mixed.wav")
-    with wave.open(mixed_wav, "wb") as mwf:
-        mwf.setnchannels(1)
-        mwf.setsampwidth(2)
-        mwf.setframerate(24000)
-        mwf.writeframes((final_aud * 32767.0).astype(np.int16).tobytes())
+    # Multi-engine 48kHz neural synthesis + stereo accompaniment separation + elastic rubberband alignment + EBU R128 mastering
+    mixed_wav = os.path.join(tmp_dir, "dub_mixed_48k.wav")
+    segs = tts_provider.render_studio_dubbing_mix(
+        in_path,
+        segs,
+        lang_code,
+        dub_voice,
+        mixed_wav,
+        tmp_dir,
+        ai_cfg=AI_CFG,
+        ffmpeg_bin=ffmpeg_bin,
+        progress_cb=lambda p, m: emit_prog(p, m),
+    )
+    for s in segs:
+        s["trans_text"] = (s.get("text") or s.get("trans_text") or "").strip()
+    if not os.path.isfile(mixed_wav) or os.path.getsize(mixed_wav) < 1024:
+        raise RuntimeError("Studio 48kHz dubbing mix failed to generate output audio.")
 
-    emit_prog(95, "Encoding final dubbed MP4 video...")
+    emit_prog(93, "Encoding final 48kHz stereo dubbed MP4 video...")
+    ff_err_state = {"msg": ""}
     if burn_sub:
         enc_flags = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p"]
         enc_label = "LIBX264"
@@ -2687,11 +2774,7 @@ try:
                 enc_label = ename
                 break
 
-        cap = cv2.VideoCapture(in_path)
-        orig_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1920) if cap.isOpened() else 1920
-        orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 1080) if cap.isOpened() else 1080
-        if cap.isOpened():
-            cap.release()
+        orig_w, orig_h = probe_video_dims(in_path)
         is_vert = orig_h > orig_w
         play_x, play_y = (1080, 1920) if is_vert else (1920, 1080)
         size_mult = 0.82 if cap_size == "small" else (1.22 if cap_size == "large" else 1.0)
@@ -2703,12 +2786,7 @@ try:
             alignment = 5 if cap_pos == "middle" else 2
 
             if dub_cap_style == "roleplay":
-                badge_fs = max(18, int(round(base_fs * 0.52)))
-                badge_mv = margin_v + int(round(base_fs * 1.45))
-                style_line = (
-                    f"Style: CapStyle,Impact,{int(round(base_fs * 1.12))},&H00FFFFFF,&H00FFFFFF,&H00000000,&H85000000,-1,0,0,0,102,102,0.8,0,1,4.5,2.0,{alignment},55,55,{margin_v},1\n"
-                    f"Style: RoleBadge,Arial Black,{badge_fs},&H00000000,&H00000000,&H0015CCFA,&H0015CCFA,-1,0,0,0,100,100,1.2,0,3,6.0,0.0,{alignment},60,60,{badge_mv},1"
-                )
+                style_line = f"Style: CapStyle,Impact,{int(round(base_fs * 1.12))},&H00FFFFFF,&H00FFFFFF,&H00000000,&H85000000,-1,0,0,0,102,102,0.8,0,1,4.5,2.0,{alignment},55,55,{margin_v},1"
             elif dub_cap_style == "popline":
                 style_line = f"Style: CapStyle,Segoe UI Black,{base_fs},&H00FFFFFF,&H00FFFFFF,&H00281018,&H90ED3A7C,-1,0,0,0,100,100,0.5,0,1,3.2,1.5,{alignment},60,60,{margin_v},1"
             elif dub_cap_style == "deep_diver":
@@ -2744,20 +2822,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
             events = []
             chunk_sz = 1 if dub_cap_style == "one_punch" else (4 if is_vert else 6)
-            speaker_idx = 0
-            prev_end_t = 0.0
             for s in segs:
                 s_st = float(s.get("dub_start", s["start"]))
                 s_en = float(s.get("dub_end", s["end"]))
-                if prev_end_t > 0.0 and (s_st - prev_end_t) >= 0.65:
-                    speaker_idx = 1 - speaker_idx
-                prev_end_t = s_en
                 tr_txt = (s.get("trans_text") or "").strip()
                 if not tr_txt:
                     continue
                 toks = [w for w in tr_txt.split() if w]
                 if len(toks) <= 1 and len(tr_txt) > 4:
-                    # CJK / unspaced script: group into 3-char visual tokens
                     toks = [tr_txt[i:i+3] for i in range(0, len(tr_txt), 3)]
                 if not toks:
                     continue
@@ -2769,11 +2841,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 ]
                 for ci in range(0, len(seg_words), chunk_sz):
                     chunk = seg_words[ci:ci+chunk_sz]
-                    if dub_cap_style == "roleplay":
-                        events.append(f"Dialogue: 1,{fmt_ass_ts(chunk[0]['start'])},{fmt_ass_ts(chunk[-1]['end'])},RoleBadge,,0,0,0,, PERSON {speaker_idx + 1} ")
                     if dub_cap_style == "one_punch":
                         w = chunk[0]
-                        cw = w["word"].replace("{", "").replace("}", "").upper()
+                        cw = w["word"].replace("{", "").replace("}", "").replace("\\", "").upper()
                         txt = f"{{\\fscx118\\fscy118\\t(0,120,\\fscx100\\fscy100)\\c&H0000E5FF&}}{cw}"
                         events.append(f"Dialogue: 0,{fmt_ass_ts(w['start'])},{fmt_ass_ts(w['end'])},CapStyle,,0,0,0,,{txt}")
                     else:
@@ -2782,7 +2852,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                             we = chunk[active_idx + 1]["start"] if (active_idx + 1 < len(chunk)) else aw["end"]
                             parts = []
                             for j, w in enumerate(chunk):
-                                cw = w["word"].replace("{", "").replace("}", "")
+                                cw = w["word"].replace("{", "").replace("}", "").replace("\\", "")
                                 if dub_cap_style in ("beasty", "popline", "roleplay"):
                                     cw = cw.upper()
                                 if j == active_idx:
@@ -2816,7 +2886,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             vf_arg = "subtitles=dub_subs.srt:force_style='FontName=Segoe UI Semibold,FontSize=20,OutlineColour=&H40000000,BorderStyle=1,Outline=2'"
 
         tmp_out = os.path.join(tmp_dir, "dub_rendered.mp4")
-        flt_chk = subprocess.run([ffmpeg_bin, "-hide_banner", "-filters"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, creationflags=CREATE_NO_WINDOW, check=False)
+        flt_chk = subprocess.run([ffmpeg_bin, "-hide_banner", "-filters"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", creationflags=CREATE_NO_WINDOW, check=False)
         has_sub_flt = (" subtitles " in (flt_chk.stdout or ""))
 
         def build_dub_pil_concat():
@@ -2882,6 +2952,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             return c_file, band_y
 
         dub_state = {"pil_info": None if has_sub_flt else build_dub_pil_concat()}
+        aud_mux_flags = ["-c:a", "aac", "-b:a", "256k", "-ar", "48000", "-ac", "2", "-shortest", "-movflags", "+faststart"]
 
         def run_dub_ff(v_flags, force_pil=False):
             use_pil = force_pil or (not has_sub_flt)
@@ -2897,7 +2968,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     "-f", "concat", "-safe", "0", "-i", c_file,
                     "-filter_complex", f"[0:v][2:v]overlay=0:{band_y}:format=auto:shortest=1[v]",
                     "-map", "[v]", "-map", "1:a:0",
-                ] + v_flags + ["-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", tmp_out]
+                ] + v_flags + aud_mux_flags + [tmp_out]
             else:
                 cmd = [
                     ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error",
@@ -2906,22 +2977,34 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     "-i", in_path, "-i", mixed_wav,
                     "-vf", vf_arg,
                     "-map", "0:v:0", "-map", "1:a:0",
-                ] + v_flags + ["-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", tmp_out]
+                ] + v_flags + aud_mux_flags + [tmp_out]
             proc = subprocess.Popen(cmd, cwd=tmp_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", creationflags=CREATE_NO_WINDOW)
-            last_p = 92
+            err_chunks = []
+            def _drain_stderr(pipe, sink):
+                try:
+                    for eline in pipe:
+                        sink.append(eline)
+                except Exception:
+                    pass
+            err_t = threading.Thread(target=_drain_stderr, args=(proc.stderr, err_chunks), daemon=True)
+            err_t.start()
+            last_p = 93
             if proc.stdout:
                 for line in proc.stdout:
                     line = line.strip()
                     if line.startswith("out_time_us=") or line.startswith("out_time_ms="):
                         try:
                             sec_d = max(0.0, int(line.split("=", 1)[1].strip()) / 1_000_000.0)
-                            p = min(98, 92 + int((sec_d / max(1.0, audio_dur)) * 6.0))
+                            p = min(98, 93 + int((sec_d / max(1.0, audio_dur)) * 5.0))
                             if p > last_p:
                                 last_p = p
                                 emit_prog(p, f"Encoding dubbed video ({int(sec_d)}s / {int(audio_dur)}s)...")
                         except Exception:
                             pass
             proc.wait()
+            err_t.join(timeout=2.0)
+            if err_chunks:
+                ff_err_state["msg"] = "".join(err_chunks).strip()[-400:]
 
         run_dub_ff(enc_flags)
         if (not os.path.isfile(tmp_out) or os.path.getsize(tmp_out) < 1024) and enc_label != "LIBX264":
@@ -2932,21 +3015,27 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             shutil.move(tmp_out, out_path)
     if not os.path.isfile(out_path) or os.path.getsize(out_path) < 1024:
         tmp_out2 = os.path.join(tmp_dir, "dub_copy.mp4")
-        subprocess.run(
+        r_cp = subprocess.run(
             [ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error",
              "-threads", str(SAFE_CPU),
              "-i", in_path, "-i", mixed_wav,
              "-map", "0:v:0", "-map", "1:a:0",
-             "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", tmp_out2],
+             "-c:v", "copy", "-c:a", "aac", "-b:a", "256k", "-ar", "48000", "-ac", "2",
+             "-shortest", "-movflags", "+faststart", tmp_out2],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, encoding="utf-8", errors="replace",
             creationflags=CREATE_NO_WINDOW, check=False
         )
         if os.path.isfile(tmp_out2) and os.path.getsize(tmp_out2) >= 1024:
             shutil.move(tmp_out2, out_path)
+        elif r_cp.stderr:
+            ff_err_state["msg"] = r_cp.stderr.strip()[-400:]
+    if not os.path.isfile(out_path) or os.path.getsize(out_path) < 1024:
+        raise RuntimeError(f"Failed to mux final dubbed video. {ff_err_state['msg']}".strip())
     emit_prog(99, "Finalizing dubbed video...")
 finally:
     shutil.rmtree(tmp_dir, ignore_errors=True)
-"#;
+"####;
 
     let in_s = input.to_string_lossy().into_owned();
     let out_s = out_path.to_string_lossy().into_owned();
@@ -2955,19 +3044,20 @@ finally:
     let file_label = input.file_name().and_then(|s| s.to_str()).unwrap_or(stem);
 
     let mut chosen_dub_voice = cfg.ai_dub_voice.clone();
-    if let Some(vo) = voice_override {
-        if !vo.is_empty() && vo != "auto" && vo != "dub_vc_auto" {
-            chosen_dub_voice = vo.to_string();
+    if let Some(ref vo) = voice_override_joined {
+        if !vo.is_empty() {
+            chosen_dub_voice = vo.clone();
         }
     } else if cfg.vs_enabled && cfg.vs_override_global && !cfg.vs_active_voice.is_empty() {
         chosen_dub_voice = cfg.vs_active_voice.clone();
     }
     chosen_dub_voice = resolve_voice_alias_or_clone(app, &chosen_dub_voice);
 
-    run_python_streaming(
+    run_python_streaming_with_ai(
         app,
         dub_target,
         file_label,
+        Some("ai_dubbing"),
         script,
         &[
             &in_s,
@@ -2976,7 +3066,7 @@ finally:
             &cfg.ai_dub_context,
             &chosen_dub_voice,
             burn_s,
-            &cfg.ai_elevenlabs_key,
+            "",
             &cfg.ai_tier,
             &ff_s,
             chosen_cap_style,
@@ -2985,7 +3075,13 @@ finally:
             cap_emoji_s,
         ],
     )
-    .map_err(|e| format!("AI Dubbing Engine error: {e}"))?;
+    .map_err(|e| {
+        if e == "STOPPED_BY_USER" {
+            e
+        } else {
+            format!("AI Dubbing Engine error: {e}")
+        }
+    })?;
 
     if out_path.is_file() {
         Ok(out_s)
@@ -3020,9 +3116,14 @@ pub fn run_ai_audiogram_task(
     let out_path = crate::config::resolve_output(app, &fake_in, "mp4");
 
     let script = r#"
-import sys, os, re, json, shutil, tempfile, subprocess, urllib.request, urllib.parse
+import sys, os, re, json, shutil, tempfile, subprocess, threading, urllib.request, urllib.parse
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
+import cloud_ai_bridge
+
+cloud_ai_bridge.configure_utf8_stdio()
+cloud_ai_bridge.install_pyav19_compat_shim()
+AI_CFG = cloud_ai_bridge.read_stdin_payload()
 
 CREATE_NO_WINDOW = (0x08000000 | 0x00004000) if os.name == "nt" else 0
 
@@ -3379,13 +3480,14 @@ try:
          "-i", in_path, "-vn", "-ac", "1", "-ar", "16000", "-f", "wav", tmp_wav],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False
     )
+    if not os.path.isfile(tmp_wav) or os.path.getsize(tmp_wav) <= 44:
+        raise RuntimeError("Input audio file contains no decodable audio stream.")
     audio_dur = 60.0
-    if os.path.isfile(tmp_wav) and os.path.getsize(tmp_wav) > 44:
-        try:
-            with wave.open(tmp_wav, "rb") as wf:
-                audio_dur = max(1.0, float(wf.getnframes()) / float(max(1, wf.getframerate())))
-        except Exception:
-            pass
+    try:
+        with wave.open(tmp_wav, "rb") as wf:
+            audio_dur = max(1.0, float(wf.getnframes()) / float(max(1, wf.getframerate())))
+    except Exception as e:
+        raise RuntimeError(f"Failed to read extracted audio stream: {e}")
 
     ass_filter = ""
     if captions_on and os.path.isfile(tmp_wav):
@@ -3410,7 +3512,7 @@ try:
         for s in segs_gen:
             if getattr(s, "no_speech_prob", 0.0) > 0.85:
                 continue
-            cur_p = 30 + int(min(1.0, float(s.end) / dur_est) * 34)
+            cur_p = 30 + int(min(1.0, float(s.end) / dur_est) * 32)
             if cur_p >= last_p + 2:
                 last_p = cur_p
                 print(f"PROGRESS:{cur_p}:Transcribing audio ({int(s.end)}s / {int(dur_est)}s)...", flush=True)
@@ -3418,79 +3520,96 @@ try:
             if txt:
                 cues.append({"start": float(s.start), "end": float(s.end), "text": txt})
         if translate_to and cues:
-            print(f"PROGRESS:66:Translating & naturalizing audiogram captions -> {translate_to.upper()}...", flush=True)
-            import concurrent.futures
-            _SLANG_PRE = [
-                (r"\bmy\s+bad\b", "it is my fault"),
-                (r"\bno\s+cap\b", "honestly"),
-                (r"\bfor\s+real\b", "seriously"),
-                (r"\byou\s+guys\b", "everyone"),
-                (r"\blet's\s+go+\b", "awesome, let us do this"),
-                (r"\bwhat\s+is\s+up\s+guys\b", "hello everyone"),
-                (r"\bwhat's\s+up\s+guys\b", "hello everyone"),
-            ]
-            def _pre_en(s):
-                for p, r in _SLANG_PRE:
-                    s = re.sub(p, r, s, flags=re.IGNORECASE)
-                return s
-            def _polish_vi(s):
-                for p, r in [
-                    (r"\b[Ôô]i\s+[Cc]húa\s+ơi\b", "Trời ơi"),
-                    (r"\b[Cc]húa\s+ơi\b", "Trời ơi"),
-                    (r"\b[Cc]hết\s+tiệt\b", "Trời đất"),
-                    (r"\b[Đđ]ồ\s+ngốc\b", "Trời ạ"),
-                    (r"\b[Nn]hững\s+người\s+hâm\s+mộ\b", "các fan"),
-                    (r"\b[Nn]gười\s+hâm\s+mộ\b", "fan"),
-                    (r"\b[Đđ]ăng\s+ký\s+kênh\b", "bấm đăng ký kênh"),
-                    (r"\b[Hh]ãy\s+nhấn\s+thích\b", "nhớ bấm like"),
-                    (r"\b[Kk]hông\s+thể\s+tin\s+được\b", "Đỉnh thật sự"),
-                    (r"\b[Tt]hật\s+không\s+thể\s+tin\s+được\b", "Không thể tin nổi luôn"),
-                    (r"\b[Cc]ảm\s+ơn\s+bạn\s+rất\s+nhiều\b", "Cảm ơn mọi người nhiều nha"),
-                    (r"\b[Hh]ẹn\s+gặp\s+lại\s+bạn\b", "Hẹn gặp lại mọi người"),
-                    (r"(\d+(?:[\.,]\d+)*)\s+đô\s+la(?:\s+Mỹ)?\b", r"\1 đô"),
-                ]:
-                    s = re.sub(p, r, s)
-                return re.sub(r"\s{2,}", " ", s).strip()
+            print(f"PROGRESS:63:Translating audiogram captions -> {translate_to.upper()}...", flush=True)
+            cloud_cues, used_cloud = cloud_ai_bridge.translate_timed_segments_cloud(
+                cues,
+                translate_to,
+                mode="audiogram",
+                ai_cfg=AI_CFG,
+                context_hint=header_title,
+                progress_cb=lambda frac, msg: print(f"PROGRESS:{63 + int(min(1.0, max(0.0, frac)) * 6)}:{msg}", flush=True),
+            )
+            if used_cloud and cloud_cues and len(cloud_cues) == len(cues):
+                cues = cloud_cues
+            else:
+                import concurrent.futures
+                _SLANG_PRE = [
+                    (r"\bmy\s+bad\b", "it is my fault"),
+                    (r"\bno\s+cap\b", "honestly"),
+                    (r"\bfor\s+real\b", "seriously"),
+                    (r"\byou\s+guys\b", "everyone"),
+                    (r"\blet's\s+go+\b", "awesome, let us do this"),
+                    (r"\bwhat\s+is\s+up\s+guys\b", "hello everyone"),
+                    (r"\bwhat's\s+up\s+guys\b", "hello everyone"),
+                ]
+                def _pre_en(s):
+                    for p, r in _SLANG_PRE:
+                        s = re.sub(p, r, s, flags=re.IGNORECASE)
+                    return s
+                def _polish_vi(s):
+                    for p, r in [
+                        (r"\b[Ôô]i\s+[Cc]húa\s+ơi\b", "Trời ơi"),
+                        (r"\b[Cc]húa\s+ơi\b", "Trời ơi"),
+                        (r"\b[Cc]hết\s+tiệt\b", "Trời đất"),
+                        (r"\b[Đđ]ồ\s+ngốc\b", "Trời ạ"),
+                        (r"\b[Nn]hững\s+người\s+hâm\s+mộ\b", "các fan"),
+                        (r"\b[Nn]gười\s+hâm\s+mộ\b", "fan"),
+                        (r"\b[Đđ]ăng\s+ký\s+kênh\b", "bấm đăng ký kênh"),
+                        (r"\b[Hh]ãy\s+nhấn\s+thích\b", "nhớ bấm like"),
+                        (r"\b[Kk]hông\s+thể\s+tin\s+được\b", "Đỉnh thật sự"),
+                        (r"\b[Tt]hật\s+không\s+thể\s+tin\s+được\b", "Không thể tin nổi luôn"),
+                        (r"\b[Cc]ảm\s+ơn\s+bạn\s+rất\s+nhiều\b", "Cảm ơn mọi người nhiều nha"),
+                        (r"\b[Hh]ẹn\s+gặp\s+lại\s+bạn\b", "Hẹn gặp lại mọi người"),
+                        (r"(\d+(?:[\.,]\d+)*)\s+đô\s+la(?:\s+Mỹ)?\b", r"\1 đô"),
+                    ]:
+                        s = re.sub(p, r, s)
+                    return re.sub(r"\s{2,}", " ", s).strip()
 
-            sep = "\n ||| \n"
-            chunks = [(i, cues[i:i+20]) for i in range(0, len(cues), 20)]
-            def _tr_chunk(item):
-                b_idx, ch = item
-                try:
-                    q_txt = sep.join(_pre_en(c["text"]) for c in ch)
-                    u = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=" + urllib.parse.quote(translate_to) + "&dt=t&q=" + urllib.parse.quote(q_txt)
-                    req = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"})
-                    with urllib.request.urlopen(req, timeout=8) as r:
-                        d = json.loads(r.read().decode("utf-8", errors="replace"))
-                    parts = [p.strip() for p in re.split(r"\s*\|\|\|\s*", "".join(x[0] for x in d[0] if x and x[0]))]
-                    if len(parts) == len(ch):
-                        return (b_idx, parts)
-                except Exception:
-                    pass
-                return (b_idx, [c["text"] for c in ch])
+                sep = "\n ||| \n"
+                chunks = [(i, cues[i:i+20]) for i in range(0, len(cues), 20)]
+                def _tr_chunk(item):
+                    b_idx, ch = item
+                    try:
+                        q_txt = sep.join(_pre_en(c["text"]) for c in ch)
+                        u = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=" + urllib.parse.quote(translate_to) + "&dt=t&q=" + urllib.parse.quote(q_txt)
+                        req = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"})
+                        with urllib.request.urlopen(req, timeout=8) as r:
+                            d = json.loads(r.read().decode("utf-8", errors="replace"))
+                        parts = [p.strip() for p in re.split(r"\s*\|\|\|\s*", "".join(x[0] for x in d[0] if x and x[0]))]
+                        if len(parts) == len(ch):
+                            return (b_idx, parts)
+                    except Exception:
+                        pass
+                    return (b_idx, [c["text"] for c in ch])
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, max(1, len(chunks)))) as ex:
-                for b_idx, parts in ex.map(_tr_chunk, chunks):
-                    for c, tr in zip(cues[b_idx:b_idx+20], parts):
-                        if translate_to.lower().startswith("vi"):
-                            tr = _polish_vi(tr)
-                        c["text"] = tr
+                with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, max(1, len(chunks)))) as ex:
+                    for b_idx, parts in ex.map(_tr_chunk, chunks):
+                        for c, tr in zip(cues[b_idx:b_idx+20], parts):
+                            if translate_to.lower().startswith("vi"):
+                                tr = _polish_vi(tr)
+                            c["text"] = tr
 
         def fmt_ass(sec):
             sec = max(0.0, float(sec))
             return f"{int(sec//3600)}:{int((sec%3600)//60):02d}:{int(sec%60):02d}.{min(99, int(round((sec-int(sec))*100))):02d}"
 
+        def clean_ass_text(txt):
+            return re.sub(r"\s+", " ", (txt or "").replace("{", "").replace("}", "").replace("\\", "")).strip()
+
         # Wrap long cues into max 2 balanced lines or split long segments so text always fits inside the rounded bottom pill!
         refined_cues = []
         for c in cues:
-            words = c["text"].split()
+            clean_t = clean_ass_text(c["text"])
+            if not clean_t:
+                continue
+            words = clean_t.split()
             if len(words) > 12:
                 mid = len(words) // 2
                 t_mid = c["start"] + (c["end"] - c["start"]) * (mid / float(len(words)))
                 refined_cues.append({"start": c["start"], "end": t_mid, "text": " ".join(words[:mid])})
                 refined_cues.append({"start": t_mid, "end": c["end"], "text": " ".join(words[mid:])})
             else:
-                refined_cues.append(c)
+                refined_cues.append({"start": c["start"], "end": c["end"], "text": clean_t})
 
         # Crisp text centered inside the rounded glass pill box (py0 = 80.5% to 92%, center at 86.2% -> MarginV = int(H * 0.115))
         prim_col = "&H00FFFFFF"
@@ -3510,12 +3629,12 @@ Style: AgSub,Segoe UI Semibold,37,{prim_col},&H0024BFFB,{out_col},&H80000000,-1,
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
-        ass_events = [f"Dialogue: 0,{fmt_ass(c['start'])},{fmt_ass(c['end'])},AgSub,,0,0,0,,\"{c['text']}\"" for c in refined_cues]
+        ass_events = [f"Dialogue: 0,{fmt_ass(c['start'])},{fmt_ass(c['end'])},AgSub,,0,0,0,,{c['text']}" for c in refined_cues]
         ass_file = os.path.join(tmp_dir, "ag_captions.ass")
         with open(ass_file, "w", encoding="utf-8") as af:
             af.write(ass_header + "\n".join(ass_events) + "\n")
 
-        flt_chk = subprocess.run([ffmpeg_bin, "-hide_banner", "-filters"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, creationflags=CREATE_NO_WINDOW, check=False)
+        flt_chk = subprocess.run([ffmpeg_bin, "-hide_banner", "-filters"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", creationflags=CREATE_NO_WINDOW, check=False)
         has_sub_flt = (" subtitles " in (flt_chk.stdout or ""))
         if has_sub_flt and refined_cues:
             ass_filter = ",subtitles=ag_captions.ass"
@@ -3586,6 +3705,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     w_r, w_g, w_b = (180, 83, 9) if tpl == "daily_cafe" else ((255, 255, 255) if tpl == "vinyl_vibes" else ((253, 224, 71) if tpl == "after_dark" else (56, 189, 248)))
     spin_speed = "1.8" if tpl == "vinyl_vibes" else ("0.55" if tpl == "daily_cafe" else ("0.35" if tpl == "after_dark" else "1.1"))
     tmp_out = os.path.join(tmp_dir, "ag_rendered.mp4")
+    ag_err_state = {"msg": ""}
 
     def run_ag_ffmpeg(v_flags, no_subs=False):
         extra_in = []
@@ -3617,12 +3737,21 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             "-filter_complex", fc,
             "-map", "[v]", "-map", "1:a:0",
         ] + v_flags + [
-            "-c:a", "aac", "-b:a", "192k",
+            "-c:a", "aac", "-b:a", "256k", "-ar", "48000", "-ac", "2",
             "-t", f"{audio_dur:.2f}",
             "-movflags", "+faststart",
             tmp_out,
         ]
         proc = subprocess.Popen(cmd, cwd=tmp_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", creationflags=CREATE_NO_WINDOW)
+        err_chunks = []
+        def _drain_stderr(pipe, sink):
+            try:
+                for eline in pipe:
+                    sink.append(eline)
+            except Exception:
+                pass
+        err_t = threading.Thread(target=_drain_stderr, args=(proc.stderr, err_chunks), daemon=True)
+        err_t.start()
         last_pct = 70
         if proc.stdout:
             for line in proc.stdout:
@@ -3638,6 +3767,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     except Exception:
                         pass
         proc.wait()
+        err_t.join(timeout=2.0)
+        if err_chunks:
+            ag_err_state["msg"] = "".join(err_chunks).strip()[-400:]
 
     run_ag_ffmpeg(enc_flags)
     if (not os.path.isfile(tmp_out) or os.path.getsize(tmp_out) < 2048) and enc_label != "LIBX264":
@@ -3647,6 +3779,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     if os.path.isfile(tmp_out) and os.path.getsize(tmp_out) >= 1024:
         shutil.move(tmp_out, out_path)
+    else:
+        raise RuntimeError(f"Audiogram FFmpeg rendering failed. {ag_err_state['msg']}".strip())
     print("PROGRESS:99:Done!", flush=True)
 finally:
     shutil.rmtree(tmp_dir, ignore_errors=True)
@@ -3658,10 +3792,11 @@ finally:
     let ff_s = ffmpeg_bin.to_string_lossy().into_owned();
     let file_label = input.file_name().and_then(|s| s.to_str()).unwrap_or(stem);
 
-    run_python_streaming(
+    run_python_streaming_with_ai(
         app,
         ag_target,
         file_label,
+        Some("ai_audiogram"),
         script,
         &[
             &in_s,
@@ -3677,7 +3812,13 @@ finally:
             &ff_s,
         ],
     )
-    .map_err(|e| format!("Audiogram Studio error: {e}"))?;
+    .map_err(|e| {
+        if e == "STOPPED_BY_USER" {
+            e
+        } else {
+            format!("Audiogram Studio error: {e}")
+        }
+    })?;
 
     if out_path.is_file() {
         Ok(out_s)
@@ -3705,7 +3846,12 @@ pub fn run_ai_review_task(
 
     let parts: Vec<&str> = rev_target.split(':').collect();
     let base_target = parts.first().copied().unwrap_or(rev_target);
-    let voice_override = parts.get(1).copied();
+    let voice_override_joined: Option<String> = if parts.len() > 1 {
+        let joined = parts[1..].join(":");
+        if joined.trim().is_empty() { None } else { Some(joined) }
+    } else {
+        None
+    };
 
     let (lang_code, lang_name, mut voice_id) = if let Some(rest) = base_target.strip_prefix("rev_pin_") {
         let slot_num: u8 = rest.parse().unwrap_or(1);
@@ -3724,9 +3870,9 @@ pub fn run_ai_review_task(
         )
     };
 
-    if let Some(vo) = voice_override {
+    if let Some(ref vo) = voice_override_joined {
         if !vo.is_empty() && vo != "auto" && vo != "rev_vc_auto" {
-            voice_id = vo.to_string();
+            voice_id = vo.clone();
         }
     } else if cfg.vs_enabled && cfg.vs_override_global && !cfg.vs_active_voice.is_empty() {
         voice_id = cfg.vs_active_voice.clone();
@@ -3740,10 +3886,20 @@ pub fn run_ai_review_task(
     let fake_in = input.with_file_name(format!("{stem}_review_{clean_lang_tag}.mp4"));
     let out_path = crate::config::resolve_output(app, &fake_in, "mp4");
 
-    let script = r#"
-import sys, os, re, math, json, wave, shutil, asyncio, tempfile, subprocess, concurrent.futures, urllib.request, urllib.parse
+    let script = r####"
+import sys, os, re, math, json, wave, shutil, tempfile, subprocess, threading, concurrent.futures, urllib.request, urllib.parse
 import numpy as np
-import cv2
+import cloud_ai_bridge
+import tts_provider
+
+cloud_ai_bridge.configure_utf8_stdio()
+cloud_ai_bridge.install_pyav19_compat_shim()
+AI_CFG = cloud_ai_bridge.read_stdin_payload()
+
+try:
+    import cv2
+except ImportError:
+    cv2 = None
 
 CREATE_NO_WINDOW = (0x08000000 | 0x00004000) if os.name == "nt" else 0
 SAFE_CPU = max(2, min((os.cpu_count() or 8) - 2, int((os.cpu_count() or 8) * 0.75)))
@@ -3779,48 +3935,59 @@ try:
 except Exception:
     rev_logo_opacity = 90
 rev_brand_text = (sys.argv[22] if len(sys.argv) > 22 else "").strip()
+eleven_key = (sys.argv[23] if len(sys.argv) > 23 else "").strip()
+if eleven_key:
+    if not AI_CFG.get("elevenlabs_key"):
+        AI_CFG["elevenlabs_key"] = eleven_key
+    vk = AI_CFG.setdefault("vault_keys", {})
+    if not vk.get("elevenlabs"):
+        vk["elevenlabs"] = eleven_key
+
 try:
     bgm_vol = max(0.0, min(0.6, float(bgm_vol_str)))
 except Exception:
     bgm_vol = 0.07
 
-VOICE_MAP = {
-    "vi": ("vi-VN-NamMinhNeural", "vi-VN-HoaiMyNeural"),
-    "en": ("en-US-AndrewMultilingualNeural", "en-US-AvaMultilingualNeural"),
-    "zh-cn": ("zh-CN-YunxiNeural", "zh-CN-XiaoxiaoNeural"),
-    "zh-tw": ("zh-TW-YunJheNeural", "zh-TW-HsiaoChenNeural"),
-    "zh": ("zh-CN-YunxiNeural", "zh-CN-XiaoxiaoNeural"),
-    "ja": ("ja-JP-KeitaNeural", "ja-JP-NanamiNeural"),
-    "ko": ("ko-KR-InJoonNeural", "ko-KR-SunHiNeural"),
-    "es": ("es-ES-AlvaroNeural", "es-ES-ElviraNeural"),
-    "fr": ("fr-FR-HenriNeural", "fr-FR-DeniseNeural"),
-    "de": ("de-DE-ConradNeural", "de-DE-KatjaNeural"),
-    "ru": ("ru-RU-DmitryNeural", "ru-RU-SvetlanaNeural"),
-    "th": ("th-TH-NiwatNeural", "th-TH-PremwadeeNeural"),
-    "id": ("id-ID-ArdiNeural", "id-ID-GadisNeural"),
-    "pt": ("pt-BR-AntonioNeural", "pt-BR-FranciscaNeural"),
-    "it": ("it-IT-DiegoNeural", "it-IT-ElsaNeural"),
-    "ar": ("ar-SA-HamedNeural", "ar-SA-ZariyahNeural"),
-    "hi": ("hi-IN-MadhurNeural", "hi-IN-SwaraNeural"),
-    "tr": ("tr-TR-AhmetNeural", "tr-TR-EmelNeural"),
-    "nl": ("nl-NL-MaartenNeural", "nl-NL-FennaNeural"),
-    "pl": ("pl-PL-MarekNeural", "pl-PL-ZofiaNeural"),
-    "km": ("km-KH-PisethNeural", "km-KH-SreymomNeural"),
-    "lo": ("lo-LA-ChanthavongNeural", "lo-LA-KeomanyNeural"),
-    "ms": ("ms-MY-OsmanNeural", "ms-MY-YasminNeural"),
-    "fil": ("fil-PH-AngeloNeural", "fil-PH-BlessicaNeural"),
-    "tl": ("fil-PH-AngeloNeural", "fil-PH-BlessicaNeural"),
-    "uk": ("uk-UA-OstapNeural", "uk-UA-PolinaNeural"),
-    "cs": ("cs-CZ-AntoninNeural", "cs-CZ-VlastaNeural"),
-    "sv": ("sv-SE-MattiasNeural", "sv-SE-SofieNeural"),
-    "el": ("el-GR-NestorasNeural", "el-GR-AthinaNeural"),
-    "he": ("he-IL-AvriNeural", "he-IL-HilaNeural"),
-    "hu": ("hu-HU-TamasNeural", "hu-HU-NoemiNeural"),
-    "ro": ("ro-RO-EmilNeural", "ro-RO-AlinaNeural"),
-    "da": ("da-DK-JeppeNeural", "da-DK-ChristelNeural"),
-    "fi": ("fi-FI-HarriNeural", "fi-FI-NooraNeural"),
-    "no": ("nb-NO-FinnNeural", "nb-NO-PernilleNeural"),
-}
+def parse_tts_speed(rate_s):
+    rs = (rate_s or "").strip().lower()
+    if not rs:
+        return 1.05
+    try:
+        if rs.endswith("%"):
+            return max(0.65, min(1.5, 1.0 + float(rs[:-1]) / 100.0))
+        if rs.endswith("x"):
+            return max(0.65, min(1.5, float(rs[:-1])))
+        return max(0.65, min(1.5, float(rs)))
+    except Exception:
+        return 1.05
+
+tts_speed_f = parse_tts_speed(tts_rate)
+
+def probe_video_dims(vpath):
+    if cv2 is not None:
+        try:
+            cap = cv2.VideoCapture(vpath)
+            if cap.isOpened():
+                w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+                h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+                cap.release()
+                if w > 0 and h > 0:
+                    return w, h
+        except Exception:
+            pass
+    try:
+        r = subprocess.run(
+            [ffmpeg_bin, "-hide_banner", "-i", vpath],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, encoding="utf-8", errors="replace",
+            creationflags=CREATE_NO_WINDOW, check=False
+        )
+        m = re.search(r"Stream #\d+:\d+[^\n]*Video:[^\n]*?\b(\d{2,5})x(\d{2,5})\b", r.stderr or "")
+        if m:
+            return int(m.group(1)), int(m.group(2))
+    except Exception:
+        pass
+    return 1920, 1080
 
 def clean_title_from_filename(fpath):
     raw = os.path.basename(fpath).rsplit(".", 1)[0]
@@ -4203,23 +4370,22 @@ def translate_review_beats(texts, tl):
     for _, p_list in results:
         out.extend(p_list)
 
-    # Polish Vietnamese review narration so it sounds like an authentic Vietnamese Movie/Video Reviewer
+    # Polish offline Vietnamese review narration safely (without corrupting pronouns)
     if tl.lower().startswith("vi"):
         polished = []
         for s in out:
-            s = re.sub(r"\b(?:Chương|Phần|Chapter)\s+\d+\s*[:.\-]?\s*", "", s, flags=re.IGNORECASE)
+            s = re.sub(r"\b(?:Chương|Phần|Chapter|Part|Section)\s+\d+\s*[:.\-]?\s*", "", s, flags=re.IGNORECASE)
             s = re.sub(r"\b[Ôô]i\s+[Cc]húa\s+ơi\b", "Trời ơi", s)
             s = re.sub(r"\b(\d+(?:[\.,]\d+)*)\s+đô\s+la(?:\s+Mỹ)?\b", r"\1 đô", s, flags=re.IGNORECASE)
             s = re.sub(r"\b[Tt]rong bài đánh giá nổi bật này về\b", "Chào mừng các bạn đến với video tóm tắt và review", s)
             s = re.sub(r"\b[Đđ]ây là bản tóm tắt toàn bộ câu chuyện của\b", "Hôm nay chúng ta cùng tóm tắt toàn bộ diễn biến của", s)
             s = re.sub(r"\b[Tt]rong bài đánh giá toàn diện này về\b", "Cùng đi sâu đánh giá chi tiết", s)
-            s = re.sub(r"\b[Tt]ôi\b", "nhân vật chính", s)
             s = re.sub(r"\s{2,}", " ", s).strip()
             polished.append(s)
         return polished
     return out
 
-def trim_pcm_silence(pcm, thresh=0.008, pad_samples=480):
+def trim_pcm_silence(pcm, thresh=0.008, pad_samples=960):
     if len(pcm) == 0:
         return pcm
     idx = np.where(np.abs(pcm) > thresh)[0]
@@ -4229,101 +4395,69 @@ def trim_pcm_silence(pcm, thresh=0.008, pad_samples=480):
     e = min(len(pcm), int(idx[-1]) + pad_samples)
     return pcm[s:e]
 
-async def synthesize_review_beats(beats, lang_code, chosen_voice, tmp_dir):
-    import edge_tts
-    lc = lang_code.lower()
-    pair = VOICE_MAP.get(lc) or VOICE_MAP.get(lc.split("-")[0]) or ("en-US-AndrewMultilingualNeural", "en-US-AvaMultilingualNeural")
-    resolved_voice = pair[0]
-
-    clone_profile = None
-    pitch_shift_st = 0.0
-    bass_gain_db = 0.0
-    treble_gain_db = 0.0
-    if os.path.isfile(chosen_voice):
-        try:
-            with open(chosen_voice, "r", encoding="utf-8") as pf:
-                clone_profile = json.load(pf)
-                base_v = clone_profile.get("base_neural_voice")
-                if base_v:
-                    resolved_voice = base_v
-                pitch_shift_st = float(clone_profile.get("pitch_shift_st", 0.0))
-                bass_gain_db = float(clone_profile.get("eq_preset", {}).get("bass_gain_db", 0.0))
-                treble_gain_db = float(clone_profile.get("eq_preset", {}).get("treble_gain_db", 0.0))
-        except Exception:
-            pass
-    elif not chosen_voice or chosen_voice == "male":
-        resolved_voice = pair[0]
-    elif chosen_voice == "female":
-        resolved_voice = pair[1]
-    elif "Neural" in chosen_voice:
-        resolved_voice = chosen_voice
-    else:
-        resolved_voice = pair[0]
-
-    # Dynamic lookup if custom language not in static VOICE_MAP and user picked male/female
-    if not clone_profile and chosen_voice in ("", "male", "female", "auto") and lc not in VOICE_MAP and lc.split("-")[0] not in VOICE_MAP:
-        try:
-            vm = await asyncio.wait_for(edge_tts.VoicesManager.create(), timeout=10.0)
-            lang_prefix = lc.split("-")[0]
-            want_gender = "Female" if chosen_voice == "female" else "Male"
-            matches = [v["ShortName"] for v in vm.voices if v.get("Locale", "").lower().startswith(lang_prefix) and v.get("Gender") == want_gender]
-            if not matches:
-                matches = [v["ShortName"] for v in vm.voices if v.get("Locale", "").lower().startswith(lang_prefix)]
-            if matches:
-                resolved_voice = matches[0]
-        except Exception:
-            pass
-
-    sem = asyncio.Semaphore(5)
+def synthesize_review_beats_48k(beats, lang_code, chosen_voice, tmp_dir):
     total_b = max(1, len(beats))
-    done_b = 0
+    done_lock = threading.Lock()
+    done_state = {"n": 0}
 
-    async def synth_one(idx, b):
-        nonlocal done_b
+    def synth_one_beat(idx):
+        b = beats[idx]
         txt = (b.get("script_target") or "").strip()
-        raw_mp3 = os.path.join(tmp_dir, f"rev_tts_{idx:04d}.mp3")
-        async with sem:
-            for attempt in range(3):
-                try:
-                    if os.path.isfile(raw_mp3):
-                        try: os.remove(raw_mp3)
-                        except Exception: pass
-                    comm = edge_tts.Communicate(txt, resolved_voice, rate=tts_rate)
-                    await asyncio.wait_for(comm.save(raw_mp3), timeout=18.0)
-                    if os.path.isfile(raw_mp3) and os.path.getsize(raw_mp3) > 128:
-                        if (abs(pitch_shift_st) > 0.1 or abs(bass_gain_db) > 0.5 or abs(treble_gain_db) > 0.5) and os.path.isfile(raw_mp3):
-                            morphed_mp3 = os.path.join(tmp_dir, f"rev_morphed_{idx:04d}.mp3")
-                            f_parts = []
-                            if abs(pitch_shift_st) > 0.1:
-                                ratio = 2.0 ** (pitch_shift_st / 12.0)
-                                f_parts.append(f"asetrate=24000*{ratio:.4f},aresample=24000,atempo={1.0/ratio:.4f}")
-                            if abs(bass_gain_db) > 0.5:
-                                f_parts.append(f"bass=g={bass_gain_db:.1f}:f=150")
-                            if abs(treble_gain_db) > 0.5:
-                                f_parts.append(f"treble=g={treble_gain_db:.1f}:f=3500")
-                            f_str = ",".join(f_parts)
-                            cmd_morph = [ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error", "-i", raw_mp3, "-af", f_str, "-c:a", "libmp3lame", "-q:a", "2", morphed_mp3]
-                            r_m = subprocess.run(cmd_morph, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False)
-                            if r_m.returncode == 0 and os.path.isfile(morphed_mp3) and os.path.getsize(morphed_mp3) > 128:
-                                shutil.move(morphed_mp3, raw_mp3)
-                        b["tts_mp3"] = raw_mp3
-                        break
-                except Exception:
-                    await asyncio.sleep(0.35 * (attempt + 1))
-            if not b.get("tts_mp3") and sys.platform == "darwin":
-                try:
-                    raw_aiff = os.path.join(tmp_dir, f"rev_say_{idx:04d}.aiff")
-                    subprocess.run(["/usr/bin/say", "-o", raw_aiff, txt], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=12)
-                    if os.path.isfile(raw_aiff) and os.path.getsize(raw_aiff) > 128:
-                        subprocess.run([ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error", "-i", raw_aiff, "-c:a", "libmp3lame", "-q:a", "3", raw_mp3], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=12)
-                        if os.path.isfile(raw_mp3) and os.path.getsize(raw_mp3) > 128:
-                            b["tts_mp3"] = raw_mp3
-                except Exception:
-                    pass
-        done_b += 1
-        emit_prog(48 + int((done_b / total_b) * 20), f"Synthesizing Review Voiceover ({done_b}/{total_b})...")
+        if not txt:
+            return None
+        prev_txt = (beats[idx - 1].get("script_target") or "").strip() if idx > 0 else ""
+        next_txt = (beats[idx + 1].get("script_target") or "").strip() if idx + 1 < len(beats) else ""
+        wav_p = os.path.join(tmp_dir, f"rev_voice_{idx:04d}.wav")
+        try:
+            tts_provider.synthesize_cue_or_text(
+                txt,
+                voice_spec=chosen_voice,
+                lang_code=lang_code,
+                out_wav_48k=wav_p,
+                speed=tts_speed_f,
+                ai_cfg=AI_CFG,
+                ffmpeg_bin=ffmpeg_bin,
+                prev_text=prev_txt,
+                next_text=next_txt,
+            )
+            if not os.path.isfile(wav_p) or os.path.getsize(wav_p) <= 128:
+                return None
+            with wave.open(wav_p, "rb") as wf:
+                sr_vo = max(16000, int(wf.getframerate() or 48000))
+                n_ch = max(1, int(wf.getnchannels() or 1))
+                raw_bytes = wf.readframes(wf.getnframes())
+            pcm = np.frombuffer(raw_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+            if n_ch > 1:
+                pcm = pcm.reshape(-1, n_ch).mean(axis=1)
+            pcm = trim_pcm_silence(pcm, thresh=0.008, pad_samples=int(0.02 * sr_vo))
+            if len(pcm) < int(0.02 * sr_vo):
+                return None
+            # Add 0.18s natural breathing pause at end of each review beat
+            pause_samples = np.zeros(int(0.18 * sr_vo), dtype=np.float32)
+            pcm_padded = np.concatenate([pcm, pause_samples])
+            with wave.open(wav_p, "wb") as wout:
+                wout.setnchannels(1)
+                wout.setsampwidth(2)
+                wout.setframerate(sr_vo)
+                wout.writeframes((np.clip(pcm_padded, -0.99, 0.99) * 32767.0).astype(np.int16).tobytes())
+            b["voice_wav"] = wav_p
+            b["voice_pcm"] = pcm_padded
+            b["voice_sr"] = sr_vo
+            b["narration_dur"] = float(len(pcm_padded)) / float(sr_vo)
+            return b
+        except Exception as e:
+            sys.stderr.write(f"[WARN] Review beat {idx} TTS error: {e}\n")
+            return None
+        finally:
+            with done_lock:
+                done_state["n"] += 1
+                dn = done_state["n"]
+            emit_prog(48 + int((dn / total_b) * 22), f"Synthesizing 48kHz Review Voiceover ({dn}/{total_b})...")
 
-    await asyncio.gather(*(synth_one(i, b) for i, b in enumerate(beats)))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
+        list(ex.map(synth_one_beat, range(len(beats))))
+
+    return [b for b in beats if b.get("voice_wav") and os.path.isfile(b["voice_wav"])]
 
 tmp_dir = tempfile.mkdtemp(prefix="pizza_review_")
 try:
@@ -4335,6 +4469,9 @@ try:
          "-i", in_path, "-vn", "-ac", "1", "-ar", "16000", "-f", "wav", tmp_wav],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False
     )
+    if not os.path.isfile(tmp_wav) or os.path.getsize(tmp_wav) < 1024:
+        raise RuntimeError("Input video contains no decodable audio stream for AI Review.")
+
     with wave.open(tmp_wav, "rb") as wf:
         sr = wf.getframerate()
         raw_pcm = wf.readframes(wf.getnframes())
@@ -4374,7 +4511,7 @@ try:
     for s in segs_gen:
         if getattr(s, "no_speech_prob", 0.0) > 0.85:
             continue
-        cur_p = 14 + int(min(1.0, float(s.end) / video_dur) * 24)
+        cur_p = 14 + int(min(1.0, float(s.end) / video_dur) * 23)
         if cur_p >= last_p + 2:
             last_p = cur_p
             emit_prog(cur_p, f"Analyzing story beats ({int(s.end)}s / {int(video_dur)}s)...")
@@ -4384,20 +4521,80 @@ try:
 
     title_str = clean_title_from_filename(in_path)
     detected_genre = detect_video_genre(segs, title_str, genre_cfg)
-    emit_prog(40, f"Writing {detected_genre.upper()} Review Script ({lang_name})...")
-    beats = build_chronological_review_beats(segs, rms_profile, video_dur, detected_genre, length_cfg, title_str)
+    emit_prog(38, f"Writing {detected_genre.upper()} Review Script ({lang_name})...")
 
-    # Translate & naturalize into target review language
-    en_scripts = [b["script_en"] for b in beats]
-    if lang_code.lower().startswith("en"):
-        target_scripts = en_scripts
-    else:
-        target_scripts = translate_review_beats(en_scripts, lang_code)
+    # Pre-TTS Cloud AI Narrative Script & YouTube Metadata Pack (drives actual video narration & B-roll!)
+    beats = []
+    rms_1s = rms_profile[::2].tolist() if len(rms_profile) > 0 else []
+    cloud_res = cloud_ai_bridge.generate_review_beats_cloud(
+        segs,
+        rms_1s,
+        video_dur,
+        detected_genre,
+        length_cfg,
+        lang_code,
+        lang_name,
+        title_str,
+        AI_CFG,
+        progress_cb=lambda frac, msg: emit_prog(38 + int(min(1.0, max(0.0, frac)) * 9), msg),
+    )
+    if isinstance(cloud_res, dict) and isinstance(cloud_res.get("beats"), list):
+        c_beats = cloud_res["beats"]
+        avg_min_dur = max(7.0, min(16.0, (video_dur * 0.30) / float(max(1, len(c_beats)))))
+        for bi, cb in enumerate(c_beats):
+            clean_nar = re.sub(
+                r"\b(?:Chapter|Chương|Phần|Part|Section)\s+\d+\s*[:.\-]?\s*",
+                "",
+                str(cb.get("narration") or ""),
+                flags=re.IGNORECASE,
+            ).strip()
+            if not clean_nar:
+                continue
+            zs = float(cb.get("zone_start", 0.0))
+            ze = max(zs + 1.0, float(cb.get("zone_end", video_dur)))
+            anc = float(cb.get("broll_anchor_sec", 0.5 * (zs + ze)))
+            beats.append({
+                "beat_idx": bi,
+                "zone_start": zs,
+                "zone_end": ze,
+                "center_time": anc,
+                "script_en": clean_nar,
+                "script_target": clean_nar,
+                "min_scene_dur": avg_min_dur,
+            })
+        # Save UTF-8 YouTube Metadata Pack with mandatory Educational & Medical Disclaimer (Rule #4)
+        try:
+            yt_pack = cloud_res.get("youtube_pack") if isinstance(cloud_res.get("youtube_pack"), dict) else {}
+            yt_md_path = os.path.splitext(out_path)[0] + "_youtube_pack.md"
+            titles_list = [str(t).strip() for t in (yt_pack.get("titles") or []) if str(t).strip()]
+            desc_txt = str(yt_pack.get("description") or "").strip()
+            if "disclaimer:" not in desc_txt.lower():
+                desc_txt = (desc_txt + "\n\n" + cloud_ai_bridge.EDUCATIONAL_MEDICAL_DISCLAIMER).strip()
+            tags_list = [str(t).strip().lstrip("#") for t in (yt_pack.get("tags") or []) if str(t).strip()]
+            with open(yt_md_path, "w", encoding="utf-8") as yf:
+                yf.write(f"# YouTube & Social Metadata Pack — {cloud_res.get('hook_headline') or title_str}\n\n")
+                if titles_list:
+                    yf.write("## High-CTR Title Options\n")
+                    for idx_t, t_opt in enumerate(titles_list, 1):
+                        yf.write(f"{idx_t}. {t_opt}\n")
+                    yf.write("\n")
+                yf.write("## Video Description\n")
+                yf.write(desc_txt + "\n\n")
+                if tags_list:
+                    yf.write("## Hashtags & SEO Tags\n")
+                    yf.write(" ".join(f"#{tg.replace(' ', '')}" for tg in tags_list[:20]) + "\n\n")
+                    yf.write(", ".join(tags_list[:25]) + "\n")
+        except Exception as e_yt:
+            sys.stderr.write(f"[WARN] Could not write YouTube metadata pack: {e_yt}\n")
 
-    for b, tr in zip(beats, target_scripts):
-        # Guarantee NO "Chapter 1/2" labels per Global User Rule #2
-        clean_tr = re.sub(r"\b(?:Chapter|Chương|Phần)\s+\d+\s*[:.\-]?\s*", "", tr, flags=re.IGNORECASE).strip()
-        b["script_target"] = clean_tr or b["script_en"]
+    if len(beats) < 3:
+        beats = build_chronological_review_beats(segs, rms_profile, video_dur, detected_genre, length_cfg, title_str)
+        en_scripts = [b["script_en"] for b in beats]
+        target_scripts = en_scripts if lang_code.lower().startswith("en") else translate_review_beats(en_scripts, lang_code)
+        for b, tr in zip(beats, target_scripts):
+            # Guarantee NO "Chapter 1/2" labels per Global User Rule #2
+            clean_tr = re.sub(r"\b(?:Chapter|Chương|Phần|Part|Section)\s+\d+\s*[:.\-]?\s*", "", tr, flags=re.IGNORECASE).strip()
+            b["script_target"] = clean_tr or b["script_en"]
 
     # Save UTF-8 review script file alongside the output video
     try:
@@ -4410,51 +4607,13 @@ try:
     except Exception:
         pass
 
-    emit_prog(48, f"Synthesizing Neural Review Voice ({voice_id})...")
-    asyncio.run(synthesize_review_beats(beats, lang_code, voice_id, tmp_dir))
-
-    # Decode each beat's TTS audio to 24kHz mono WAV and measure exact narration duration
-    emit_prog(70, "Matching chronological B-roll scenes to review narration...")
-    valid_beats = []
-    for idx, b in enumerate(beats):
-        mp3_p = b.get("tts_mp3")
-        if not mp3_p or not os.path.isfile(mp3_p):
-            continue
-        wav_p = os.path.join(tmp_dir, f"rev_voice_{idx:04d}.wav")
-        subprocess.run(
-            [ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error",
-             "-i", mp3_p, "-ac", "1", "-ar", "24000", "-f", "wav", wav_p],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False
-        )
-        if not os.path.isfile(wav_p):
-            continue
-        with wave.open(wav_p, "rb") as wf:
-            pcm = np.frombuffer(wf.readframes(wf.getnframes()), dtype=np.int16).astype(np.float32) / 32768.0
-        pcm = trim_pcm_silence(pcm)
-        if len(pcm) < 480:
-            continue
-        # Add 0.18s natural breathing pause at end of each review beat
-        pause_samples = np.zeros(int(0.18 * 24000), dtype=np.float32)
-        pcm_padded = np.concatenate([pcm, pause_samples])
-        with wave.open(wav_p, "wb") as wout:
-            wout.setnchannels(1)
-            wout.setsampwidth(2)
-            wout.setframerate(24000)
-            wout.writeframes((np.clip(pcm_padded, -0.99, 0.99) * 32767.0).astype(np.int16).tobytes())
-        b["voice_wav"] = wav_p
-        b["voice_pcm"] = pcm_padded
-        b["narration_dur"] = float(len(pcm_padded)) / 24000.0
-        valid_beats.append(b)
-
+    emit_prog(48, f"Synthesizing 48kHz Neural Review Voice ({voice_id})...")
+    valid_beats = synthesize_review_beats_48k(beats, lang_code, voice_id, tmp_dir)
     if not valid_beats:
         raise RuntimeError("Could not synthesize review voiceover.")
 
-    # Inspect source video dimensions
-    cap = cv2.VideoCapture(in_path)
-    orig_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1920) if cap.isOpened() else 1920
-    orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 1080) if cap.isOpened() else 1080
-    if cap.isOpened():
-        cap.release()
+    emit_prog(71, "Matching chronological B-roll scenes to 48kHz review narration...")
+    orig_w, orig_h = probe_video_dims(in_path)
 
     want_vertical = (aspect_cfg == "9:16")
     play_x, play_y = (1080, 1920) if want_vertical else (1920, 1080)
@@ -4474,16 +4633,17 @@ try:
             enc_label = ename
             break
 
-    # Extract each beat's matching B-roll video clip + ducked original audio mixed with the Review Narrator voice
+    # Extract each beat's matching B-roll video clip + ducked stereo original audio mixed with 48kHz Review Narrator voice
     concat_v_files = []
     review_cues = []
     timeline_cursor = 0.0
     prev_broll_end = 0.0
+    aud_scene_flags = ["-c:a", "aac", "-b:a", "256k", "-ar", "48000", "-ac", "2"]
 
     for idx_v, b in enumerate(valid_beats):
         nar_dur = b["narration_dur"]
+        sr_vo = int(b.get("voice_sr", 48000))
         min_sc_dur = float(b.get("min_scene_dur", 8.5))
-        # Ensure each scene beat plays long enough to hit the target review duration (e.g. ~6.5m for a 22m movie)
         scene_dur = max(nar_dur, min(min_sc_dur, b["zone_end"] - b["zone_start"]))
         z_s = max(b["zone_start"], prev_broll_end)
         z_e = max(z_s + 0.5, b["zone_end"])
@@ -4494,17 +4654,22 @@ try:
         scene_dur = max(nar_dur, min(scene_dur, avail_dur))
         prev_broll_end = clip_start + scene_dur
 
-        # If scene_dur > nar_dur, pad the voiceover WAV with silence at the tail so amix=duration=longest spans scene_dur
+        # Pad voiceover WAV with 48kHz tail silence if scene_dur > nar_dur so amix spans scene_dur cleanly
         if scene_dur > nar_dur + 0.08:
-            extra_samples = np.zeros(int((scene_dur - nar_dur) * 24000), dtype=np.float32)
+            extra_samples = np.zeros(int((scene_dur - nar_dur) * sr_vo), dtype=np.float32)
             padded_vo = np.concatenate([b["voice_pcm"], extra_samples])
             with wave.open(b["voice_wav"], "wb") as wout:
                 wout.setnchannels(1)
                 wout.setsampwidth(2)
-                wout.setframerate(24000)
+                wout.setframerate(sr_vo)
                 wout.writeframes((np.clip(padded_vo, -0.99, 0.99) * 32767.0).astype(np.int16).tobytes())
 
         beat_mp4 = os.path.join(tmp_dir, f"beat_clip_{idx_v:04d}.mp4")
+        aud_fc = (
+            f"[0:a]volume={bgm_vol:.3f},aresample=48000,aformat=channel_layouts=stereo[a_bg];"
+            f"[1:a]volume=1.12,aresample=48000,aformat=channel_layouts=stereo[a_vo];"
+            f"[a_bg][a_vo]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0,alimiter=limit=0.89[aout]"
+        )
         if want_vertical and orig_w > orig_h:
             # 9:16 vertical blurred-backdrop studio frame for 16:9 source video
             vf_scale = (
@@ -4517,31 +4682,30 @@ try:
                 ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error",
                 "-ss", f"{clip_start:.3f}", "-t", f"{scene_dur:.3f}", "-i", in_path,
                 "-i", b["voice_wav"],
-                "-filter_complex",
-                vf_scale + f";[0:a]volume={bgm_vol:.3f},aresample=24000[a_bg];[1:a]volume=1.18,aresample=24000[a_vo];[a_bg][a_vo]amix=inputs=2:duration=longest:dropout_transition=0[aout]",
+                "-filter_complex", f"{vf_scale};{aud_fc}",
                 "-map", "[vout]", "-map", "[aout]",
-            ] + enc_flags + ["-c:a", "aac", "-b:a", "160k", "-t", f"{scene_dur:.3f}", beat_mp4]
+            ] + enc_flags + aud_scene_flags + ["-t", f"{scene_dur:.3f}", beat_mp4]
         else:
             vf_simple = f"scale={play_x}:{play_y}:force_original_aspect_ratio=decrease,pad={play_x}:{play_y}:(ow-iw)/2:(oh-ih)/2,fps=24,format=yuv420p"
             cmd_b = [
                 ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error",
                 "-ss", f"{clip_start:.3f}", "-t", f"{scene_dur:.3f}", "-i", in_path,
                 "-i", b["voice_wav"],
-                "-filter_complex",
-                f"[0:v]{vf_simple}[vout];[0:a]volume={bgm_vol:.3f},aresample=24000[a_bg];[1:a]volume=1.18,aresample=24000[a_vo];[a_bg][a_vo]amix=inputs=2:duration=longest:dropout_transition=0[aout]",
+                "-filter_complex", f"[0:v]{vf_simple}[vout];{aud_fc}",
                 "-map", "[vout]", "-map", "[aout]",
-            ] + enc_flags + ["-c:a", "aac", "-b:a", "160k", "-t", f"{scene_dur:.3f}", beat_mp4]
+            ] + enc_flags + aud_scene_flags + ["-t", f"{scene_dur:.3f}", beat_mp4]
 
         subprocess.run(cmd_b, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False)
         if not os.path.isfile(beat_mp4) or os.path.getsize(beat_mp4) < 1024:
-            # Fallback if source video has no audio stream
+            # Fallback if source video has no audio stream (still 48kHz stereo AAC 256k for lossless concat)
             cmd_b_noaud = [
                 ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error",
                 "-ss", f"{clip_start:.3f}", "-t", f"{scene_dur:.3f}", "-i", in_path,
                 "-i", b["voice_wav"],
                 "-vf", f"scale={play_x}:{play_y}:force_original_aspect_ratio=decrease,pad={play_x}:{play_y}:(ow-iw)/2:(oh-ih)/2,fps=24,format=yuv420p",
+                "-af", "aresample=48000,aformat=channel_layouts=stereo",
                 "-map", "0:v:0", "-map", "1:a:0",
-            ] + enc_flags + ["-c:a", "aac", "-b:a", "160k", "-t", f"{scene_dur:.3f}", beat_mp4]
+            ] + enc_flags + aud_scene_flags + ["-t", f"{scene_dur:.3f}", beat_mp4]
             subprocess.run(cmd_b_noaud, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False)
 
         if os.path.isfile(beat_mp4) and os.path.getsize(beat_mp4) >= 1024:
@@ -5075,7 +5239,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     emit_prog(99, "Finalizing AI Review video...")
 finally:
     shutil.rmtree(tmp_dir, ignore_errors=True)
-"#;
+"####;
 
     let in_s = input.to_string_lossy().into_owned();
     let out_s = out_path.to_string_lossy().into_owned();
@@ -5086,10 +5250,11 @@ finally:
     let ff_s = ffmpeg_bin.to_string_lossy().into_owned();
     let file_label = input.file_name().and_then(|s| s.to_str()).unwrap_or(stem);
 
-    run_python_streaming(
+    run_python_streaming_with_ai(
         app,
         rev_target,
         file_label,
+        Some("ai_review"),
         script,
         &[
             &in_s,
@@ -5114,37 +5279,18 @@ finally:
             &logo_scale_s,
             &logo_op_s,
             &cfg.ai_review_brand_text,
+            "",
         ],
     )
-    .map_err(|e| format!("AI Video Review Engine error: {e}"))?;
+    .map_err(|e| {
+        if e == "STOPPED_BY_USER" {
+            e
+        } else {
+            format!("AI Video Review Engine error: {e}")
+        }
+    })?;
 
     if out_path.is_file() {
-        // Optional Cloud AI Review Script & YouTube Pack enhancement (`ai_review`)
-        if crate::cloud_ai::feature_provider(app, "ai_review").is_some() {
-            let script_txt_path = out_path.with_file_name(format!(
-                "{}_script.txt",
-                out_path.file_stem().and_then(|s| s.to_str()).unwrap_or("review")
-            ));
-            if let Ok(raw_script) = std::fs::read_to_string(&script_txt_path) {
-                if let Some(ai_md) = crate::cloud_ai::run_feature_chat(
-                    app,
-                    "ai_review",
-                    "You are a professional Movie & Video Recap Writer and YouTube Strategist. Never use 'Chapter 1', 'Chapter 2' labels — write a continuous, engaging narrative.",
-                    &format!(
-                        "Target Language: {lang_name} ({lang_code})\nGenre: {}\n\nRaw Chronological Recap Transcript:\n{}\n\nPlease produce:\n1. A polished, dramatic continuous Review Narration Script in {lang_name} (no 'Chapter' labels).\n2. 5 High-CTR YouTube/TikTok Titles.\n3. An SEO Video Description & Hashtag Pack.",
-                        cfg.ai_review_genre,
-                        raw_script.chars().take(12000).collect::<String>()
-                    ),
-                    &[],
-                ) {
-                    let ai_pack_path = out_path.with_file_name(format!(
-                        "{}_cloud_ai_review.md",
-                        out_path.file_stem().and_then(|s| s.to_str()).unwrap_or("review")
-                    ));
-                    let _ = std::fs::write(&ai_pack_path, format!("{ai_md}\n"));
-                }
-            }
-        }
         Ok(out_s)
     } else {
         Err("AI Review video file was not created".into())

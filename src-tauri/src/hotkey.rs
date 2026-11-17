@@ -76,6 +76,8 @@ static CLOUD_ENABLED: AtomicBool = AtomicBool::new(true);
 static CLOUD_SHORTCUT: Mutex<Option<ParsedShortcut>> = Mutex::new(None);
 static DESIGN_ENABLED: AtomicBool = AtomicBool::new(true);
 static DESIGN_SHORTCUT: Mutex<Option<ParsedShortcut>> = Mutex::new(None);
+static VIDEO_DOWNLOADER_ENABLED: AtomicBool = AtomicBool::new(true);
+static VIDEO_DOWNLOADER_SHORTCUT: Mutex<Option<ParsedShortcut>> = Mutex::new(None);
 
 pub fn set_enabled(v: bool) {
     ENABLED.store(v, Ordering::Relaxed);
@@ -87,6 +89,10 @@ pub fn set_cloud_enabled(v: bool) {
 
 pub fn set_design_enabled(v: bool) {
     DESIGN_ENABLED.store(v, Ordering::Relaxed);
+}
+
+pub fn set_video_downloader_enabled(v: bool) {
+    VIDEO_DOWNLOADER_ENABLED.store(v, Ordering::Relaxed);
 }
 
 pub fn parse_shortcut(raw_str: &str) -> ParsedShortcut {
@@ -207,6 +213,13 @@ pub fn set_cloud_trigger_key(key: &str) {
 pub fn set_design_trigger_key(key: &str) {
     let parsed = parse_shortcut(key);
     if let Ok(mut g) = DESIGN_SHORTCUT.lock() {
+        *g = Some(parsed);
+    }
+}
+
+pub fn set_video_downloader_trigger_key(key: &str) {
+    let parsed = parse_shortcut(key);
+    if let Ok(mut g) = VIDEO_DOWNLOADER_SHORTCUT.lock() {
         *g = Some(parsed);
     }
 }
@@ -354,13 +367,116 @@ static MOD_META_DOWN: AtomicBool = AtomicBool::new(false);
 #[cfg(not(windows))]
 static LAST_MOUSE_POS: Mutex<Option<(i32, i32)>> = Mutex::new(None);
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+#[link(name = "ApplicationServices", kind = "framework")]
+extern "C" {
+    fn AXIsProcessTrusted() -> bool;
+    fn AXIsProcessTrustedWithOptions(options: *const std::ffi::c_void) -> bool;
+    static kAXTrustedCheckOptionPrompt: *const std::ffi::c_void;
+}
+
+#[cfg(target_os = "macos")]
+#[link(name = "CoreFoundation", kind = "framework")]
+extern "C" {
+    static kCFBooleanTrue: *const std::ffi::c_void;
+    static kCFTypeDictionaryKeyCallBacks: std::ffi::c_void;
+    static kCFTypeDictionaryValueCallBacks: std::ffi::c_void;
+    fn CFDictionaryCreate(
+        allocator: *const std::ffi::c_void,
+        keys: *const *const std::ffi::c_void,
+        values: *const *const std::ffi::c_void,
+        num_values: isize,
+        key_callbacks: *const std::ffi::c_void,
+        value_callbacks: *const std::ffi::c_void,
+    ) -> *const std::ffi::c_void;
+    fn CFRelease(cf: *const std::ffi::c_void);
+}
+
+#[cfg(target_os = "macos")]
+pub fn is_accessibility_trusted() -> bool {
+    unsafe { AXIsProcessTrusted() }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn is_accessibility_trusted() -> bool {
+    true
+}
+
+#[cfg(target_os = "macos")]
+pub fn prompt_accessibility_permission() -> bool {
+    unsafe {
+        let keys = [kAXTrustedCheckOptionPrompt];
+        let values = [kCFBooleanTrue];
+        let options = CFDictionaryCreate(
+            std::ptr::null(),
+            keys.as_ptr(),
+            values.as_ptr(),
+            1,
+            &kCFTypeDictionaryKeyCallBacks,
+            &kCFTypeDictionaryValueCallBacks,
+        );
+        let trusted = AXIsProcessTrustedWithOptions(options);
+        if !options.is_null() {
+            CFRelease(options);
+        }
+        trusted
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn prompt_accessibility_permission() -> bool {
+    true
+}
+
+/// Check if the application has macOS Accessibility permissions. Always returns true on non-macOS.
+#[tauri::command]
+pub fn check_accessibility_permission() -> Result<bool, String> {
+    Ok(is_accessibility_trusted())
+}
+
+/// Explicitly request macOS Accessibility permission, displaying the system prompt dialog. Always returns true on non-macOS.
+#[tauri::command]
+pub fn request_accessibility_permission() -> Result<bool, String> {
+    Ok(prompt_accessibility_permission())
+}
+
+#[cfg(all(not(windows), not(target_os = "macos")))]
 fn shared_device_state() -> &'static device_query::DeviceState {
     static DS: std::sync::OnceLock<device_query::DeviceState> = std::sync::OnceLock::new();
     DS.get_or_init(device_query::DeviceState::new)
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+fn check_modifiers_forced(
+    need_ctrl: bool,
+    need_alt: bool,
+    need_shift: bool,
+    need_meta: bool,
+    force_ctrl: bool,
+    force_alt: bool,
+    force_shift: bool,
+    force_meta: bool,
+) -> bool {
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGEventSourceFlagsState(state_id: i32) -> u64;
+    }
+    const COMBINED_SESSION_STATE: i32 = 1;
+    const FLAG_SHIFT: u64 = 0x00020000;
+    const FLAG_CONTROL: u64 = 0x00040000;
+    const FLAG_ALT: u64 = 0x00080000;
+    const FLAG_COMMAND: u64 = 0x00100000;
+
+    let flags = unsafe { CGEventSourceFlagsState(COMBINED_SESSION_STATE) };
+    let ctrl = force_ctrl || (flags & FLAG_CONTROL) != 0;
+    let alt = force_alt || (flags & FLAG_ALT) != 0;
+    let shift = force_shift || (flags & FLAG_SHIFT) != 0;
+    let meta = force_meta || (flags & FLAG_COMMAND) != 0;
+
+    (ctrl == need_ctrl) && (alt == need_alt) && (shift == need_shift) && (meta == need_meta)
+}
+
+#[cfg(all(not(windows), not(target_os = "macos")))]
 fn check_modifiers_forced(
     need_ctrl: bool,
     need_alt: bool,
@@ -399,6 +515,17 @@ pub fn spawn_shift_hold_listener(app: tauri::AppHandle) {
     set_cloud_trigger_key(&cfg.cloud_trigger_key);
     set_design_enabled(cfg.design_enabled);
     set_design_trigger_key(&cfg.design_trigger_key);
+    set_video_downloader_trigger_key(&cfg.video_downloader_trigger_key);
+
+    // Check macOS accessibility permission upfront on startup
+    #[cfg(target_os = "macos")]
+    {
+        if !is_accessibility_trusted() {
+            eprintln!("[convertx] macOS accessibility permission not granted on launch, prompting...");
+            let _ = prompt_accessibility_permission();
+            let _ = app.emit("hotkey-permission-needed", ());
+        }
+    }
 
     // Hardware rising-edge poller on Windows (guarantees hotkeys work even with Vietnamese IME / UniKey / elevated windows)
     #[cfg(windows)]
@@ -408,12 +535,14 @@ pub fn spawn_shift_hold_listener(app: tauri::AppHandle) {
             let mut prev_conv_down = false;
             let mut prev_cloud_down = false;
             let mut prev_design_down = false;
+            let mut prev_videodl_down = false;
             loop {
                 std::thread::sleep(std::time::Duration::from_millis(22));
                 if !ENABLED.load(Ordering::Relaxed) || RECORDING_HOTKEY.load(Ordering::Relaxed) {
                     prev_conv_down = false;
                     prev_cloud_down = false;
                     prev_design_down = false;
+                    prev_videodl_down = false;
                     continue;
                 }
                 let is_sc_down = |sc: &ParsedShortcut| -> bool {
@@ -475,6 +604,23 @@ pub fn spawn_shift_hold_listener(app: tauri::AppHandle) {
                 } else {
                     prev_design_down = false;
                 }
+
+                if VIDEO_DOWNLOADER_ENABLED.load(Ordering::Relaxed) {
+                    if let Some(dl_sc) = VIDEO_DOWNLOADER_SHORTCUT.lock().ok().and_then(|g| g.clone()) {
+                        let dl_down = is_sc_down(&dl_sc);
+                        if dl_down && !prev_videodl_down {
+                            if try_claim_trigger_debounce() {
+                                let a = poll_app.clone();
+                                std::thread::spawn(move || {
+                                    toggle_quick_download(&a);
+                                });
+                            }
+                        }
+                        prev_videodl_down = dl_down;
+                    }
+                } else {
+                    prev_videodl_down = false;
+                }
             }
         });
     }
@@ -482,8 +628,23 @@ pub fn spawn_shift_hold_listener(app: tauri::AppHandle) {
     let listen_app = app.clone();
     std::thread::spawn(move || {
         let cb_app = listen_app.clone();
+        #[cfg(target_os = "macos")]
+        let mut had_permission_error = false;
 
         loop {
+            #[cfg(target_os = "macos")]
+            {
+                if !is_accessibility_trusted() {
+                    had_permission_error = true;
+                    let _ = cb_app.emit("hotkey-permission-needed", ());
+                    std::thread::sleep(std::time::Duration::from_millis(1500));
+                    continue;
+                } else if had_permission_error {
+                    had_permission_error = false;
+                    let _ = cb_app.emit("hotkey-permission-granted", ());
+                }
+            }
+
             let app_for_cb = cb_app.clone();
             let callback = move |event: rdev::Event| {
                 #[cfg(not(windows))]
@@ -547,6 +708,10 @@ pub fn spawn_shift_hold_listener(app: tauri::AppHandle) {
                                 sc.alt
                                     && check_modifiers_forced(sc.ctrl, true, sc.shift, sc.meta, false, true, false, false)
                             }
+                            EventType::KeyPress(Key::MetaLeft) | EventType::KeyPress(Key::MetaRight) => {
+                                sc.meta
+                                    && check_modifiers_forced(sc.ctrl, sc.alt, sc.shift, true, false, false, false, true)
+                            }
                             _ => false,
                         }
                     }
@@ -585,14 +750,38 @@ pub fn spawn_shift_hold_listener(app: tauri::AppHandle) {
                                     toggle_radial_with_mode(&a, "design");
                                 });
                             }
+                            return;
+                        }
+                    }
+                }
+
+                if VIDEO_DOWNLOADER_ENABLED.load(Ordering::Relaxed) {
+                    if let Some(dl_sc) = VIDEO_DOWNLOADER_SHORTCUT.lock().ok().and_then(|g| g.clone()) {
+                        if matches_shortcut(&dl_sc) {
+                            if try_claim_trigger_debounce() {
+                                let a = app_for_cb.clone();
+                                std::thread::spawn(move || {
+                                    toggle_quick_download(&a);
+                                });
+                            }
+                            return;
                         }
                     }
                 }
             };
 
             if let Err(e) = listen(callback) {
-                eprintln!("[convertx] keyboard hook stopped: {e:?}, re-listening in 500ms");
-                std::thread::sleep(std::time::Duration::from_millis(500));
+                eprintln!("[convertx] keyboard hook stopped: {e:?}, re-listening...");
+                #[cfg(target_os = "macos")]
+                {
+                    had_permission_error = true;
+                    let _ = cb_app.emit("hotkey-permission-needed", ());
+                    std::thread::sleep(std::time::Duration::from_millis(1500));
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+                }
             }
         }
     });
@@ -612,7 +801,37 @@ fn cursor_position() -> Option<(i32, i32)> {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+fn cursor_position() -> Option<(i32, i32)> {
+    if let Ok(guard) = LAST_MOUSE_POS.lock() {
+        if let Some(coords) = *guard {
+            return Some(coords);
+        }
+    }
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGEventCreate(source: *const std::ffi::c_void) -> *mut std::ffi::c_void;
+        fn CGEventGetLocation(event: *mut std::ffi::c_void) -> CGPoint;
+        fn CFRelease(cf: *const std::ffi::c_void);
+    }
+    #[repr(C)]
+    struct CGPoint {
+        x: f64,
+        y: f64,
+    }
+
+    unsafe {
+        let ev = CGEventCreate(std::ptr::null());
+        if !ev.is_null() {
+            let pt = CGEventGetLocation(ev);
+            CFRelease(ev);
+            return Some((pt.x as i32, pt.y as i32));
+        }
+    }
+    None
+}
+
+#[cfg(all(not(windows), not(target_os = "macos")))]
 fn cursor_position() -> Option<(i32, i32)> {
     if let Ok(guard) = LAST_MOUSE_POS.lock() {
         if let Some(coords) = *guard {
@@ -652,7 +871,23 @@ fn show_radial(app: &tauri::AppHandle) {
     show_radial_with_mode(app, "convert");
 }
 
-fn show_radial_with_mode(app: &tauri::AppHandle, mode: &str) {
+pub fn show_radial_centered(app: &tauri::AppHandle, mode: &str) {
+    let Some(win) = app.get_webview_window("radial") else {
+        return;
+    };
+    let files = crate::selection::current_selection();
+
+    let _ = win.set_ignore_cursor_events(false);
+    let _ = win.center();
+    let _ = win.show();
+    let _ = win.set_focus();
+    let _ = win.emit(
+        "radial-show",
+        serde_json::json!({ "files": files, "mode": mode }),
+    );
+}
+
+pub fn show_radial_with_mode(app: &tauri::AppHandle, mode: &str) {
     let Some(win) = app.get_webview_window("radial") else {
         return;
     };
@@ -672,6 +907,8 @@ fn show_radial_with_mode(app: &tauri::AppHandle, mode: &str) {
             x: x - w / 2,
             y: y - h / 2,
         }));
+    } else {
+        let _ = win.center();
     }
     let _ = win.show();
     let _ = win.set_focus();
@@ -825,4 +1062,96 @@ pub fn open_accessibility_settings() -> Result<(), String> {
             .map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+pub fn show_quick_download(app: &tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("quick-download") {
+        let _ = win.set_ignore_cursor_events(false);
+        let _ = win.center();
+        let _ = win.show();
+        let _ = win.set_focus();
+        let _ = win.emit("quick-download-opened", ());
+    }
+}
+
+pub fn hide_quick_download(app: &tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("quick-download") {
+        let _ = win.set_ignore_cursor_events(true);
+        #[cfg(windows)]
+        {
+            use windows::Win32::Foundation::HWND;
+            use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
+            if let Ok(raw_hwnd) = win.hwnd() {
+                unsafe {
+                    let _ = ShowWindow(HWND(raw_hwnd.0), SW_HIDE);
+                }
+            }
+        }
+        let _ = win.hide();
+    }
+}
+
+pub fn toggle_quick_download(app: &tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("quick-download") {
+        if win.is_visible().unwrap_or(false) {
+            hide_quick_download(app);
+        } else {
+            show_quick_download(app);
+        }
+    }
+}
+
+#[tauri::command]
+pub fn show_quick_download_cmd(app: tauri::AppHandle) {
+    show_quick_download(&app);
+}
+
+#[tauri::command]
+pub fn hide_quick_download_cmd(app: tauri::AppHandle) {
+    hide_quick_download(&app);
+}
+
+#[tauri::command]
+pub fn toggle_quick_download_cmd(app: tauri::AppHandle) {
+    toggle_quick_download(&app);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_shortcut_meta_and_modifiers() {
+        let sc = parse_shortcut("cmd+shift");
+        assert!(sc.meta);
+        assert!(sc.shift);
+        assert!(!sc.ctrl);
+        assert!(!sc.alt);
+        assert_eq!(sc.key, None);
+
+        let sc2 = parse_shortcut("cmd+alt+g");
+        assert!(sc2.meta);
+        assert!(sc2.alt);
+        assert_eq!(sc2.key, Some(Key::KeyG));
+    }
+
+    #[test]
+    fn test_accessibility_permission_command_safety() {
+        let perm = check_accessibility_permission();
+        assert!(perm.is_ok());
+
+        let req = request_accessibility_permission();
+        assert!(req.is_ok());
+    }
+
+    #[test]
+    fn test_video_downloader_shortcut_parsing() {
+        let sc = parse_shortcut("ctrl+shift+v");
+        assert!(sc.ctrl);
+        assert!(sc.shift);
+        assert!(!sc.alt);
+        assert!(!sc.meta);
+        assert_eq!(sc.key, Some(Key::KeyV));
+        assert_eq!(key_to_vk(Key::KeyV), Some(0x56));
+    }
 }

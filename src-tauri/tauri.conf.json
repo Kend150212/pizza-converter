@@ -47,6 +47,21 @@
         "focus": false,
         "resizable": false,
         "shadow": false
+      },
+      {
+        "label": "quick-download",
+        "title": "Quick Video Download",
+        "url": "quick-download.html",
+        "width": 540,
+        "height": 220,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "center": true,
+        "visible": false,
+        "shadow": false
       }
     ],
     "withGlobalTauri": true
@@ -65,7 +80,8 @@
       "icons/icon.ico"
     ],
     "macOS": {
-      "minimumSystemVersion": "12.0"
+      "minimumSystemVersion": "12.0",
+      "infoPlist": "Info.plist"
     },
     "targets": [
       "msi",
@@ -84,5 +100,5 @@
   },
   "identifier": "NeelFlow.PizzaConverter",
   "productName": "Pizza Converter",
-  "version": "1.0.6"
+  "version": "1.0.7"
 }

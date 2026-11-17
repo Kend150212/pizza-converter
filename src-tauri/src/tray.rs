@@ -3,7 +3,6 @@
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager,
 };
 
 pub fn build_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
@@ -37,21 +36,17 @@ pub fn build_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         })
         .on_menu_event(|app, event| match event.id.as_ref() {
             "convert" => {
-                // Open the radial window; it offers Browse… when nothing is selected.
-                if let Some(w) = app.get_webview_window("radial") {
-                    let files = crate::selection::current_selection();
-                    let _ = w.emit(
-                        "radial-show",
-                        serde_json::json!({ "files": files }),
-                    );
-                    let _ = w.show();
-                    let _ = w.set_focus();
-                }
+                // Open the radial window; centers on screen, clears ignore_cursor_events, and offers Browse… when nothing is selected.
+                crate::hotkey::show_radial_centered(app, "convert");
             }
             "settings" => {
                 crate::show_settings_window(app);
             }
-            "quit" => app.exit(0),
+            "quit" => {
+                crate::cloud_drop::cleanup_cloud_drop_daemons();
+                crate::convert_cmd::kill_all_active_children();
+                app.exit(0);
+            }
             _ => {}
         })
         .build(app)?;

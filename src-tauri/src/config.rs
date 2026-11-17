@@ -7,7 +7,6 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use tauri::Manager;
 use tauri_plugin_autostart::ManagerExt;
-use tauri_plugin_dialog::DialogExt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -172,6 +171,9 @@ pub struct AppConfig {
     /// Trigger shortcut for Design Studio radial wheel. Default: "ctrl+shift+d"
     #[serde(default = "default_design_trigger_key")]
     pub design_trigger_key: String,
+    /// Trigger shortcut for Quick Video Downloader dialog. Default: "ctrl+shift+v"
+    #[serde(default = "default_video_downloader_trigger_key")]
+    pub video_downloader_trigger_key: String,
     /// Object positioning mode in Product Studio: "auto_center" (13% padding) or "keep_orig"
     #[serde(default = "default_design_pos_mode")]
     pub design_pos_mode: String,
@@ -306,9 +308,56 @@ pub struct AppConfig {
     /// Keys: "only_png", "with_photo", "stamp_photo", "sheet_a4". Empty = built-in defaults.
     #[serde(default)]
     pub bc_layouts_json: String,
-    /// Cloud AI (BYOK) master switch - OFF by default; enabling requires explicit consent.
+
+    // Auto Montage Studio
+    #[serde(default = "default_true")]
+    pub montage_enabled: bool,
+    #[serde(default = "default_montage_aspect")]
+    pub montage_aspect: String,
+    #[serde(default = "default_true")]
+    pub montage_clean_fillers: bool,
+    #[serde(default = "default_true")]
+    pub montage_remove_repetition: bool,
+    #[serde(default = "default_montage_silence")]
+    pub montage_max_silence: f64,
+    #[serde(default)]
+    pub montage_logo_enabled: bool,
+    #[serde(default)]
+    pub montage_logo_path: String,
+    #[serde(default = "default_montage_logo_pos")]
+    pub montage_logo_position: String,
+    #[serde(default = "default_montage_logo_scale")]
+    pub montage_logo_scale: u8,
+    #[serde(default = "default_montage_logo_opacity")]
+    pub montage_logo_opacity: u8,
+    #[serde(default)]
+    pub montage_intro_enabled: bool,
+    #[serde(default)]
+    pub montage_intro_path: String,
+    #[serde(default)]
+    pub montage_outro_enabled: bool,
+    #[serde(default)]
+    pub montage_outro_path: String,
+    #[serde(default = "default_true")]
+    pub montage_captions_enabled: bool,
+    #[serde(default = "default_cap_style")]
+    pub montage_cap_style: String,
+    #[serde(default)]
+    pub montage_caption_path: String,
+    #[serde(default = "default_montage_director_mode")]
+    pub montage_director_mode: String,
+    #[serde(default = "default_montage_story_arc")]
+    pub montage_story_arc: String,
+    #[serde(default = "default_montage_ai_provider")]
+    pub montage_ai_provider: String,
+    #[serde(default)]
+    pub montage_ai_api_key: String,
+    /// Cloud AI (BYOK) master switch - auto-activates when a valid key is saved unless explicitly disabled.
     #[serde(default)]
     pub cloud_ai_enabled: bool,
+    /// True only when the user explicitly turned OFF the Cloud AI master switch (prevents auto-re-enabling).
+    #[serde(default)]
+    pub cloud_ai_explicitly_disabled: bool,
     /// Unix timestamp of the user's acceptance of the Cloud AI responsibility notice.
     #[serde(default)]
     pub cloud_ai_consent_at: String,
@@ -318,24 +367,9 @@ pub struct AppConfig {
     /// Feature catalog choices: feature id -> { enabled, provider, options }.
     #[serde(default)]
     pub cloud_ai_features_json: String,
-    /// AI Agent & MCP Hub (v1.0.5) master switch - ON by default for seamless 1-click agent access
-    #[serde(default = "default_true")]
-    pub mcp_enabled: bool,
-    /// MCP Local/Remote HTTP & SSE server port (default 48921)
-    #[serde(default = "default_mcp_port")]
-    pub mcp_port: u16,
-    /// MCP Secret Bearer Token for securing remote agent connections
-    #[serde(default = "default_mcp_token")]
-    pub mcp_token: String,
-    /// Allow remote agents over LAN / WebRTC / Tunnel (true) or restrict to 127.0.0.1 (false)
-    #[serde(default = "default_true")]
-    pub mcp_allow_remote: bool,
-    /// Interactive prompt consent before executing sensitive tools
+    /// Persisted destination folder for Video Downloader (empty = default Downloads/Pizza-Converter).
     #[serde(default)]
-    pub mcp_consent_prompt: bool,
-    /// Allowed directories whitelist for AI agent file access (empty = user profile default: Pictures, Videos, Downloads, Documents)
-    #[serde(default)]
-    pub mcp_whitelisted_dirs: Vec<String>,
+    pub video_dl_output_dir: String,
     /// Whether the user has checked "Don't show this again" on the step-by-step interactive onboarding tour
     #[serde(default)]
     pub onboarding_dismissed: bool,
@@ -360,6 +394,21 @@ pub struct AppConfig {
     /// Auto-time-fit for SRT subtitle dubbing (dynamically stretches speech to never overflow cue timeline)
     #[serde(default = "default_true")]
     pub vs_auto_time_fit: bool,
+    /// Voice Studio Local REST API enabled
+    #[serde(default = "default_true")]
+    pub voice_api_enabled: bool,
+    /// Voice Studio Local REST API port (default: 8933)
+    #[serde(default = "default_voice_api_port")]
+    pub voice_api_port: u16,
+    /// Voice Studio Local REST API host ("127.0.0.1" or "0.0.0.0")
+    #[serde(default = "default_voice_api_host")]
+    pub voice_api_host: String,
+    /// Require Bearer Token API Key authentication
+    #[serde(default)]
+    pub voice_api_require_auth: bool,
+    /// JSON list of generated API keys
+    #[serde(default)]
+    pub voice_api_keys_json: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -461,7 +510,7 @@ fn default_ag_title() -> String {
     "CONVERSATION".into()
 }
 fn default_cloud_trigger_key() -> String {
-    "ctrl+shift+g".into()
+    "alt+g".into()
 }
 fn default_cloud_folder_mode() -> String {
     "month".into()
@@ -471,6 +520,9 @@ fn default_cloud_custom_folder() -> String {
 }
 fn default_design_trigger_key() -> String {
     "ctrl+shift+d".into()
+}
+fn default_video_downloader_trigger_key() -> String {
+    "ctrl+shift+v".into()
 }
 fn default_design_pos_mode() -> String {
     "auto_center".into()
@@ -514,6 +566,12 @@ fn default_vs_speed() -> String {
 fn default_vs_stability() -> u8 {
     85
 }
+fn default_voice_api_port() -> u16 {
+    8933
+}
+fn default_voice_api_host() -> String {
+    "127.0.0.1".into()
+}
 fn default_review_genre() -> String {
     "auto".into()
 }
@@ -546,6 +604,30 @@ fn default_review_logo_scale() -> u8 {
 }
 fn default_review_logo_opacity() -> u8 {
     90
+}
+fn default_montage_aspect() -> String {
+    "16:9".into()
+}
+fn default_montage_silence() -> f64 {
+    0.35
+}
+fn default_montage_logo_pos() -> String {
+    "top_right".into()
+}
+fn default_montage_logo_scale() -> u8 {
+    15
+}
+fn default_montage_logo_opacity() -> u8 {
+    90
+}
+fn default_montage_director_mode() -> String {
+    "smart_story".into()
+}
+fn default_montage_story_arc() -> String {
+    "viral_reel".into()
+}
+fn default_montage_ai_provider() -> String {
+    "gemini".into()
 }
 pub fn default_review_pins() -> Vec<ReviewVoicePin> {
     vec![
@@ -677,6 +759,7 @@ impl Default for AppConfig {
             dropbox_user_email: String::new(),
             design_enabled: true,
             design_trigger_key: default_design_trigger_key(),
+            video_downloader_trigger_key: default_video_downloader_trigger_key(),
             design_pos_mode: default_design_pos_mode(),
             design_shadow_mode: default_design_shadow_mode(),
             design_aspect_ratio: default_design_aspect(),
@@ -722,16 +805,33 @@ impl Default for AppConfig {
             bc_show_brand: true,
             bc_show_price: true,
             bc_layouts_json: String::new(),
+            montage_enabled: true,
+            montage_aspect: default_montage_aspect(),
+            montage_clean_fillers: true,
+            montage_remove_repetition: true,
+            montage_max_silence: default_montage_silence(),
+            montage_logo_enabled: false,
+            montage_logo_path: String::new(),
+            montage_logo_position: default_montage_logo_pos(),
+            montage_logo_scale: default_montage_logo_scale(),
+            montage_logo_opacity: default_montage_logo_opacity(),
+            montage_intro_enabled: false,
+            montage_intro_path: String::new(),
+            montage_outro_enabled: false,
+            montage_outro_path: String::new(),
+            montage_captions_enabled: true,
+            montage_cap_style: default_cap_style(),
+            montage_caption_path: String::new(),
+            montage_director_mode: default_montage_director_mode(),
+            montage_story_arc: default_montage_story_arc(),
+            montage_ai_provider: default_montage_ai_provider(),
+            montage_ai_api_key: String::new(),
             cloud_ai_enabled: false,
+            cloud_ai_explicitly_disabled: false,
             cloud_ai_consent_at: String::new(),
             cloud_ai_providers_json: String::new(),
             cloud_ai_features_json: String::new(),
-            mcp_enabled: true,
-            mcp_port: default_mcp_port(),
-            mcp_token: default_mcp_token(),
-            mcp_allow_remote: true,
-            mcp_consent_prompt: false,
-            mcp_whitelisted_dirs: Vec::new(),
+            video_dl_output_dir: String::new(),
             onboarding_dismissed: false,
             vs_enabled: true,
             vs_override_global: true,
@@ -740,18 +840,13 @@ impl Default for AppConfig {
             vs_stability: default_vs_stability(),
             vs_profiles_json: String::new(),
             vs_auto_time_fit: true,
+            voice_api_enabled: true,
+            voice_api_port: default_voice_api_port(),
+            voice_api_host: default_voice_api_host(),
+            voice_api_require_auth: false,
+            voice_api_keys_json: String::new(),
         }
     }
-}
-
-pub fn default_mcp_port() -> u16 {
-    48921
-}
-
-pub fn default_mcp_token() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis();
-    format!("pz_{:x}{:04x}", now, std::process::id() & 0xffff)
 }
 
 fn default_bc_format() -> String {
@@ -771,11 +866,52 @@ fn config_path(app: &tauri::AppHandle) -> Option<PathBuf> {
         .map(|d| d.join("config.json"))
 }
 
+fn infer_provider_for_legacy_key(provider_hint: &str, secret: &str) -> String {
+    let hint = provider_hint.trim().to_ascii_lowercase();
+    match hint.as_str() {
+        "gemini" | "openai" | "claude" | "deepseek" | "openrouter" | "meta" | "elevenlabs" => {
+            return hint;
+        }
+        "anthropic" => return "claude".into(),
+        _ => {}
+    }
+    let s = secret.trim();
+    if s.starts_with("AIza") {
+        "gemini".into()
+    } else if s.starts_with("sk-ant-") {
+        "claude".into()
+    } else if s.starts_with("sk-or-") {
+        "openrouter".into()
+    } else {
+        "openai".into()
+    }
+}
+
 pub fn load(app: &tauri::AppHandle) -> AppConfig {
     let mut cfg: AppConfig = config_path(app)
         .and_then(|p| std::fs::read_to_string(p).ok())
         .and_then(|s| serde_json::from_str(s.trim_start_matches('\u{feff}')).ok())
         .unwrap_or_default();
+    let mut migrated_secrets = false;
+    if !cfg.montage_ai_api_key.trim().is_empty() {
+        let secret = cfg.montage_ai_api_key.trim().to_string();
+        let prov = infer_provider_for_legacy_key(&cfg.montage_ai_provider, &secret);
+        crate::cloud_ai::set_key_if_empty(&prov, &secret);
+        cfg.montage_ai_api_key.clear();
+        if !cfg.cloud_ai_explicitly_disabled {
+            cfg.cloud_ai_enabled = true;
+        }
+        migrated_secrets = true;
+    }
+    if !cfg.ai_elevenlabs_key.trim().is_empty() {
+        let secret = cfg.ai_elevenlabs_key.trim().to_string();
+        crate::cloud_ai::set_key_if_empty("elevenlabs", &secret);
+        cfg.ai_elevenlabs_key.clear();
+        if !cfg.cloud_ai_explicitly_disabled {
+            cfg.cloud_ai_enabled = true;
+        }
+        migrated_secrets = true;
+    }
     if cfg.wm_text.contains("Â©") || cfg.wm_text.starts_with("? ") {
         cfg.wm_text = cfg.wm_text.replace("Â©", "©").replacen("? ", "© ", 1);
     }
@@ -832,6 +968,9 @@ pub fn load(app: &tauri::AppHandle) -> AppConfig {
                 cfg.design_templates.push(to_add);
             }
         }
+    }
+    if migrated_secrets {
+        let _ = save(app, &cfg);
     }
     cfg
 }
@@ -943,14 +1082,12 @@ pub fn set_output_dir(app: tauri::AppHandle, dir: String) -> AppConfig {
     cfg
 }
 
-#[tauri::command(async)]
-pub fn pick_dir(app: tauri::AppHandle) -> Result<Option<String>, String> {
-    let (tx, rx) = std::sync::mpsc::channel();
-    app.dialog().file().pick_folder(move |picked| {
-        let _ = tx.send(picked);
-    });
-    let picked = rx.recv().map_err(|e| e.to_string())?;
-    Ok(picked.map(|p| p.to_string()))
+#[tauri::command]
+pub fn set_video_dl_output_dir(app: tauri::AppHandle, dir: String) -> AppConfig {
+    let mut cfg = load(&app);
+    cfg.video_dl_output_dir = dir.trim().to_string();
+    save(&app, &cfg);
+    cfg
 }
 
 #[tauri::command]
@@ -1105,7 +1242,14 @@ pub fn set_ai_highlight_config(
         cfg.ai_custom_lang_name = v;
     }
     if let Some(v) = elevenlabs_key {
-        cfg.ai_elevenlabs_key = v;
+        let clean = v.trim();
+        if !clean.is_empty() {
+            crate::cloud_ai::set_key_if_empty("elevenlabs", clean);
+            if !cfg.cloud_ai_explicitly_disabled {
+                cfg.cloud_ai_enabled = true;
+            }
+        }
+        cfg.ai_elevenlabs_key.clear();
     }
     if let Some(v) = audiogram_enabled {
         cfg.audiogram_enabled = v;
@@ -1487,6 +1631,125 @@ pub fn toggle_pin_design_template(app: tauri::AppHandle, id: String) -> Result<A
 pub fn set_onboarding_dismissed(app: tauri::AppHandle, dismissed: bool) -> AppConfig {
     let mut cfg = load(&app);
     cfg.onboarding_dismissed = dismissed;
+    save(&app, &cfg);
+    cfg
+}
+
+#[tauri::command]
+pub fn get_video_downloader_trigger_key(app: tauri::AppHandle) -> String {
+    let cfg = load(&app);
+    cfg.video_downloader_trigger_key
+}
+
+#[tauri::command]
+pub fn set_video_downloader_trigger_key(app: tauri::AppHandle, key: String) -> AppConfig {
+    let mut cfg = load(&app);
+    let key_clean = key.trim().to_lowercase();
+    if !key_clean.is_empty() {
+        cfg.video_downloader_trigger_key = key_clean.clone();
+        save(&app, &cfg);
+        crate::hotkey::set_video_downloader_trigger_key(&key_clean);
+    }
+    cfg
+}
+
+#[tauri::command]
+pub fn set_montage_config(
+    app: tauri::AppHandle,
+    enabled: Option<bool>,
+    aspect: Option<String>,
+    clean_fillers: Option<bool>,
+    remove_repetition: Option<bool>,
+    max_silence: Option<f64>,
+    logo_enabled: Option<bool>,
+    logo_path: Option<String>,
+    logo_position: Option<String>,
+    logo_scale: Option<u8>,
+    logo_opacity: Option<u8>,
+    intro_enabled: Option<bool>,
+    intro_path: Option<String>,
+    outro_enabled: Option<bool>,
+    outro_path: Option<String>,
+    captions_enabled: Option<bool>,
+    cap_style: Option<String>,
+    caption_path: Option<String>,
+    director_mode: Option<String>,
+    story_arc: Option<String>,
+    ai_provider: Option<String>,
+    ai_api_key: Option<String>,
+) -> AppConfig {
+    let mut cfg = load(&app);
+    if let Some(v) = enabled {
+        cfg.montage_enabled = v;
+    }
+    if let Some(v) = aspect {
+        cfg.montage_aspect = v;
+    }
+    if let Some(v) = clean_fillers {
+        cfg.montage_clean_fillers = v;
+    }
+    if let Some(v) = remove_repetition {
+        cfg.montage_remove_repetition = v;
+    }
+    if let Some(v) = max_silence {
+        cfg.montage_max_silence = v.clamp(0.15, 2.0);
+    }
+    if let Some(v) = logo_enabled {
+        cfg.montage_logo_enabled = v;
+    }
+    if let Some(v) = logo_path {
+        cfg.montage_logo_path = v;
+    }
+    if let Some(v) = logo_position {
+        cfg.montage_logo_position = v;
+    }
+    if let Some(v) = logo_scale {
+        cfg.montage_logo_scale = v.clamp(5, 50);
+    }
+    if let Some(v) = logo_opacity {
+        cfg.montage_logo_opacity = v.clamp(10, 100);
+    }
+    if let Some(v) = intro_enabled {
+        cfg.montage_intro_enabled = v;
+    }
+    if let Some(v) = intro_path {
+        cfg.montage_intro_path = v;
+    }
+    if let Some(v) = outro_enabled {
+        cfg.montage_outro_enabled = v;
+    }
+    if let Some(v) = outro_path {
+        cfg.montage_outro_path = v;
+    }
+    if let Some(v) = captions_enabled {
+        cfg.montage_captions_enabled = v;
+    }
+    if let Some(v) = cap_style {
+        cfg.montage_cap_style = v;
+    }
+    if let Some(v) = caption_path {
+        cfg.montage_caption_path = v;
+    }
+    if let Some(v) = director_mode {
+        cfg.montage_director_mode = v;
+    }
+    if let Some(v) = story_arc {
+        cfg.montage_story_arc = v;
+    }
+    if let Some(v) = ai_provider {
+        cfg.montage_ai_provider = v;
+    }
+    if let Some(v) = ai_api_key {
+        let clean = v.trim();
+        if !clean.is_empty() {
+            let prov = infer_provider_for_legacy_key(&cfg.montage_ai_provider, clean);
+            crate::cloud_ai::set_key_if_empty(&prov, clean);
+            if !cfg.cloud_ai_explicitly_disabled {
+                cfg.cloud_ai_enabled = true;
+            }
+        }
+        cfg.montage_ai_api_key.clear();
+    }
     save(&app, &cfg);
     cfg
 }

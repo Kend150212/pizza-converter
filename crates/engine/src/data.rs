@@ -668,16 +668,12 @@ mod tests {
         let xlsx_p = dir.path().join("a.xlsx");
         // Fixture via openpyxl (dev machine); calamine reads it back.
         let code = format!(
-            "import openpyxl; wb=openpyxl.Workbook(); ws=wb.active; \
+            "import openpyxl; wb=openpyxl.Workbook(); ws=openpyxl.active if hasattr(openpyxl,'active') else wb.active; \
              ws.append(['name','age']); ws.append(['An',30]); \
              wb.save(r'{}')",
             xlsx_p.to_string_lossy()
         );
-        let st = std::process::Command::new("python3")
-            .args(["-c", &code])
-            .status()
-            .unwrap();
-        assert!(st.success());
+        crate::office::run_python(&code, &[]).unwrap();
         let csv_p = dir.path().join("a.csv");
         xlsx_to_csv(&xlsx_p, &csv_p, None).unwrap();
         let out = std::fs::read_to_string(&csv_p).unwrap();

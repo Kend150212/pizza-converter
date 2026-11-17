@@ -8,8 +8,127 @@
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::Mutex;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{Emitter, Manager};
+
+static CLOUD_DAEMON_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
+static PHONE_WINDOW_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
+
+fn kill_daemon_pid(pid: u32) {
+    if pid == 0 {
+        return;
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/T", "/PID", &pid.to_string()])
+            .creation_flags(0x08000000)
+            .status();
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = std::process::Command::new("pkill")
+            .args(["-KILL", "-P", &pid.to_string()])
+            .status();
+        let _ = std::process::Command::new("kill")
+            .args(["-9", &pid.to_string()])
+            .status();
+    }
+}
+
+pub fn register_cloud_daemon_pid(pid: u32, is_phone_window: bool) {
+    if pid == 0 {
+        return;
+    }
+    if let Ok(mut all) = CLOUD_DAEMON_PIDS.lock() {
+        if !all.contains(&pid) {
+            all.push(pid);
+        }
+    }
+    if is_phone_window {
+        if let Ok(mut pw) = PHONE_WINDOW_PIDS.lock() {
+            if !pw.contains(&pid) {
+                pw.push(pid);
+            }
+        }
+    }
+}
+
+/// Terminate active `phone_drop` companion window HTTP server(s) when window closes or restarts.
+pub fn cleanup_phone_drop_window_daemons() {
+    let pids: Vec<u32> = PHONE_WINDOW_PIDS
+        .lock()
+        .map(|mut g| g.drain(..).collect())
+        .unwrap_or_default();
+    if !pids.is_empty() {
+        if let Ok(mut all) = CLOUD_DAEMON_PIDS.lock() {
+            all.retain(|p| !pids.contains(p));
+        }
+        for pid in pids {
+            kill_daemon_pid(pid);
+        }
+    }
+}
+
+/// Terminate ALL detached Cloud Drop / LocalDrop / Cloudflare tunnel processes on app quit.
+pub fn cleanup_cloud_drop_daemons() {
+    cleanup_phone_drop_window_daemons();
+    let pids: Vec<u32> = CLOUD_DAEMON_PIDS
+        .lock()
+        .map(|mut g| g.drain(..).collect())
+        .unwrap_or_default();
+    for pid in pids {
+        kill_daemon_pid(pid);
+    }
+}
+
+/// Sweep stale `pizza_*` / `Pizza_Bundle_*` temporary files & folders in `%TEMP%` on startup.
+pub fn sweep_stale_temp_files() {
+    std::thread::spawn(|| {
+        let base_tmp = std::env::temp_dir();
+        let sub_tmp = base_tmp.join("pizza_converter_tmp");
+        let max_age = Duration::from_secs(6 * 3600);
+        let now = SystemTime::now();
+
+        for dir in [&base_tmp, &sub_tmp] {
+            let Ok(entries) = std::fs::read_dir(dir) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+                    continue;
+                };
+                if name == "pizza_converter_tmp" {
+                    continue;
+                }
+                let is_pizza_temp = name.starts_with("pizza_")
+                    || name.starts_with("pizza-")
+                    || name.starts_with("Pizza_Bundle_")
+                    || (dir == &sub_tmp);
+                if !is_pizza_temp {
+                    continue;
+                }
+                let is_stale = entry
+                    .metadata()
+                    .and_then(|m| m.modified())
+                    .ok()
+                    .and_then(|mtime| now.duration_since(mtime).ok())
+                    .map(|age| age > max_age)
+                    .unwrap_or(false);
+                if is_stale {
+                    if path.is_dir() {
+                        let _ = std::fs::remove_dir_all(&path);
+                    } else {
+                        let _ = std::fs::remove_file(&path);
+                    }
+                }
+            }
+        }
+    });
+}
 
 // Built-in Desktop OAuth 2.0 Credentials (zero-config for end users)
 const BUILTIN_GDRIVE_CLIENT_ID: &str = "202264815644.apps.googleusercontent.com";
@@ -485,18 +604,26 @@ print("RESULT_JSON:" + json.dumps({
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    let tmp_py = std::env::temp_dir().join(format!("pizza_oauth_{nanos}.py"));
+    let tmp_dir = std::env::temp_dir().join("pizza_converter_tmp");
+    let _ = std::fs::create_dir_all(&tmp_dir);
+    let tmp_py = tmp_dir.join(format!("pizza_oauth_{nanos}.py"));
     std::fs::write(&tmp_py, script).map_err(|e| e.to_string())?;
 
     let mut cmd = std::process::Command::new(py);
-    cmd.arg(&tmp_py).arg(&prov).arg(&cid).arg(&csec);
+    cmd.env("PYTHONIOENCODING", "utf-8")
+        .env("PYTHONUTF8", "1")
+        .arg(&tmp_py)
+        .arg(&prov)
+        .arg(&cid)
+        .arg(&csec);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x08000000);
     }
-    let out = cmd.output().map_err(|e| e.to_string())?;
+    let out = cmd.output();
     let _ = std::fs::remove_file(&tmp_py);
+    let out = out.map_err(|e| e.to_string())?;
 
     let stdout = String::from_utf8_lossy(&out.stdout);
     for line in stdout.lines() {
@@ -692,6 +819,7 @@ try:
 
     def upload_instant_link(file_path):
         curl_bin = "curl.exe" if os.name == "nt" else "curl"
+        run_kw = {"creationflags": 0x08000000} if os.name == "nt" else {}
         fsize = os.path.getsize(file_path) if os.path.isfile(file_path) else 0
 
         # 1) Uguu Direct Raw File Stream (up to 128MB — HTTP 200 direct file URL, ZERO ads, ZERO HTML wrapper)
@@ -699,7 +827,7 @@ try:
             try:
                 r0 = subprocess.run(
                     [curl_bin, "-sS", "--max-time", "120", "-A", "PizzaConverter/1.0", "-F", f"files[]=@{file_path}", "https://uguu.se/upload"],
-                    capture_output=True, text=True, timeout=130
+                    capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=130, **run_kw
                 )
                 if r0.returncode == 0 and r0.stdout.strip():
                     j0 = json.loads(r0.stdout.strip())
@@ -715,7 +843,7 @@ try:
             try:
                 r = subprocess.run(
                     [curl_bin, "-sS", "--max-time", "120", "-A", "PizzaConverter/1.0", "-F", "reqtype=fileupload", "-F", f"fileToUpload=@{file_path}", "https://catbox.moe/user/api.php"],
-                    capture_output=True, text=True, timeout=130
+                    capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=130, **run_kw
                 )
                 out_u = r.stdout.strip()
                 if r.returncode == 0 and out_u.startswith("https://files.catbox.moe/"):
@@ -727,7 +855,7 @@ try:
         try:
             r2 = subprocess.run(
                 [curl_bin, "-sS", "--max-time", "180", "-A", "PizzaConverter/1.0", "-F", "reqtype=fileupload", "-F", "time=72h", "-F", f"fileToUpload=@{file_path}", "https://litterbox.catbox.moe/resources/internals/api.php"],
-                capture_output=True, text=True, timeout=190
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=190, **run_kw
             )
             out_u2 = r2.stdout.strip()
             if r2.returncode == 0 and out_u2.startswith("https://litter.catbox.moe/"):
@@ -735,19 +863,21 @@ try:
         except Exception:
             pass
 
-        # 4) Built-in Cloudflare HTTPS Direct Edge Stream (Unlimited size — 100% guaranteed fallback, ZERO ads)
+        # 4) Built-in Cloudflare HTTPS Direct Edge Stream (30m TTL, auto-terminates so no zombie servers remain)
         try:
             import socket, secrets, re
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.bind(("0.0.0.0", 0))
+            s.bind(("127.0.0.1", 0))
             port = s.getsockname()[1]
             s.close()
             sec_token = secrets.token_hex(6)
             fname = os.path.basename(file_path)
             q_name = urllib.parse.quote(fname)
-            bg_srv = os.path.join(tempfile.gettempdir(), f"pizza_inst_srv_{port}.py")
+            tmp_sub = os.path.join(tempfile.gettempdir(), "pizza_converter_tmp")
+            os.makedirs(tmp_sub, exist_ok=True)
+            bg_srv = os.path.join(tmp_sub, f"pizza_inst_srv_{port}.py")
             with open(bg_srv, "w", encoding="utf-8") as bf:
-                bf.write(f'''import os, sys, time, mimetypes, urllib.parse
+                bf.write(f'''import os, sys, time, threading, mimetypes, urllib.parse
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 FP = {repr(os.path.abspath(file_path))}
 TOK = {repr(sec_token)}
@@ -769,13 +899,19 @@ class H(BaseHTTPRequestHandler):
                 b = f.read(1048576)
                 if not b: break
                 self.wfile.write(b)
-ThreadingHTTPServer(("0.0.0.0", {port}), H).serve_forever()
+srv = ThreadingHTTPServer(("127.0.0.1", {port}), H)
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+time.sleep(1800)
+try: os.remove(__file__)
+except Exception: pass
+os._exit(0)
 ''')
-            subprocess.Popen(
+            srv_proc = subprocess.Popen(
                 [sys.executable, bg_srv],
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 **({"creationflags": 0x08000200} if os.name == "nt" else {"start_new_session": True})
             )
+            print(f"DAEMON_PID:{srv_proc.pid}", flush=True)
             cf_candidates = [shutil.which("cloudflared")]
             if os.name == "nt":
                 cf_candidates.append(os.path.expandvars("%LOCALAPPDATA%/Pizza Converter/bin/cloudflared.exe"))
@@ -785,9 +921,10 @@ ThreadingHTTPServer(("0.0.0.0", {port}), H).serve_forever()
             if cf_bin:
                 p = subprocess.Popen(
                     [cf_bin, "tunnel", "--url", f"http://127.0.0.1:{port}", "--no-autoupdate", "--protocol", "http2"],
-                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
                     **({"creationflags": 0x08000200} if os.name == "nt" else {"start_new_session": True})
                 )
+                print(f"DAEMON_PID:{p.pid}", flush=True)
                 found_u = ""
                 t0 = time.time()
                 while time.time() - t0 < 8.5:
@@ -799,6 +936,10 @@ ThreadingHTTPServer(("0.0.0.0", {port}), H).serve_forever()
                         return f"{found_u}/dl/{q_name}?k={sec_token}"
                 if found_u:
                     return f"{found_u}/dl/{q_name}?k={sec_token}"
+                try: p.terminate()
+                except Exception: pass
+            try: srv_proc.terminate()
+            except Exception: pass
         except Exception:
             pass
 
@@ -1164,7 +1305,14 @@ finally:
     .to_string();
     let inputs_vec: Vec<String> = inputs
         .iter()
-        .map(|p| p.to_string_lossy().into_owned())
+        .map(|p| {
+            let abs_p = if p.is_relative() {
+                std::env::current_dir().map(|cd| cd.join(p)).unwrap_or_else(|_| p.clone())
+            } else {
+                p.clone()
+            };
+            abs_p.to_string_lossy().into_owned()
+        })
         .collect();
     let inputs_str = serde_json::to_string(&inputs_vec).unwrap_or_else(|_| "[]".to_string());
 
@@ -1236,6 +1384,10 @@ finally:
             let trimmed = line.trim();
             if let Some(td) = trimmed.strip_prefix("TMP_DIR:") {
                 worker_tmp_dir = td.trim().to_string();
+            } else if let Some(pid_s) = trimmed.strip_prefix("DAEMON_PID:") {
+                if let Ok(dpid) = pid_s.trim().parse::<u32>() {
+                    register_cloud_daemon_pid(dpid, false);
+                }
             } else if let Some(rest) = trimmed.strip_prefix("PROGRESS:") {
                 let mut parts = rest.splitn(2, ':');
                 if let (Some(pct_s), Some(stage)) = (parts.next(), parts.next()) {
@@ -1372,18 +1524,23 @@ if not (target.startswith("http://") or target.startswith("https://")):
             abs_p = files[0]
     if os.path.isfile(abs_p):
         lan_ip = get_lan_ip()
-        cache_path = os.path.join(tempfile.gettempdir(), "pizza_qr_active_cache.json")
+        tmp_sub = os.path.join(tempfile.gettempdir(), "pizza_converter_tmp")
+        os.makedirs(tmp_sub, exist_ok=True)
+        cache_path = os.path.join(tmp_sub, "pizza_qr_active_cache.json")
         cached_qr_url = ""
+        spawned_pid = 0
         try:
             if os.path.exists(cache_path):
                 with open(cache_path, "r", encoding="utf-8") as cf:
                     c_map = json.load(cf)
                 ent = c_map.get(abs_p)
-                if ent and ent.get("pub_url", "").startswith("https://") and ent.get("port") and "?k=" in ent.get("pub_url", ""):
-                    import urllib.request
-                    with urllib.request.urlopen(f"http://127.0.0.1:{ent['port']}/status", timeout=0.6) as resp:
+                pub_u = (ent.get("pub_url") or "") if ent else ""
+                if ent and pub_u.startswith(("http://", "https://")) and ent.get("port") and "?k=" in pub_u:
+                    import urllib.request, urllib.parse
+                    tok = urllib.parse.parse_qs(urllib.parse.urlparse(pub_u).query).get("k", [""])[0]
+                    with urllib.request.urlopen(f"http://127.0.0.1:{ent['port']}/status?k={tok}", timeout=0.5) as resp:
                         if resp.status == 200:
-                            cached_qr_url = ent["pub_url"]
+                            cached_qr_url = pub_u
         except Exception:
             pass
 
@@ -1396,7 +1553,7 @@ if not (target.startswith("http://") or target.startswith("https://")):
             sock.close()
             fname = os.path.basename(abs_p)
             sec_token = secrets.token_hex(6)
-            tunnel_json = os.path.join(tempfile.gettempdir(), f"pizza_qr_tunnel_{port}.json")
+            tunnel_json = os.path.join(tmp_sub, f"pizza_qr_tunnel_{port}.json")
             if os.path.exists(tunnel_json):
                 try: os.remove(tunnel_json)
                 except Exception: pass
@@ -1667,6 +1824,12 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(GIF_1X1)
                 return
             elif parsed.path == "/ping" or parsed.path == "/status":
+                is_loopback = self.client_address[0] in ("127.0.0.1", "::1", "::ffff:127.0.0.1")
+                if not (is_loopback and self.check_token(qs)):
+                    self.send_response(403)
+                    self.send_cors()
+                    self.end_headers()
+                    return
                 b = json.dumps({
                     "ok": True,
                     "file": FILE_PATH,
@@ -1791,95 +1954,34 @@ class Handler(BaseHTTPRequestHandler):
 srv = FastThreadingHTTPServer(("0.0.0.0", PORT), Handler)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 
-# Start Official Cloudflare HTTP/2 Edge Tunnel FIRST (ZERO ads, 100% direct from PC, 35x faster than SSH)
-def find_cloudflared():
-    candidates = []
-    if os.name == "nt":
-        candidates.append(os.path.expandvars("%LOCALAPPDATA%/Pizza Converter/bin/cloudflared.exe"))
-    else:
-        candidates.extend([
-            os.path.expanduser("~/.local/bin/cloudflared"),
-            "/opt/homebrew/bin/cloudflared",
-            "/usr/local/bin/cloudflared",
-        ])
-    w = shutil.which("cloudflared")
-    if w:
-        candidates.insert(0, w)
-    for c in candidates:
-        if c and os.path.isfile(c):
-            return c
-    return None
-
-cf_bin = find_cloudflared()
-if cf_bin:
-    try:
-        p = subprocess.Popen(
-            [cf_bin, "tunnel", "--url", f"http://127.0.0.1:{PORT}", "--no-autoupdate", "--protocol", "http2"],
-            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-            **({"creationflags": 0x08000000} if os.name == "nt" else {})
-        )
-        found_url = ""
-        t0 = time.time()
-        while time.time() - t0 < 7.5:
-            line = p.stdout.readline()
-            if not line:
-                break
-            m = re.search(r"https://[a-zA-Z0-9-]+\\.trycloudflare\\.com", line)
-            if m:
-                found_url = m.group(0)
-            if found_url and "Registered tunnel connection" in line:
-                time.sleep(0.8)
-                STATE["pub_url"] = found_url
-                break
-        if found_url and not STATE["pub_url"]:
-            time.sleep(0.8)
-            STATE["pub_url"] = found_url
-        threading.Thread(target=lambda: [_ for _ in p.stdout], daemon=True).start()
-    except Exception:
-        pass
-
-# Fallback to localhost.run ONLY if cloudflared failed
-if not STATE["pub_url"]:
-    try:
-        p = subprocess.Popen(
-            ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "ServerAliveInterval=30", "-R", f"80:127.0.0.1:{PORT}", "nokey@localhost.run"],
-            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-            **({"creationflags": 0x08000000} if os.name == "nt" else {})
-        )
-        t0 = time.time()
-        while time.time() - t0 < 6.5:
-            line = p.stdout.readline()
-            if not line:
-                break
-            m = re.search(r"https://[a-zA-Z0-9.-]+\\.lhr\\.life", line)
-            if m:
-                STATE["pub_url"] = m.group(0)
-                break
-        threading.Thread(target=lambda: [_ for _ in p.stdout], daemon=True).start()
-    except Exception:
-        pass
-
+STATE["pub_url"] = STATE["lan_url"]
 with open(TUNNEL_JSON, "w", encoding="utf-8") as f:
     pub_tok_u = f"{STATE['pub_url']}/?k={TOKEN}" if STATE["pub_url"] else ""
     json.dump({"pub_url": pub_tok_u, "port": PORT}, f)
 
 time.sleep(1800)
+try:
+    if os.path.exists(TUNNEL_JSON): os.remove(TUNNEL_JSON)
+    os.remove(__file__)
+except Exception:
+    pass
 os._exit(0)
 '''
-            tf = os.path.join(tempfile.gettempdir(), f"pizza_qr_share_{port}.py")
+            tf = os.path.join(tmp_sub, f"pizza_qr_share_{port}.py")
             with open(tf, "w", encoding="utf-8") as f:
                 f.write(srv_code)
-            subprocess.Popen(
+            srv_proc = subprocess.Popen(
                 [sys.executable, tf, abs_p, fname, str(port), tunnel_json, lan_ip, app_lang, sec_token],
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 **({"creationflags": 0x08000200} if os.name == "nt" else {"start_new_session": True})
             )
+            spawned_pid = srv_proc.pid
 
-            # Wait up to 7.2s for the Cloudflare HTTPS tunnel URL
+            # Wait up to 4.5s for local LAN / tunnel URL file
             pub_url = ""
-            for _ in range(45):
+            for _ in range(35):
                 if os.path.exists(tunnel_json):
                     try:
                         with open(tunnel_json, "r", encoding="utf-8") as jf:
@@ -1887,22 +1989,23 @@ os._exit(0)
                         break
                     except Exception:
                         pass
-                time.sleep(0.16)
+                time.sleep(0.12)
 
-            if pub_url.startswith("https://"):
+            if pub_url.startswith(("http://", "https://")):
                 qr_url = pub_url
-                try:
-                    c_map = {}
-                    if os.path.exists(cache_path):
-                        with open(cache_path, "r", encoding="utf-8") as cf:
-                            c_map = json.load(cf)
-                    c_map[abs_p] = {"pub_url": pub_url, "port": port, "ts": time.time()}
-                    with open(cache_path, "w", encoding="utf-8") as cf:
-                        json.dump(c_map, cf)
-                except Exception:
-                    pass
             else:
                 qr_url = f"http://{lan_ip}:{port}/?k={sec_token}"
+
+            try:
+                c_map = {}
+                if os.path.exists(cache_path):
+                    with open(cache_path, "r", encoding="utf-8") as cf:
+                        c_map = json.load(cf)
+                c_map[abs_p] = {"pub_url": qr_url, "port": port, "ts": time.time()}
+                with open(cache_path, "w", encoding="utf-8") as cf:
+                    json.dump(c_map, cf)
+            except Exception:
+                pass
 
 import qrcode
 qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=1, border=2)
@@ -1917,28 +2020,44 @@ for y, row in enumerate(matrix):
             paths.append(f"M{x},{y}h1v1h-1z")
 svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {n} {n}" shape-rendering="crispEdges" width="100%" height="100%"><rect width="{n}" height="{n}" fill="#ffffff" rx="1.5"/><path d="{"".join(paths)}" fill="#090d16"/></svg>'
 with open(out_json_path, "w", encoding="utf-8") as f:
-    json.dump({"svg": svg, "url": qr_url}, f)
+    json.dump({"svg": svg, "url": qr_url, "pid": locals().get("spawned_pid", 0)}, f)
 "###;
 
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    let tmp_json = std::env::temp_dir().join(format!("pizza_qr_{nanos}.json"));
+    let tmp_dir = std::env::temp_dir().join("pizza_converter_tmp");
+    let _ = std::fs::create_dir_all(&tmp_dir);
+    let tmp_json = tmp_dir.join(format!("pizza_qr_{nanos}.json"));
     let tmp_json_s = tmp_json.to_string_lossy().into_owned();
-    convertx_engine::office::run_python(script, &[&path_or_url, &tmp_json_s, &app_lang])
-        .map_err(|e| e.to_string())?;
+    let py_res = convertx_engine::office::run_python(script, &[&path_or_url, &tmp_json_s, &app_lang]);
+    if let Err(e) = py_res {
+        let _ = std::fs::remove_file(&tmp_json);
+        return Err(e.to_string());
+    }
     let raw = std::fs::read_to_string(&tmp_json).map_err(|e| e.to_string())?;
     let _ = std::fs::remove_file(&tmp_json);
     let val: serde_json::Value =
         serde_json::from_str(raw.trim()).map_err(|e| format!("QR parse error: {e}"))?;
+    if let Some(pid) = val.get("pid").and_then(|x| x.as_u64()) {
+        if pid > 0 {
+            register_cloud_daemon_pid(pid as u32, false);
+        }
+    }
     Ok(val)
+}
+
+#[tauri::command(async)]
+pub fn start_phone_to_pc_drop_cmd(app: tauri::AppHandle) -> Result<String, String> {
+    start_phone_to_pc_drop(&app)
 }
 
 /// Start a Public HTTPS + Wi-Fi Phone → PC Drop Receiver (`cloud_phone_drop`), open the companion QR window,
 /// and auto-save beamed photos/videos from iPhone/Android into `~/Downloads/Pizza Phone Drop/`.
 pub fn start_phone_to_pc_drop(app: &tauri::AppHandle) -> Result<String, String> {
     use tauri::Manager;
+    cleanup_phone_drop_window_daemons();
     let app_lang = crate::config::load(app).language;
     let script = r###"
 import sys, os, json, time, socket, subprocess, tempfile, secrets
@@ -1986,7 +2105,7 @@ DEFAULT_LANG = sys.argv[5] if len(sys.argv) > 5 else "en"
 TOKEN = sys.argv[6] if len(sys.argv) > 6 else ""
 RECEIVED = []
 LOADING_SVG = '<div style="width:180px;height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#0f172a;font-weight:800;font-size:12.5px;gap:10px;"><div style="width:32px;height:32px;border:3.5px solid #e2e8f0;border-top-color:#0ea5e9;border-radius:50%;animation:p_spin 0.75s linear infinite"></div><span>Generating QR...</span></div><style>@keyframes p_spin{to{transform:rotate(360deg)}}</style>'
-STATE = {"url": "Connecting Cloudflare HTTPS Tunnel...", "svg": LOADING_SVG, "ready": False}
+STATE = {"url": LAN_URL, "svg": LOADING_SVG, "ready": False}
 
 I18N_DROP = {
     "en": {
@@ -2081,15 +2200,7 @@ const LAN_BASE = {json.dumps(lan_clean)};
 const TOKEN = {json.dumps(TOKEN)};
 const TXT_SEND = {json.dumps(tr["m_sending"])};
 const TXT_DONE = {json.dumps(tr["m_done"])};
-let uploadBase = "";
-(async () => {{
-  try {{
-    const ctrl = new AbortController();
-    setTimeout(() => ctrl.abort(), 500);
-    const r = await fetch(LAN_BASE + "/status", {{ signal: ctrl.signal, mode: "cors" }});
-    if (r.ok) uploadBase = LAN_BASE;
-  }} catch (_) {{}}
-}})();
+const uploadBase = window.location.origin;
 const inp = document.getElementById('file-input');
 const wrap = document.getElementById('prog-wrap');
 const bar = document.getElementById('bar-fg');
@@ -2162,13 +2273,14 @@ p.sub{{font-size:11.5px;color:#94a3b8;margin:0 0 10px}}
   <button class="btn-open" id="btn-open" onclick="openFolderNow()">{tr["h_btn"]}</button>
 </div>
 <script>
+const HOST_TOK = {json.dumps(TOKEN)};
 async function openFolderNow() {{
-  try {{ await fetch('/open_folder?t=' + Date.now()); }} catch (e) {{}}
+  try {{ await fetch('/open_folder?k=' + encodeURIComponent(HOST_TOK) + '&t=' + Date.now()); }} catch (e) {{}}
 }}
 let lastUrl = "";
 setInterval(async () => {{
   try {{
-    const r = await fetch('/status?t=' + Date.now());
+    const r = await fetch('/status?k=' + encodeURIComponent(HOST_TOK) + '&t=' + Date.now());
     const j = await r.json();
     if (j.url && j.url !== lastUrl) {{
       lastUrl = j.url;
@@ -2189,7 +2301,7 @@ def open_drop_folder(target_file=None):
         if os.name == "nt":
             if target_file and os.path.exists(target_file):
                 norm_f = os.path.normpath(target_file)
-                subprocess.Popen(f'explorer.exe /select,"{norm_f}"', shell=True)
+                subprocess.Popen(["explorer.exe", f"/select,{norm_f}"], creationflags=0x08000000)
             else:
                 os.startfile(os.path.normpath(DROP_DIR))
         elif sys.platform == "darwin":
@@ -2210,6 +2322,8 @@ class DropHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "*")
+    def is_loopback(self):
+        return self.client_address[0] in ("127.0.0.1", "::1", "::ffff:127.0.0.1")
     def check_token(self):
         if not TOKEN:
             return True
@@ -2227,14 +2341,20 @@ class DropHandler(BaseHTTPRequestHandler):
         self.end_headers()
     def do_GET(self):
         if self.path.startswith("/host"):
+            if not (self.is_loopback() and self.check_token()):
+                self.send_response(403); self.end_headers(); self.wfile.write(b"403 Forbidden"); return
             b = get_host_html().encode("utf-8")
             self.send_response(200)
             self.send_cors()
+            if TOKEN:
+                self.send_header("Set-Cookie", f"p_tok={TOKEN}; Path=/; HttpOnly; SameSite=Lax")
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(b)))
             self.end_headers()
             self.wfile.write(b)
         elif self.path.startswith("/status"):
+            if not (self.is_loopback() and self.check_token()):
+                self.send_response(403); self.end_headers(); self.wfile.write(b"403 Forbidden"); return
             b = json.dumps({"files": RECEIVED, "url": STATE["url"], "svg": STATE["svg"], "ready": STATE["ready"]}).encode("utf-8")
             self.send_response(200)
             self.send_cors()
@@ -2242,6 +2362,8 @@ class DropHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b)
         elif self.path.startswith("/open_folder"):
+            if not (self.is_loopback() and self.check_token()):
+                self.send_response(403); self.end_headers(); self.wfile.write(b"403 Forbidden"); return
             latest = RECEIVED[0]["path"] if RECEIVED else None
             open_drop_folder(latest)
             self.send_response(200)
@@ -2308,74 +2430,7 @@ class DropHandler(BaseHTTPRequestHandler):
 srv = ThreadingHTTPServer(("0.0.0.0", PORT), DropHandler)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 
-def find_cloudflared():
-    candidates = []
-    if os.name == "nt":
-        candidates.append(os.path.expandvars("%LOCALAPPDATA%/Pizza Converter/bin/cloudflared.exe"))
-    else:
-        candidates.extend([
-            os.path.expanduser("~/.local/bin/cloudflared"),
-            "/opt/homebrew/bin/cloudflared",
-            "/usr/local/bin/cloudflared",
-        ])
-    w = shutil.which("cloudflared")
-    if w:
-        candidates.insert(0, w)
-    for c in candidates:
-        if c and os.path.isfile(c):
-            return c
-    return None
-
-pub_url = ""
-cf_bin = find_cloudflared()
-if cf_bin:
-    try:
-        p = subprocess.Popen(
-            [cf_bin, "tunnel", "--url", f"http://127.0.0.1:{PORT}", "--no-autoupdate", "--protocol", "http2"],
-            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-            **({"creationflags": 0x08000000} if os.name == "nt" else {})
-        )
-        found_u = ""
-        t0 = time.time()
-        while time.time() - t0 < 8.0:
-            line = p.stdout.readline()
-            if not line:
-                break
-            m = re.search(r"https://[a-zA-Z0-9-]+\\.trycloudflare\\.com", line)
-            if m:
-                found_u = m.group(0)
-            if found_u and "Registered tunnel connection" in line:
-                time.sleep(0.8)
-                pub_url = found_u
-                break
-        if found_u and not pub_url:
-            time.sleep(0.8)
-            pub_url = found_u
-        threading.Thread(target=lambda: [_ for _ in p.stdout], daemon=True).start()
-    except Exception:
-        pass
-
-if not pub_url:
-    try:
-        p = subprocess.Popen(
-            ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "ServerAliveInterval=30", "-R", f"80:127.0.0.1:{PORT}", "nokey@localhost.run"],
-            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-            **({"creationflags": 0x08000000} if os.name == "nt" else {})
-        )
-        t0 = time.time()
-        while time.time() - t0 < 7.0:
-            line = p.stdout.readline()
-            if not line:
-                break
-            m = re.search(r"https://[a-zA-Z0-9.-]+\.lhr\.life", line)
-            if m:
-                pub_url = m.group(0)
-                break
-        threading.Thread(target=lambda: [_ for _ in p.stdout], daemon=True).start()
-    except Exception:
-        pass
-
-final_u = f"{pub_url}/?k={TOKEN}" if pub_url else LAN_URL
+final_u = LAN_URL
 STATE["url"] = final_u
 STATE["svg"] = make_qr_svg(final_u)
 STATE["ready"] = True
@@ -2384,47 +2439,65 @@ with open(TUNNEL_JSON, "w", encoding="utf-8") as f:
     json.dump({"pub_url": final_u}, f)
 
 time.sleep(1800)
+try:
+    if os.path.exists(TUNNEL_JSON): os.remove(TUNNEL_JSON)
+    os.remove(__file__)
+except Exception:
+    pass
 os._exit(0)
 '''.lstrip()
 
-tf = os.path.join(tempfile.gettempdir(), f"pizza_phone_drop_{port}.py")
+tmp_sub = os.path.join(tempfile.gettempdir(), "pizza_converter_tmp")
+os.makedirs(tmp_sub, exist_ok=True)
+tf = os.path.join(tmp_sub, f"pizza_phone_drop_{port}.py")
 with open(tf, "w", encoding="utf-8") as f:
     f.write(srv_script)
 
-subprocess.Popen(
+srv_proc = subprocess.Popen(
     [sys.executable, tf, drop_dir, phone_url, str(port), tunnel_json, app_lang, sec_token],
     stdin=subprocess.DEVNULL,
     stdout=subprocess.DEVNULL,
     stderr=subprocess.DEVNULL,
-    **({"creationflags": 0x08000200} if os.name == "nt" else {"start_new_session": True})
+    close_fds=True,
+    **({"creationflags": 0x08000208} if os.name == "nt" else {"start_new_session": True})
 )
 
 # Wait only until local HTTP server is listening (~80ms) so window opens INSTANTLY!
-for _ in range(25):
+import urllib.request
+for _ in range(40):
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/status", timeout=0.2) as r:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/status?k={sec_token}", timeout=0.25) as r:
             if r.status == 200:
                 break
     except Exception:
         pass
-    time.sleep(0.04)
+    time.sleep(0.05)
 
 with open(out_json_path, "w", encoding="utf-8") as f:
-    json.dump({"phone_url": phone_url, "host_url": host_url, "drop_dir": drop_dir}, f)
+    json.dump({"phone_url": phone_url, "host_url": host_url, "drop_dir": drop_dir, "pid": srv_proc.pid}, f)
 "###;
 
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    let tmp_json = std::env::temp_dir().join(format!("pizza_pdrop_{nanos}.json"));
+    let tmp_dir = std::env::temp_dir().join("pizza_converter_tmp");
+    let _ = std::fs::create_dir_all(&tmp_dir);
+    let tmp_json = tmp_dir.join(format!("pizza_pdrop_{nanos}.json"));
     let tmp_json_s = tmp_json.to_string_lossy().into_owned();
-    convertx_engine::office::run_python(script, &[&tmp_json_s, &app_lang])
-        .map_err(|e| e.to_string())?;
+    if let Err(e) = convertx_engine::office::run_python(script, &[&tmp_json_s, &app_lang]) {
+        let _ = std::fs::remove_file(&tmp_json);
+        return Err(e.to_string());
+    }
     let out = std::fs::read_to_string(&tmp_json).map_err(|e| e.to_string())?;
     let _ = std::fs::remove_file(&tmp_json);
     let v: serde_json::Value =
         serde_json::from_str(out.trim()).map_err(|e| format!("Phone drop init error: {e}"))?;
+    if let Some(pid) = v.get("pid").and_then(|x| x.as_u64()) {
+        if pid > 0 {
+            register_cloud_daemon_pid(pid as u32, true);
+        }
+    }
     let phone_url = v
         .get("phone_url")
         .and_then(|x| x.as_str())
@@ -2471,10 +2544,18 @@ pub fn start_pc_to_phone_drop(app: &tauri::AppHandle, inputs: &[PathBuf]) -> Res
     if inputs.is_empty() {
         return Err("No files selected to send to phone".to_string());
     }
+    cleanup_phone_drop_window_daemons();
     let app_lang = crate::config::load(app).language;
     let inputs_vec: Vec<String> = inputs
         .iter()
-        .map(|p| p.to_string_lossy().into_owned())
+        .map(|p| {
+            let abs_p = if p.is_relative() {
+                std::env::current_dir().map(|cd| cd.join(p)).unwrap_or_else(|_| p.clone())
+            } else {
+                p.clone()
+            };
+            abs_p.to_string_lossy().into_owned()
+        })
         .collect();
     let inputs_json = serde_json::to_string(&inputs_vec).unwrap_or_else(|_| "[]".to_string());
     let first_name = inputs[0]
@@ -2491,7 +2572,19 @@ import sys, os, json, time, socket, subprocess, tempfile, secrets, urllib.reques
 
 out_json_path = sys.argv[1]
 app_lang = (sys.argv[2].strip() if len(sys.argv) > 2 else "en") or "en"
-inputs_list = json.loads(sys.argv[3]) if len(sys.argv) > 3 else []
+inputs_in_path = sys.argv[3] if len(sys.argv) > 3 else ""
+inputs_list = []
+if inputs_in_path and os.path.isfile(inputs_in_path):
+    try:
+        with open(inputs_in_path, "r", encoding="utf-8") as f:
+            inputs_list = json.load(f)
+    except Exception:
+        inputs_list = []
+elif inputs_in_path:
+    try:
+        inputs_list = json.loads(inputs_in_path)
+    except Exception:
+        inputs_list = []
 
 def get_lan_ip():
     try:
@@ -2532,7 +2625,7 @@ with open(INPUTS_JSON, "r", encoding="utf-8") as f:
 
 LOADING_SVG = '<div style="width:180px;height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#0f172a;font-weight:800;font-size:12.5px;gap:10px;"><div style="width:32px;height:32px;border:3.5px solid #e2e8f0;border-top-color:#0ea5e9;border-radius:50%;animation:p_spin 0.75s linear infinite"></div><span>Generating QR...</span></div><style>@keyframes p_spin{to{transform:rotate(360deg)}}</style>'
 STATE = {
-    "url": "Connecting Cloudflare HTTPS Tunnel...",
+    "url": "Starting LocalDrop Server...",
     "svg": LOADING_SVG,
     "ready": False,
     "file_path": RAW_INPUTS[0] if RAW_INPUTS else "",
@@ -2581,7 +2674,7 @@ def open_source_folder():
     try:
         if os.name == "nt":
             norm_f = os.path.normpath(target_f)
-            subprocess.Popen(f'explorer.exe /select,"{norm_f}"', shell=True)
+            subprocess.Popen(["explorer.exe", f"/select,{norm_f}"], creationflags=0x08000000)
         elif sys.platform == "darwin":
             subprocess.Popen(["open", "-R", target_f])
     except Exception:
@@ -2624,6 +2717,7 @@ p.sub{{font-size:11.5px;color:#94a3b8;margin:0 0 8px}}
   <button class="btn-open" onclick="openFolderNow()">{tr["h_btn"]}</button>
 </div>
 <script>
+const HOST_TOK = {json.dumps(TOKEN)};
 let lastUrl = "";
 function copyUrl() {{
   if (!lastUrl) return;
@@ -2633,11 +2727,11 @@ function copyUrl() {{
   setTimeout(() => {{ b.textContent = '📋 Copy'; }}, 1400);
 }}
 async function openFolderNow() {{
-  try {{ await fetch('/open_folder?t=' + Date.now()); }} catch (e) {{}}
+  try {{ await fetch('/open_folder?k=' + encodeURIComponent(HOST_TOK) + '&t=' + Date.now()); }} catch (e) {{}}
 }}
 setInterval(async () => {{
   try {{
-    const r = await fetch('/status?t=' + Date.now());
+    const r = await fetch('/status?k=' + encodeURIComponent(HOST_TOK) + '&t=' + Date.now());
     const j = await r.json();
     if (j.url && j.url !== lastUrl) {{
       lastUrl = j.url;
@@ -2673,7 +2767,7 @@ def get_mobile_html():
     lan_dl = f"{lan_base}/dl/{q_name}{tok_q}"
     return f"""<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>{fname} · Pizza Drop</title>
+<title>{fname} · Pizza LocalDrop</title>
 <style>
 *{{box-sizing:border-box}}
 body{{margin:0;background:#090d16;color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}}
@@ -2693,18 +2787,7 @@ a.btn-sub{{display:block;background:rgba(255,255,255,0.08);border:1px solid rgba
   <a id="dl-btn" class="btn-main" href="/dl/{q_name}{tok_q}" download="{fname}">{tr["m_btn"]} ({sz_str})</a>
   <a class="btn-sub" href="/view/{q_name}{tok_q}" target="_blank">{tr["m_sub"]}</a>
 </div>
-<script>
-const lanBase = {json.dumps(lan_base)};
-const lanDl = {json.dumps(lan_dl)};
-(async () => {{
-  try {{
-    const ctrl = new AbortController();
-    setTimeout(() => ctrl.abort(), 500);
-    const r = await fetch(lanBase + "/status", {{ signal: ctrl.signal, mode: "cors" }});
-    if (r.ok) document.getElementById("dl-btn").href = lanDl;
-  }} catch (_) {{}}
-}})();
-</script></body></html>"""
+</body></html>"""
 
 class PC2PhoneHandler(BaseHTTPRequestHandler):
     def log_message(self, *args): pass
@@ -2712,6 +2795,8 @@ class PC2PhoneHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "*")
+    def is_loopback(self):
+        return self.client_address[0] in ("127.0.0.1", "::1", "::ffff:127.0.0.1")
     def check_token(self):
         if not TOKEN:
             return True
@@ -2725,17 +2810,25 @@ class PC2PhoneHandler(BaseHTTPRequestHandler):
         self.send_response(204); self.send_cors(); self.end_headers()
     def do_GET(self):
         if self.path.startswith("/host"):
+            if not (self.is_loopback() and self.check_token()):
+                self.send_response(403); self.end_headers(); self.wfile.write(b"403 Forbidden"); return
             b = get_host_html().encode("utf-8")
             self.send_response(200); self.send_cors()
+            if TOKEN:
+                self.send_header("Set-Cookie", f"p_tok={TOKEN}; Path=/; HttpOnly; SameSite=Lax")
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(b)))
             self.end_headers(); self.wfile.write(b)
         elif self.path.startswith("/status"):
+            if not (self.is_loopback() and self.check_token()):
+                self.send_response(403); self.end_headers(); self.wfile.write(b"403 Forbidden"); return
             b = json.dumps({"url": STATE["url"], "svg": STATE["svg"], "ready": STATE["ready"], "events": STATE["events"]}).encode("utf-8")
             self.send_response(200); self.send_cors()
             self.send_header("Content-Type", "application/json")
             self.end_headers(); self.wfile.write(b)
         elif self.path.startswith("/open_folder"):
+            if not (self.is_loopback() and self.check_token()):
+                self.send_response(403); self.end_headers(); self.wfile.write(b"403 Forbidden"); return
             open_source_folder()
             self.send_response(200); self.send_cors(); self.end_headers(); self.wfile.write(b"ok")
         elif self.path.startswith("/dl") or self.path.startswith("/view"):
@@ -2748,12 +2841,43 @@ class PC2PhoneHandler(BaseHTTPRequestHandler):
             sz = os.path.getsize(fp)
             ct = mimetypes.guess_type(fname)[0] or "application/octet-stream"
             is_dl = self.path.startswith("/dl")
+            disp = "attachment" if is_dl else "inline"
             if is_dl:
                 STATE["events"].insert(0, {"msg": f"📲 Downloading {fname}", "info": f"{sz/1048576:.1f} MB"})
+
+            range_hdr = self.headers.get("Range")
+            if range_hdr and range_hdr.startswith("bytes="):
+                try:
+                    r_part = range_hdr.split("=", 1)[1].split(",")[0].strip()
+                    s_str, e_str = r_part.split("-", 1)
+                    start_b = int(s_str) if s_str else 0
+                    end_b = int(e_str) if e_str else sz - 1
+                    end_b = min(end_b, sz - 1)
+                    length = max(0, end_b - start_b + 1)
+                    self.send_response(206)
+                    self.send_cors()
+                    self.send_header("Content-Type", ct)
+                    self.send_header("Content-Disposition", f'{disp}; filename="{fname}"')
+                    self.send_header("Accept-Ranges", "bytes")
+                    self.send_header("Content-Range", f"bytes {start_b}-{end_b}/{sz}")
+                    self.send_header("Content-Length", str(length))
+                    self.end_headers()
+                    with open(fp, "rb") as f:
+                        f.seek(start_b)
+                        rem = length
+                        while rem > 0:
+                            chunk = f.read(min(rem, 1048576))
+                            if not chunk: break
+                            self.wfile.write(chunk)
+                            rem -= len(chunk)
+                    return
+                except Exception:
+                    return
+
             self.send_response(200); self.send_cors()
             self.send_header("Content-Type", ct)
+            self.send_header("Accept-Ranges", "bytes")
             self.send_header("Content-Length", str(sz))
-            disp = "attachment" if is_dl else "inline"
             self.send_header("Content-Disposition", f'{disp}; filename="{fname}"')
             self.end_headers()
             with open(fp, "rb") as f:
@@ -2780,7 +2904,9 @@ threading.Thread(target=srv.serve_forever, daemon=True).start()
 
 def prepare_and_tunnel():
     if len(RAW_INPUTS) > 1 or (len(RAW_INPUTS) == 1 and os.path.isdir(RAW_INPUTS[0])):
-        bundle_zip = os.path.join(tempfile.gettempdir(), f"Pizza_Bundle_{len(RAW_INPUTS)}files_{PORT}.zip")
+        tmp_sub_dir = os.path.join(tempfile.gettempdir(), "pizza_converter_tmp")
+        os.makedirs(tmp_sub_dir, exist_ok=True)
+        bundle_zip = os.path.join(tmp_sub_dir, f"Pizza_Bundle_{len(RAW_INPUTS)}files_{PORT}.zip")
         with zipfile.ZipFile(bundle_zip, "w", compression=zipfile.ZIP_STORED) as zf:
             for item in RAW_INPUTS:
                 if os.path.isfile(item):
@@ -2792,84 +2918,83 @@ def prepare_and_tunnel():
                             zf.write(full_p, arcname=os.path.relpath(full_p, os.path.dirname(item)))
         STATE["file_path"] = bundle_zip
         STATE["file_name"] = os.path.basename(bundle_zip)
+        STATE["bundle_zip"] = bundle_zip
     sz_mb = os.path.getsize(STATE["file_path"]) / 1048576.0 if os.path.isfile(STATE["file_path"]) else 0.0
     STATE["events"].insert(0, {"msg": f"📦 Ready: {STATE['file_name']}", "info": f"{sz_mb:.1f} MB"})
 
-    cf_candidates = [shutil.which("cloudflared")]
-    if os.name == "nt":
-        cf_candidates.append(os.path.expandvars("%LOCALAPPDATA%/Pizza Converter/bin/cloudflared.exe"))
-    else:
-        cf_candidates.extend([os.path.expanduser("~/.local/bin/cloudflared"), "/opt/homebrew/bin/cloudflared", "/usr/local/bin/cloudflared"])
-    cf_bin = next((c for c in cf_candidates if c and os.path.isfile(c)), None)
-    pub_url = ""
-    if cf_bin:
-        try:
-            p = subprocess.Popen(
-                [cf_bin, "tunnel", "--url", f"http://127.0.0.1:{PORT}", "--no-autoupdate", "--protocol", "http2"],
-                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                **({"creationflags": 0x08000000} if os.name == "nt" else {})
-            )
-            found_u = ""
-            t0 = time.time()
-            while time.time() - t0 < 8.0:
-                line = p.stdout.readline()
-                if not line: break
-                m = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
-                if m: found_u = m.group(0)
-                if found_u and "Registered tunnel connection" in line:
-                    time.sleep(0.6)
-                    pub_url = found_u
-                    break
-            if found_u and not pub_url:
-                pub_url = found_u
-            threading.Thread(target=lambda: [_ for _ in p.stdout], daemon=True).start()
-        except Exception:
-            pass
-    final_u = f"{pub_url}/?k={TOKEN}" if pub_url else LAN_URL
+    # Pure direct high-speed 1Gbps Wi-Fi streaming (Zero cloud dependencies, zero mixed content, zero ads)
+    final_u = LAN_URL
     STATE["url"] = final_u
     STATE["svg"] = make_qr_svg(final_u)
     STATE["ready"] = True
 
 threading.Thread(target=prepare_and_tunnel, daemon=True).start()
 time.sleep(1800)
+try:
+    bz = STATE.get("bundle_zip")
+    if bz and os.path.exists(bz): os.remove(bz)
+    if os.path.exists(INPUTS_JSON): os.remove(INPUTS_JSON)
+    os.remove(__file__)
+except Exception:
+    pass
 os._exit(0)
 '''.lstrip()
 
-tf = os.path.join(tempfile.gettempdir(), f"pizza_pc2phone_srv_{port}.py")
+tmp_sub = os.path.join(tempfile.gettempdir(), "pizza_converter_tmp")
+os.makedirs(tmp_sub, exist_ok=True)
+tf = os.path.join(tmp_sub, f"pizza_pc2phone_srv_{port}.py")
 with open(tf, "w", encoding="utf-8") as f:
     f.write(srv_script)
 
-subprocess.Popen(
+srv_proc = subprocess.Popen(
     [sys.executable, tf, inputs_file, lan_url, str(port), app_lang, sec_token],
     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    **({"creationflags": 0x08000200} if os.name == "nt" else {"start_new_session": True})
+    close_fds=True,
+    **({"creationflags": 0x08000208} if os.name == "nt" else {"start_new_session": True})
 )
 
-for _ in range(25):
+import urllib.request
+for _ in range(40):
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/status", timeout=0.2) as r:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/status?k={sec_token}", timeout=0.25) as r:
             if r.status == 200:
                 break
     except Exception:
         pass
-    time.sleep(0.04)
+    time.sleep(0.05)
 
 with open(out_json_path, "w", encoding="utf-8") as f:
-    json.dump({"phone_url": lan_url, "host_url": host_url}, f)
+    json.dump({"phone_url": lan_url, "host_url": host_url, "pid": srv_proc.pid}, f)
 "###;
 
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    let tmp_json = std::env::temp_dir().join(format!("pizza_pc2p_{nanos}.json"));
+    let tmp_dir = std::env::temp_dir().join("pizza_converter_tmp");
+    let _ = std::fs::create_dir_all(&tmp_dir);
+    let tmp_json = tmp_dir.join(format!("pizza_pc2p_{nanos}.json"));
     let tmp_json_s = tmp_json.to_string_lossy().into_owned();
-    convertx_engine::office::run_python(script, &[&tmp_json_s, &app_lang, &inputs_json])
-        .map_err(|e| e.to_string())?;
+
+    let tmp_inputs = tmp_dir.join(format!("pizza_pc2p_in_{nanos}.json"));
+    std::fs::write(&tmp_inputs, &inputs_json).map_err(|e| e.to_string())?;
+    let tmp_inputs_s = tmp_inputs.to_string_lossy().into_owned();
+
+    let py_res = convertx_engine::office::run_python(script, &[&tmp_json_s, &app_lang, &tmp_inputs_s]);
+    let _ = std::fs::remove_file(&tmp_inputs);
+    if let Err(e) = py_res {
+        let _ = std::fs::remove_file(&tmp_json);
+        return Err(e.to_string());
+    }
     let out = std::fs::read_to_string(&tmp_json).map_err(|e| e.to_string())?;
     let _ = std::fs::remove_file(&tmp_json);
     let v: serde_json::Value =
         serde_json::from_str(out.trim()).map_err(|e| format!("PC to Phone init error: {e}"))?;
+    if let Some(pid) = v.get("pid").and_then(|x| x.as_u64()) {
+        if pid > 0 {
+            register_cloud_daemon_pid(pid as u32, true);
+        }
+    }
     let phone_url = v
         .get("phone_url")
         .and_then(|x| x.as_str())
@@ -2907,4 +3032,62 @@ with open(out_json_path, "w", encoding="utf-8") as f:
     let _ = copy_to_system_clipboard(&phone_url);
     record_cloud_upload(app, first_name, "PC → Phone QR", "/QR Stream", &phone_url, total_bytes);
     Ok(phone_url)
+}
+
+/// Register Windows Explorer Context Menu: "Transfer to Phone (Pizza)"
+/// Allows user to right-click ANY file/folder or use "Send to" in Windows Explorer to immediately trigger Pizza PC → Phone Transfer.
+pub fn ensure_explorer_context_menu() {
+    #[cfg(windows)]
+    {
+        std::thread::spawn(|| {
+            let current_exe = match std::env::current_exe() {
+                Ok(p) => p,
+                Err(_) => return,
+            };
+            let installed_exe = dirs::data_local_dir()
+                .map(|p| p.join("Pizza Converter").join("pizza-converter.exe"))
+                .filter(|p| p.exists());
+            let final_exe = installed_exe.unwrap_or(current_exe);
+            let exe_str = final_exe.to_string_lossy().into_owned();
+            if !exe_str.ends_with(".exe") {
+                return;
+            }
+
+            let script = format!(
+                r#"
+$exe = "{exe_str}"
+$keyFiles = "HKCU:\Software\Classes\*\shell\PizzaTransfer"
+$keyDir = "HKCU:\Software\Classes\Directory\shell\PizzaTransfer"
+
+foreach ($k in @($keyFiles, $keyDir)) {{
+    New-Item -Path $k -Force | Out-Null
+    Set-ItemProperty -Path $k -Name "(Default)" -Value "Transfer to Phone (Pizza)"
+    Set-ItemProperty -Path $k -Name "Icon" -Value $exe
+    $cmd = "$k\command"
+    New-Item -Path $cmd -Force | Out-Null
+    Set-ItemProperty -Path $cmd -Name "(Default)" -Value ('"' + $exe + '" --send-to-phone "%1"')
+}}
+
+$sendto = "$env:APPDATA\Microsoft\Windows\SendTo"
+if (Test-Path $sendto) {{
+    try {{
+        $wsh = New-Object -ComObject WScript.Shell
+        $sc = $wsh.CreateShortcut("$sendto\Transfer to Phone (Pizza).lnk")
+        $sc.TargetPath = $exe
+        $sc.Arguments = "--send-to-phone"
+        $sc.IconLocation = "$exe,0"
+        $sc.Description = "Transfer selected file directly to Phone via Pizza LocalDrop"
+        $sc.Save()
+    }} catch {{}}
+}}
+"#
+            );
+
+            use std::os::windows::process::CommandExt;
+            let _ = std::process::Command::new("powershell")
+                .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+                .creation_flags(0x08000000)
+                .status();
+        });
+    }
 }

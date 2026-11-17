@@ -9,10 +9,76 @@
 //! - Microphone sample recording & audio blob saving
 
 use serde::{Deserialize, Serialize};
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::Emitter;
+
+static TEMP_SWEEP_DONE: AtomicBool = AtomicBool::new(false);
+
+/// Dedicated temporary directory (`%TEMP%/pizza_converter_tmp`) so Voice Studio & Local API
+/// never clutter the user's root `%TEMP%` folder.
+pub fn pizza_voice_temp_dir() -> PathBuf {
+    let dir = std::env::temp_dir().join("pizza_converter_tmp");
+    let _ = std::fs::create_dir_all(&dir);
+    if !TEMP_SWEEP_DONE.swap(true, Ordering::Relaxed) {
+        cleanup_stale_voice_temp_files();
+    }
+    dir
+}
+
+/// Sweeps temporary audio/script artifacts older than 24 hours inside `%TEMP%/pizza_converter_tmp`.
+pub fn cleanup_stale_voice_temp_files() {
+    let dir = std::env::temp_dir().join("pizza_converter_tmp");
+    let cutoff = std::time::Duration::from_secs(24 * 3600);
+    let now = std::time::SystemTime::now();
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_file() {
+                if let Ok(meta) = entry.metadata() {
+                    if let Ok(modified) = meta.modified() {
+                        if now.duration_since(modified).unwrap_or_default() > cutoff {
+                            let _ = std::fs::remove_file(&p);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Ensures bundled `tts_provider.py` and `cloud_ai_bridge.py` are extracted into
+/// `%TEMP%/pizza_converter_tmp/py_modules` for both dev and compiled release binaries,
+/// returning the module directory path.
+pub fn ensure_tts_provider_module_dir() -> Result<PathBuf, String> {
+    let mod_dir = pizza_voice_temp_dir().join("py_modules");
+    std::fs::create_dir_all(&mod_dir)
+        .map_err(|e| format!("Failed to create py_modules dir: {e}"))?;
+    let pid = std::process::id();
+    for (fname, src) in [
+        ("tts_provider.py", include_str!("tts_provider.py")),
+        ("cloud_ai_bridge.py", include_str!("cloud_ai_bridge.py")),
+    ] {
+        let target = mod_dir.join(fname);
+        let needs_write = match std::fs::read_to_string(&target) {
+            Ok(existing) => existing != src,
+            Err(_) => true,
+        };
+        if needs_write {
+            let tmp_target = mod_dir.join(format!("{fname}.{pid}.tmp"));
+            std::fs::write(&tmp_target, src)
+                .map_err(|e| format!("Failed to stage {fname}: {e}"))?;
+            let _ = std::fs::rename(&tmp_target, &target).or_else(|_| {
+                let r = std::fs::copy(&tmp_target, &target).map(|_| ());
+                let _ = std::fs::remove_file(&tmp_target);
+                r
+            });
+        }
+    }
+    Ok(mod_dir)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VoiceProfile {
@@ -91,33 +157,33 @@ pub fn get_curated_voices() -> Vec<VoiceProfile> {
     vec![
         // 🇻🇳 Vietnamese Voices & Creator Personas
         VoiceProfile {
-            id: "vi_nam_minh_recap".into(),
-            name: "Nam Minh · Review Phim / Movie Recap".into(),
-            desc: "Giọng nam trầm ấm, hào sảng, bass dày — chuẩn kênh Tóm Tắt Phim & Recap YouTube triệu view.".into(),
+            id: "vi_thai_son".into(),
+            name: "Thái Sơn · Cinematic & Storytelling".into(),
+            desc: "Deep, captivating Southern Vietnamese baritone for films, stories, and documentaries.".into(),
             voice_type: "curated".into(),
             avatar: "🎬".into(),
             gender: "male".into(),
             lang: "vi".into(),
             lang_name: "Vietnamese (Vietnam)".into(),
-            accent: "vi-VN".into(),
-            style: "Movie Recap & Deep Narration".into(),
+            accent: "vi-VN-South".into(),
+            style: "Cinematic & Storytelling".into(),
             sample_text: "Chào mừng các bạn đã quay trở lại với video tóm tắt phim ngày hôm nay.".into(),
             f0_median: Some(125.0),
             base_neural_voice: Some("vi-VN-NamMinhNeural".into()),
-            pitch_shift_st: Some(-1.5),
+            pitch_shift_st: Some(0.0),
             created_at: None,
             source_audio: None,
         },
         VoiceProfile {
-            id: "vi_nam_minh_news".into(),
-            name: "Nam Minh · Tin Tức & Thời Sự".into(),
-            desc: "Giọng nam dứt khoát, trang trọng, ngữ điệu rõ ràng chuẩn phát thanh viên truyền hình.".into(),
+            id: "vi_minh_duc".into(),
+            name: "Minh Đức · News & Broadcast".into(),
+            desc: "Authoritative, articulate Northern Vietnamese broadcast narrator for news and media.".into(),
             voice_type: "curated".into(),
             avatar: "🎙️".into(),
             gender: "male".into(),
             lang: "vi".into(),
             lang_name: "Vietnamese (Vietnam)".into(),
-            accent: "vi-VN".into(),
+            accent: "vi-VN-North".into(),
             style: "News & Formal Broadcast".into(),
             sample_text: "Bản tin hôm nay xin gửi tới quý vị những thông tin đáng chú ý nhất.".into(),
             f0_median: Some(135.0),
@@ -127,71 +193,125 @@ pub fn get_curated_voices() -> Vec<VoiceProfile> {
             source_audio: None,
         },
         VoiceProfile {
-            id: "vi_nam_minh_audiobook".into(),
-            name: "Nam Minh · Sách Nói & Triết Lý".into(),
-            desc: "Giọng nam sâu lắng, ấm áp, nhịp điệu chậm rãi thư thái cho sách nói và podcast.".into(),
+            id: "vi_truc_ly".into(),
+            name: "Trúc Ly · Gentle Narrator".into(),
+            desc: "Gentle, poetic Northern Vietnamese female voice for audiobooks and calm narration.".into(),
             voice_type: "curated".into(),
             avatar: "📚".into(),
-            gender: "male".into(),
+            gender: "female".into(),
             lang: "vi".into(),
             lang_name: "Vietnamese (Vietnam)".into(),
-            accent: "vi-VN".into(),
+            accent: "vi-VN-North".into(),
             style: "Storytelling & Audiobook".into(),
             sample_text: "Cuộc sống là một hành trình dài và mỗi bước đi đều mang một ý nghĩa riêng.".into(),
-            f0_median: Some(128.0),
-            base_neural_voice: Some("vi-VN-NamMinhNeural".into()),
-            pitch_shift_st: Some(-0.8),
+            f0_median: Some(210.0),
+            base_neural_voice: Some("vi-VN-HoaiMyNeural".into()),
+            pitch_shift_st: Some(0.0),
             created_at: None,
             source_audio: None,
         },
         VoiceProfile {
-            id: "vi_nam_minh_story".into(),
-            name: "Nam Minh · Truyện Ma & Kịch Tính".into(),
-            desc: "Giọng nam trầm tối, ma mị, gây cấn và lôi cuốn cho truyện đêm khuya, kinh dị.".into(),
-            voice_type: "curated".into(),
-            avatar: "👻".into(),
-            gender: "male".into(),
-            lang: "vi".into(),
-            lang_name: "Vietnamese (Vietnam)".into(),
-            accent: "vi-VN".into(),
-            style: "Dramatic Thriller & Mystery".into(),
-            sample_text: "Đêm hôm đó, một tiếng gõ cửa kỳ lạ vang lên giữa sự tĩnh lặng của căn phòng.".into(),
-            f0_median: Some(115.0),
-            base_neural_voice: Some("vi-VN-NamMinhNeural".into()),
-            pitch_shift_st: Some(-3.2),
-            created_at: None,
-            source_audio: None,
-        },
-        VoiceProfile {
-            id: "vi_nam_minh_shorts".into(),
-            name: "Nam Minh · Trẻ Trung / TikTok Shorts".into(),
-            desc: "Giọng nam hào hứng, sôi nổi, nhịp điệu nhanh và bắt tai cho video ngắn TikTok/Reels.".into(),
+            id: "vi_xuan_vinh".into(),
+            name: "Xuân Vĩnh · TikTok & Viral Shorts".into(),
+            desc: "Energetic, trendy Southern Vietnamese voice ideal for TikTok, Reels, and fast-paced recaps.".into(),
             voice_type: "curated".into(),
             avatar: "⚡".into(),
             gender: "male".into(),
             lang: "vi".into(),
             lang_name: "Vietnamese (Vietnam)".into(),
-            accent: "vi-VN".into(),
+            accent: "vi-VN-South".into(),
             style: "Commercial & Viral Shorts".into(),
             sample_text: "Bạn có tin được điều này không? Hãy xem hết video để biết sự thật nhé!".into(),
             f0_median: Some(140.0),
             base_neural_voice: Some("vi-VN-NamMinhNeural".into()),
-            pitch_shift_st: Some(1.0),
+            pitch_shift_st: Some(0.0),
             created_at: None,
             source_audio: None,
         },
         VoiceProfile {
-            id: "vi_nam_minh".into(),
-            name: "Nam Minh · Chuẩn Tự Nhiên".into(),
-            desc: "Giọng nam Bắc chuẩn mực, tự nhiên, cân bằng hoàn hảo cho mọi nội dung video.".into(),
+            id: "vi_thuc_doan".into(),
+            name: "Thục Đoan · Melodic Storytelling".into(),
+            desc: "Warm, melodic Southern Vietnamese female tone for emotional storytelling and podcasts.".into(),
             voice_type: "curated".into(),
-            avatar: "🇻🇳".into(),
+            avatar: "📖".into(),
+            gender: "female".into(),
+            lang: "vi".into(),
+            lang_name: "Vietnamese (Vietnam)".into(),
+            accent: "vi-VN-South".into(),
+            style: "Emotional Storytelling".into(),
+            sample_text: "Hãy cùng lắng nghe những trang sách bình yên sau một ngày dài bận rộn.".into(),
+            f0_median: Some(205.0),
+            base_neural_voice: Some("vi-VN-HoaiMyNeural".into()),
+            pitch_shift_st: Some(0.0),
+            created_at: None,
+            source_audio: None,
+        },
+        VoiceProfile {
+            id: "vi_pham_tuyen".into(),
+            name: "Phạm Tuyên · Everyday Vlogger".into(),
+            desc: "Natural, friendly Northern Vietnamese male voice for tech reviews and daily vlogs.".into(),
+            voice_type: "curated".into(),
+            avatar: "🧢".into(),
             gender: "male".into(),
             lang: "vi".into(),
             lang_name: "Vietnamese (Vietnam)".into(),
-            accent: "vi-VN".into(),
-            style: "Balanced Natural Speech".into(),
-            sample_text: "Chào mừng các bạn đã quay trở lại với video review phim ngày hôm nay.".into(),
+            accent: "vi-VN-North".into(),
+            style: "Conversational & Vlog".into(),
+            sample_text: "Hôm nay mình sẽ unbox và chia sẻ với anh em một món đồ công nghệ cực kỳ thú vị.".into(),
+            f0_median: Some(132.0),
+            base_neural_voice: Some("vi-VN-NamMinhNeural".into()),
+            pitch_shift_st: Some(0.0),
+            created_at: None,
+            source_audio: None,
+        },
+        VoiceProfile {
+            id: "vi_thanh_binh".into(),
+            name: "Thanh Bình · Mystery & Drama".into(),
+            desc: "Suspenseful, deep Northern Vietnamese voice for horror stories and crime documentaries.".into(),
+            voice_type: "curated".into(),
+            avatar: "👻".into(),
+            gender: "male".into(),
+            lang: "vi".into(),
+            lang_name: "Vietnamese (Vietnam)".into(),
+            accent: "vi-VN-North".into(),
+            style: "Dramatic Thriller & Mystery".into(),
+            sample_text: "Đêm hôm đó, một tiếng gõ cửa kỳ lạ vang lên giữa sự tĩnh lặng của căn phòng.".into(),
+            f0_median: Some(115.0),
+            base_neural_voice: Some("vi-VN-NamMinhNeural".into()),
+            pitch_shift_st: Some(0.0),
+            created_at: None,
+            source_audio: None,
+        },
+        VoiceProfile {
+            id: "vi_doan_trang".into(),
+            name: "Đoan Trang · Calm & Relaxing".into(),
+            desc: "Soothing Northern Vietnamese female voice for late-night talks, meditation, and relaxation.".into(),
+            voice_type: "curated".into(),
+            avatar: "🌙".into(),
+            gender: "female".into(),
+            lang: "vi".into(),
+            lang_name: "Vietnamese (Vietnam)".into(),
+            accent: "vi-VN-North".into(),
+            style: "Soothing Relaxation & Whisper".into(),
+            sample_text: "Chúc bạn có một buổi tối thật an lành và những giấc mơ ngọt ngào.".into(),
+            f0_median: Some(195.0),
+            base_neural_voice: Some("vi-VN-HoaiMyNeural".into()),
+            pitch_shift_st: Some(0.0),
+            created_at: None,
+            source_audio: None,
+        },
+        VoiceProfile {
+            id: "vi_minh_triet".into(),
+            name: "Minh Triết · Business & Tech".into(),
+            desc: "Confident Southern Vietnamese professional voice for finance, business, and explainer videos.".into(),
+            voice_type: "curated".into(),
+            avatar: "💼".into(),
+            gender: "male".into(),
+            lang: "vi".into(),
+            lang_name: "Vietnamese (Vietnam)".into(),
+            accent: "vi-VN-South".into(),
+            style: "Business & Presentations".into(),
+            sample_text: "Giải pháp chuyển đổi số này giúp doanh nghiệp tối ưu chi phí và tăng trưởng nhanh chóng.".into(),
             f0_median: Some(130.0),
             base_neural_voice: Some("vi-VN-NamMinhNeural".into()),
             pitch_shift_st: Some(0.0),
@@ -199,53 +319,17 @@ pub fn get_curated_voices() -> Vec<VoiceProfile> {
             source_audio: None,
         },
         VoiceProfile {
-            id: "vi_hoai_my_story".into(),
-            name: "Hoài My · Kể Chuyện & Sách Nói".into(),
-            desc: "Giọng nữ dịu dàng, ngọt ngào và giàu cảm xúc cho văn học, tản văn và sách nói.".into(),
+            id: "vi_thuy_dung".into(),
+            name: "Thùy Dung · Radio & Daily Show".into(),
+            desc: "Lively, expressive Southern Vietnamese female voice for radio shows and commercials.".into(),
             voice_type: "curated".into(),
-            avatar: "📖".into(),
+            avatar: "📻".into(),
             gender: "female".into(),
             lang: "vi".into(),
             lang_name: "Vietnamese (Vietnam)".into(),
-            accent: "vi-VN".into(),
-            style: "Storytelling & Audiobook".into(),
-            sample_text: "Hãy cùng lắng nghe những trang sách bình yên sau một ngày dài bận rộn.".into(),
-            f0_median: Some(205.0),
-            base_neural_voice: Some("vi-VN-HoaiMyNeural".into()),
-            pitch_shift_st: Some(-0.5),
-            created_at: None,
-            source_audio: None,
-        },
-        VoiceProfile {
-            id: "vi_hoai_my_review".into(),
-            name: "Hoài My · Review & Đập Hộp KOC".into(),
-            desc: "Giọng nữ tươi tắn, năng động, cuốn hút cho review mỹ phẩm, thời trang và unboxing.".into(),
-            voice_type: "curated".into(),
-            avatar: "🛍️".into(),
-            gender: "female".into(),
-            lang: "vi".into(),
-            lang_name: "Vietnamese (Vietnam)".into(),
-            accent: "vi-VN".into(),
-            style: "Commercial & Lifestyle".into(),
-            sample_text: "Hôm nay mình sẽ unbox và review chi tiết siêu phẩm đang cực hot này nha.".into(),
-            f0_median: Some(220.0),
-            base_neural_voice: Some("vi-VN-HoaiMyNeural".into()),
-            pitch_shift_st: Some(1.2),
-            created_at: None,
-            source_audio: None,
-        },
-        VoiceProfile {
-            id: "vi_hoai_my_news".into(),
-            name: "Hoài My · Bản Tin & Phóng Sự".into(),
-            desc: "Giọng nữ nghiêm túc, phát âm rõ ràng, tròn vành rõ chữ chuẩn MC đài truyền hình.".into(),
-            voice_type: "curated".into(),
-            avatar: "🎙️".into(),
-            gender: "female".into(),
-            lang: "vi".into(),
-            lang_name: "Vietnamese (Vietnam)".into(),
-            accent: "vi-VN".into(),
-            style: "News & Formal Broadcast".into(),
-            sample_text: "Kính chào quý vị và các bạn, mời quý vị theo dõi bản tin hôm nay.".into(),
+            accent: "vi-VN-South".into(),
+            style: "Radio & Talk Show".into(),
+            sample_text: "Chào mừng các thính giả thân yêu đang lắng nghe giai điệu tuyệt vời của ngày hôm nay.".into(),
             f0_median: Some(215.0),
             base_neural_voice: Some("vi-VN-HoaiMyNeural".into()),
             pitch_shift_st: Some(0.0),
@@ -253,27 +337,63 @@ pub fn get_curated_voices() -> Vec<VoiceProfile> {
             source_audio: None,
         },
         VoiceProfile {
-            id: "vi_hoai_my_lullaby".into(),
-            name: "Hoài My · Tâm Sự Đêm Khuya".into(),
-            desc: "Giọng nữ thủ thỉ, êm dịu, ấm áp giúp thư giãn và dễ đi vào giấc ngủ.".into(),
+            id: "vi_quang_son".into(),
+            name: "Quang Sơn · Central Echoes".into(),
+            desc: "Authentic Central Vietnamese male accent from Da Nang and Hue for cultural content.".into(),
             voice_type: "curated".into(),
-            avatar: "🌙".into(),
+            avatar: "🌊".into(),
+            gender: "male".into(),
+            lang: "vi".into(),
+            lang_name: "Vietnamese (Vietnam)".into(),
+            accent: "vi-VN-Central".into(),
+            style: "Regional Cultural Heritage".into(),
+            sample_text: "Mảnh đất miền Trung với bao nét văn hóa truyền thống mộc mạc và sâu lắng.".into(),
+            f0_median: Some(128.0),
+            base_neural_voice: Some("vi-VN-NamMinhNeural".into()),
+            pitch_shift_st: Some(0.0),
+            created_at: None,
+            source_audio: None,
+        },
+        VoiceProfile {
+            id: "vi_ngoc_tran".into(),
+            name: "Ngọc Trân · Central Charm".into(),
+            desc: "Charming Central Vietnamese female accent for tourism, travel, and local storytelling.".into(),
+            voice_type: "curated".into(),
+            avatar: "🌸".into(),
             gender: "female".into(),
             lang: "vi".into(),
             lang_name: "Vietnamese (Vietnam)".into(),
-            accent: "vi-VN".into(),
-            style: "Soothing Relaxation & Whisper".into(),
-            sample_text: "Chúc bạn có một buổi tối thật an lành và những giấc mơ ngọt ngào.".into(),
-            f0_median: Some(195.0),
+            accent: "vi-VN-Central".into(),
+            style: "Regional Cultural Heritage".into(),
+            sample_text: "Kính mời quý khách cùng khám phá vẻ đẹp trữ tình và thơ mộng của miền đất di sản.".into(),
+            f0_median: Some(212.0),
             base_neural_voice: Some("vi-VN-HoaiMyNeural".into()),
-            pitch_shift_st: Some(-1.2),
+            pitch_shift_st: Some(0.0),
+            created_at: None,
+            source_audio: None,
+        },
+        VoiceProfile {
+            id: "vi_nam_minh".into(),
+            name: "Nam Minh · Standard Neural (Classic)".into(),
+            desc: "Classic Microsoft Neural standard Northern Vietnamese male voice.".into(),
+            voice_type: "curated".into(),
+            avatar: "🇻🇳".into(),
+            gender: "male".into(),
+            lang: "vi".into(),
+            lang_name: "Vietnamese (Vietnam)".into(),
+            accent: "vi-VN".into(),
+            style: "Balanced Natural Speech".into(),
+            sample_text: "Chào mừng các bạn đã quay trở lại với video review ngày hôm nay.".into(),
+            f0_median: Some(130.0),
+            base_neural_voice: Some("vi-VN-NamMinhNeural".into()),
+            pitch_shift_st: Some(0.0),
             created_at: None,
             source_audio: None,
         },
         VoiceProfile {
             id: "vi_hoai_my".into(),
-            name: "Hoài My · Chuẩn Tự Nhiên".into(),
-            desc: "Giọng nữ Bắc tự nhiên, trong trẻo, phù hợp với hầu hết mọi thể loại nội dung.".into(),
+            name: "Hoài My · Standard Neural (Classic)".into(),
+            desc: "Classic Microsoft Neural standard Northern Vietnamese female voice.".into(),
             voice_type: "curated".into(),
             avatar: "🇻🇳".into(),
             gender: "female".into(),
@@ -401,7 +521,7 @@ pub fn get_curated_voices() -> Vec<VoiceProfile> {
         VoiceProfile {
             id: "ja_keita".into(),
             name: "Keita · Anime & Dramatic".into(),
-            desc: "Giọng nam tiếng Nhật trầm ấm, phong cách anime và phim tài liệu.".into(),
+            desc: "Warm, resonant Japanese male voice tailored for anime recaps and documentaries.".into(),
             voice_type: "curated".into(),
             avatar: "🇯🇵".into(),
             gender: "male".into(),
@@ -419,7 +539,7 @@ pub fn get_curated_voices() -> Vec<VoiceProfile> {
         VoiceProfile {
             id: "ja_nanami".into(),
             name: "Nanami · Storyteller".into(),
-            desc: "Giọng nữ tiếng Nhật nhẹ nhàng, trong trẻo và tự nhiên.".into(),
+            desc: "Crystal-clear, gentle Japanese female voice for audiobooks and natural narration.".into(),
             voice_type: "curated".into(),
             avatar: "🇯🇵".into(),
             gender: "female".into(),
@@ -438,7 +558,7 @@ pub fn get_curated_voices() -> Vec<VoiceProfile> {
         VoiceProfile {
             id: "ko_injoon".into(),
             name: "InJoon · K-Drama & News".into(),
-            desc: "Giọng nam tiếng Hàn chuẩn Seoul, phong cách thời sự và phim truyền hình.".into(),
+            desc: "Standard Seoul Korean male voice ideal for broadcast news and K-drama recaps.".into(),
             voice_type: "curated".into(),
             avatar: "🇰🇷".into(),
             gender: "male".into(),
@@ -456,7 +576,7 @@ pub fn get_curated_voices() -> Vec<VoiceProfile> {
         VoiceProfile {
             id: "ko_sunhi".into(),
             name: "SunHi · Warm Narration".into(),
-            desc: "Giọng nữ tiếng Hàn dịu dàng, tự nhiên cho truyện ngắn.".into(),
+            desc: "Soft, expressive Korean female voice crafted for warm storytelling and podcasts.".into(),
             voice_type: "curated".into(),
             avatar: "🇰🇷".into(),
             gender: "female".into(),
@@ -475,7 +595,7 @@ pub fn get_curated_voices() -> Vec<VoiceProfile> {
         VoiceProfile {
             id: "zh_yunxi".into(),
             name: "Yunxi · Epic Documentary".into(),
-            desc: "Giọng nam tiếng Trung truyền cảm, hào hùng cho phóng sự.".into(),
+            desc: "Commanding, expressive Mandarin male voice for epic features and documentaries.".into(),
             voice_type: "curated".into(),
             avatar: "🇨🇳".into(),
             gender: "male".into(),
@@ -493,7 +613,7 @@ pub fn get_curated_voices() -> Vec<VoiceProfile> {
         VoiceProfile {
             id: "zh_xiaoxiao".into(),
             name: "Xiaoxiao · Sweet Story".into(),
-            desc: "Giọng nữ tiếng Trung nhẹ nhàng, biểu cảm phong phú.".into(),
+            desc: "Warm, nuanced Mandarin female voice with rich emotional range for stories.".into(),
             voice_type: "curated".into(),
             avatar: "🇨🇳".into(),
             gender: "female".into(),
@@ -512,7 +632,7 @@ pub fn get_curated_voices() -> Vec<VoiceProfile> {
         VoiceProfile {
             id: "fr_henri".into(),
             name: "Henri · French Cinema".into(),
-            desc: "Giọng nam tiếng Pháp trầm ấm, phong cách điện ảnh.".into(),
+            desc: "Smooth, cinematic Parisian French baritone for film commentary and essays.".into(),
             voice_type: "curated".into(),
             avatar: "🇫🇷".into(),
             gender: "male".into(),
@@ -531,7 +651,7 @@ pub fn get_curated_voices() -> Vec<VoiceProfile> {
         VoiceProfile {
             id: "de_conrad".into(),
             name: "Conrad · German Broadcast".into(),
-            desc: "Giọng nam tiếng Đức đĩnh đạc, rõ nét và chuyên nghiệp.".into(),
+            desc: "Poised, articulate German broadcast baritone for news, tech, and business.".into(),
             voice_type: "curated".into(),
             avatar: "🇩🇪".into(),
             gender: "male".into(),
@@ -550,7 +670,7 @@ pub fn get_curated_voices() -> Vec<VoiceProfile> {
         VoiceProfile {
             id: "es_alvaro".into(),
             name: "Alvaro · Spanish Story".into(),
-            desc: "Giọng nam tiếng Tây Ban Nha trầm ấm, kể chuyện sống động.".into(),
+            desc: "Rich, engaging Castilian Spanish male voice for vivid storytelling and recaps.".into(),
             voice_type: "curated".into(),
             avatar: "🇪🇸".into(),
             gender: "male".into(),
@@ -578,25 +698,38 @@ fn run_voice_worker(
     let py = convertx_engine::office::find_python()
         .ok_or_else(|| "Python runtime not found. Please ensure Python 3.10+ is installed.".to_string())?;
 
+    let mod_dir = ensure_tts_provider_module_dir()?;
     let worker_script = include_str!("voice_studio_worker.py");
 
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    let tmp_py = std::env::temp_dir().join(format!(
+    let tmp_py = pizza_voice_temp_dir().join(format!(
         "pizza_vs_worker_{}_{}.py",
         std::process::id(),
         nanos
     ));
     std::fs::write(&tmp_py, worker_script).map_err(|e| format!("Failed to write worker script: {e}"))?;
 
+    let sep = if cfg!(windows) { ";" } else { ":" };
+    let existing_pypath = std::env::var("PYTHONPATH").unwrap_or_default();
+    let new_pypath = if existing_pypath.is_empty() {
+        mod_dir.to_string_lossy().into_owned()
+    } else {
+        format!("{}{}{}", mod_dir.to_string_lossy(), sep, existing_pypath)
+    };
+
+    let ai_payload = crate::cloud_ai::build_worker_ai_payload(app, "voice_studio", false);
+
     let mut cmd = std::process::Command::new(&py);
     cmd.env("PYTHONIOENCODING", "utf-8")
         .env("PYTHONUNBUFFERED", "1")
+        .env("PYTHONPATH", new_pypath)
         .arg("-u")
         .arg(&tmp_py)
         .args(args)
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
@@ -619,6 +752,13 @@ fn run_voice_worker(
             return Err(format!("Failed to start Voice Studio worker: {e}"));
         }
     };
+
+    if let Some(mut stdin_pipe) = child.stdin.take() {
+        if let Ok(payload_str) = serde_json::to_string(&ai_payload) {
+            let _ = stdin_pipe.write_all(payload_str.as_bytes());
+        }
+        drop(stdin_pipe);
+    }
 
     let child_pid = child.id();
     crate::convert_cmd::register_child_pid(child_pid);
@@ -658,7 +798,6 @@ fn run_voice_worker(
                             format!("{task_label} · {stage_msg}")
                         };
 
-                        // Emit dedicated voice-studio-progress (Voice Studio is an in-app tool; it does not spawn global conversion HUD toasts)
                         let _ = app.emit(
                             "voice-studio-progress",
                             serde_json::json!({
@@ -695,10 +834,16 @@ fn run_voice_worker(
                 return Err(format!("Voice Studio error: {err}"));
             }
         }
+        let last_meaningful = err_out
+            .lines()
+            .rev()
+            .map(|l| l.trim())
+            .find(|l| !l.is_empty() && !l.starts_with("Traceback "))
+            .unwrap_or_else(|| err_out.trim());
         return Err(format!(
-            "Voice Studio worker failed with code {:?}: {}",
+            "Voice Studio worker failed (code {:?}): {}",
             status.code(),
-            err_out.trim()
+            last_meaningful
         ));
     }
 
@@ -778,7 +923,36 @@ pub fn voice_studio_get_profiles(app: tauri::AppHandle) -> Result<Vec<VoiceProfi
         }
     }
 
+    // Also scan voice_profiles_dir for persistent custom clones on disk
+    if let Ok(pdir) = voice_profiles_dir(&app) {
+        if let Ok(entries) = std::fs::read_dir(pdir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().map_or(false, |ext| ext == "json") {
+                    if let Ok(content) = std::fs::read_to_string(&path) {
+                        if let Ok(prof) = serde_json::from_str::<VoiceProfile>(&content) {
+                            if !profiles.iter().any(|p| p.id == prof.id) {
+                                profiles.push(prof);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Ok(profiles)
+}
+
+/// Returns only custom user-cloned voices.
+#[tauri::command]
+pub fn get_cloned_voices(app: tauri::AppHandle) -> Result<Vec<VoiceProfile>, String> {
+    let all = voice_studio_get_profiles(app)?;
+    let cloned = all
+        .into_iter()
+        .filter(|p| p.voice_type == "cloned" || p.voice_type != "curated")
+        .collect();
+    Ok(cloned)
 }
 
 /// Instant Zero-Shot Voice Clone: extracts timbre from audio and persists profile.
@@ -812,6 +986,9 @@ pub fn voice_studio_create_clone(
 
     let gender_arg = gender.unwrap_or_else(|| "auto".into());
     let accent_arg = accent.unwrap_or_else(|| "en-US".into());
+    let ffmpeg_bin = convertx_engine::av::find_ffmpeg()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default();
 
     let _res = run_voice_worker(
         &app,
@@ -821,12 +998,16 @@ pub fn voice_studio_create_clone(
             &input_audio,
             "--output",
             &profile_json_str,
+            "--id",
+            &profile_id,
             "--name",
             &name,
             "--gender",
             &gender_arg,
             "--accent",
             &accent_arg,
+            "--ffmpeg",
+            &ffmpeg_bin,
         ],
         &format!("Cloning Voice: {name}"),
     )?;
@@ -908,7 +1089,7 @@ pub fn voice_studio_synthesize_text(
         .output_dir
         .as_ref()
         .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir);
+        .unwrap_or_else(pizza_voice_temp_dir);
 
     let output_audio = output_dir.join(format!(
         "pizza_tts_{}_{}.{}",
@@ -925,7 +1106,17 @@ pub fn voice_studio_synthesize_text(
         if json_path.is_file() {
             json_path.to_string_lossy().into_owned()
         } else {
-            chosen_voice
+            let mut found = None;
+            let cfg = crate::config::load(&app);
+            if let Ok(profiles) = serde_json::from_str::<Vec<VoiceProfile>>(&cfg.vs_profiles_json) {
+                if let Some(prof) = profiles.into_iter().find(|p| p.id == chosen_voice) {
+                    if let Ok(prof_json) = serde_json::to_string(&prof) {
+                        let _ = std::fs::write(&json_path, prof_json);
+                        found = Some(json_path.to_string_lossy().into_owned());
+                    }
+                }
+            }
+            found.unwrap_or(chosen_voice)
         }
     } else {
         chosen_voice
@@ -1050,7 +1241,7 @@ pub fn voice_studio_dub_subtitles(
         .as_ref()
         .map(PathBuf::from)
         .or_else(|| srt_p.parent().map(|p| p.to_path_buf()))
-        .unwrap_or_else(std::env::temp_dir);
+        .unwrap_or_else(pizza_voice_temp_dir);
 
     let output_audio = out_dir.join(format!("{srt_stem}_dubbed.{format_val}"));
     let output_audio_str = output_audio.to_string_lossy().into_owned();
@@ -1061,7 +1252,17 @@ pub fn voice_studio_dub_subtitles(
         if json_path.is_file() {
             json_path.to_string_lossy().into_owned()
         } else {
-            chosen_voice
+            let mut found = None;
+            let cfg = crate::config::load(&app);
+            if let Ok(profiles) = serde_json::from_str::<Vec<VoiceProfile>>(&cfg.vs_profiles_json) {
+                if let Some(prof) = profiles.into_iter().find(|p| p.id == chosen_voice) {
+                    if let Ok(prof_json) = serde_json::to_string(&prof) {
+                        let _ = std::fs::write(&json_path, prof_json);
+                        found = Some(json_path.to_string_lossy().into_owned());
+                    }
+                }
+            }
+            found.unwrap_or(chosen_voice)
         }
     } else {
         chosen_voice
@@ -1152,7 +1353,7 @@ pub fn voice_studio_record_sample(
     duration_sec: Option<u32>,
 ) -> Result<String, String> {
     let dur = duration_sec.unwrap_or(8).clamp(3, 30);
-    let tmp_wav = std::env::temp_dir().join(format!("pizza_sample_rec_{}.wav", std::process::id()));
+    let tmp_wav = pizza_voice_temp_dir().join(format!("pizza_sample_rec_{}.wav", std::process::id()));
     let tmp_wav_str = tmp_wav.to_string_lossy().into_owned();
     let dur_str = dur.to_string();
 
@@ -1180,17 +1381,41 @@ pub fn voice_studio_record_sample(
 #[allow(non_snake_case)]
 pub fn voice_studio_delete_profile(
     app: tauri::AppHandle,
+    id: Option<String>,
     profile_id: Option<String>,
     profileId: Option<String>,
 ) -> Result<Vec<VoiceProfile>, String> {
-    let target_id = profile_id
+    let target_id = id
+        .or(profile_id)
         .or(profileId)
-        .ok_or_else(|| "Missing required parameter 'profileId'".to_string())?;
+        .ok_or_else(|| "Missing required parameter 'id' or 'profileId'".to_string())?;
 
-    // Delete JSON file from voice_profiles directory
+    // Delete JSON, reference audio, cached neural latents, and raw backup files
     if let Ok(pdir) = voice_profiles_dir(&app) {
-        let json_file = pdir.join(format!("{target_id}.json"));
-        let _ = std::fs::remove_file(json_file);
+        let _ = std::fs::remove_file(pdir.join(format!("{target_id}.json")));
+        let _ = std::fs::remove_file(pdir.join(format!("{target_id}_ref.wav")));
+        let _ = std::fs::remove_file(pdir.join(format!("{target_id}_vieneu.npz")));
+        let _ = std::fs::remove_file(pdir.join(format!("{target_id}_raw_orig.bak")));
+
+        // Also scan and delete any profile JSON whose internal id matches target_id
+        if let Ok(entries) = std::fs::read_dir(&pdir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                    if let Ok(content) = std::fs::read_to_string(&path) {
+                        if content.contains(&format!("\"id\": \"{}\"", target_id))
+                            || content.contains(&format!("\"id\":\"{}\"", target_id))
+                        {
+                            let _ = std::fs::remove_file(&path);
+                            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                            let _ = std::fs::remove_file(pdir.join(format!("{stem}_ref.wav")));
+                            let _ = std::fs::remove_file(pdir.join(format!("{stem}_vieneu.npz")));
+                            let _ = std::fs::remove_file(pdir.join(format!("{stem}_raw_orig.bak")));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Remove from AppConfig
@@ -1285,7 +1510,7 @@ pub fn voice_studio_save_blob(
         clean_fname
     };
 
-    let target_path = std::env::temp_dir().join(fname);
+    let target_path = pizza_voice_temp_dir().join(fname);
     std::fs::write(&target_path, bytes)
         .map_err(|e| format!("Failed to write audio sample file: {e}"))?;
 

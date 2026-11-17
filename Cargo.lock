@@ -3375,7 +3375,7 @@ dependencies = [
 
 [[package]]
 name = "pizza-converter"
-version = "1.0.6"
+version = "1.0.7"
 dependencies = [
  "convertx-engine",
  "device_query",

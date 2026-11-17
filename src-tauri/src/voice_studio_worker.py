@@ -33,6 +33,24 @@ import subprocess
 import numpy as np
 import soundfile as sf
 
+# Ensure UTF-8 stdio on Windows regardless of parent console codepage (cp1252 immunity)
+for _sname in ("stdout", "stderr"):
+    _s = getattr(sys, _sname, None)
+    if _s is not None and hasattr(_s, "reconfigure"):
+        try:
+            _s.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+# Ensure `tts_provider` is importable both in dev (`src-tauri/src`) and compiled temp module dir
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+_SHARED_PY_MOD_DIR = os.path.join(tempfile.gettempdir(), "pizza_converter_tmp", "py_modules")
+for _p in (_THIS_DIR, _SHARED_PY_MOD_DIR):
+    if _p and os.path.isdir(_p) and _p not in sys.path:
+        sys.path.insert(0, _p)
+
+import tts_provider
+
 # Low-priority and background process flags on Windows
 CREATE_NO_WINDOW = (0x08000000 | 0x00004000) if os.name == "nt" else 0
 if os.name == "nt":
@@ -51,16 +69,8 @@ def report_progress(pct: int, stage: str):
 
 
 def find_system_ffmpeg(custom_path=None):
-    """Locate FFmpeg executable from arg, environment, or system PATH."""
-    if custom_path and os.path.isfile(custom_path):
-        return custom_path
-    if "PIE_FFMPEG" in os.environ and os.path.isfile(os.environ["PIE_FFMPEG"]):
-        return os.environ["PIE_FFMPEG"]
-    # Check standard PATH
-    which_ffmpeg = shutil.which("ffmpeg")
-    if which_ffmpeg:
-        return which_ffmpeg
-    return "ffmpeg"
+    """Locate FFmpeg executable from arg, environment, sidecar, or system PATH."""
+    return tts_provider.find_system_ffmpeg(custom_path)
 
 
 def load_and_normalize_audio(audio_path, target_sr=24000, max_dur_sec=15.0):
@@ -138,35 +148,43 @@ def load_and_normalize_audio(audio_path, target_sr=24000, max_dur_sec=15.0):
     return y, sr
 
 
-def extract_timbre_features(audio_path, voice_name="Cloned Voice", gender_hint="auto", accent="en-US"):
+def extract_timbre_features(audio_path, voice_name="Cloned Voice", gender_hint="auto", accent="en-US", profile_id=None, output_path=None, ffmpeg_bin=None):
     """
-    Extract vocal tract timbre, pitch statistics, and mel spectral embedding.
-    Generates a deterministic zero-shot voice profile compatible with studio synthesis.
+    Extract vocal tract timbre, voiced-only pitch statistics (`librosa.pyin`),
+    cleanest 8-10s 48kHz PCM_16 reference clip, and pre-cached VieNeu v3 Turbo latents.
     """
-    report_progress(15, "Decoding & Normalizing Speech Audio...")
-    y, sr = load_and_normalize_audio(audio_path, target_sr=24000, max_dur_sec=12.0)
+    ffmpeg_bin = find_system_ffmpeg(ffmpeg_bin)
 
-    report_progress(35, "Analyzing Pitch (F0) & Harmonic Resonances...")
+    if not profile_id:
+        if output_path:
+            out_base = os.path.splitext(os.path.basename(output_path))[0]
+            profile_id = out_base if out_base.startswith("clone_") else f"clone_{int(time.time())}"
+        else:
+            profile_id = f"clone_{int(time.time())}"
+
+    if output_path:
+        target_ref = os.path.join(os.path.dirname(os.path.abspath(output_path)), f"{profile_id}_ref.wav")
+    else:
+        target_ref = os.path.join(tempfile.gettempdir(), "pizza_converter_tmp", f"{profile_id}_ref.wav")
+
+    report_progress(15, "Decoding, Denoising & Selecting Cleanest 9s Speech Window...")
+    cleaned_meta = tts_provider.prepare_clean_reference_wav(
+        audio_path,
+        target_ref,
+        ffmpeg_bin=ffmpeg_bin,
+        target_window_sec=9.5,
+    )
+    ref_audio_dest = cleaned_meta["ref_audio_path"]
+    f0_median = float(cleaned_meta["f0_median"])
+    f0_mean = float(cleaned_meta["f0_mean"])
+    f0_std = float(cleaned_meta["f0_std"])
+
+    # Load the cleaned 48kHz reference clip at 24kHz for spectral/MFCC analysis
+    y, sr = load_and_normalize_audio(ref_audio_dest, target_sr=24000, max_dur_sec=12.0)
+
+    report_progress(45, "Extracting Timbral Spectral Formants & MFCCs...")
     import librosa
 
-    # Estimate fundamental frequency F0
-    try:
-        f0 = librosa.yin(y, fmin=60, fmax=500, sr=sr)
-        valid_f0 = f0[~np.isnan(f0)]
-        if len(valid_f0) > 10:
-            f0_median = float(np.median(valid_f0))
-            f0_mean = float(np.mean(valid_f0))
-            f0_std = float(np.std(valid_f0))
-        else:
-            f0_median = 140.0
-            f0_mean = 140.0
-            f0_std = 20.0
-    except Exception:
-        f0_median = 140.0
-        f0_mean = 140.0
-        f0_std = 20.0
-
-    report_progress(60, "Extracting Timbral Spectral Formants & MFCCs...")
     # Mel-Frequency Cepstral Coefficients (20 bands)
     mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=20)
     mfcc_mean = [float(x) for x in np.mean(mfcc, axis=1)]
@@ -188,23 +206,36 @@ def extract_timbre_features(audio_path, voice_name="Cloned Voice", gender_hint="
     else:
         detected_gender = "female" if f0_median >= 165.0 else "male"
 
-    # Select optimal base neural voice & calculate acoustic transformation parameters
-    # Reference baselines:
-    # Male: Andrew (~125Hz), Christopher (~105Hz), Guy (~135Hz), Brian (~120Hz)
-    # Female: Ava (~200Hz), Jenny (~190Hz), Emma (~215Hz), Aria (~210Hz)
+    # Select optimal fallback base neural voice & subtle acoustic transformation parameters
     pitch_shift_st = 0.0
     base_voice = "en-US-AndrewMultilingualNeural"
 
-    is_vietnamese = accent.lower().startswith("vi") or "viet" in accent.lower()
+    LANG_BASE_MAP = {
+        "vi": {"male": ("vi-VN-NamMinhNeural", 130.0), "female": ("vi-VN-HoaiMyNeural", 210.0)},
+        "ja": {"male": ("ja-JP-KeitaNeural", 130.0), "female": ("ja-JP-NanamiNeural", 220.0)},
+        "ko": {"male": ("ko-KR-InJoonNeural", 125.0), "female": ("ko-KR-SunHiNeural", 215.0)},
+        "zh": {"male": ("zh-CN-YunxiNeural", 130.0), "female": ("zh-CN-XiaoxiaoNeural", 210.0)},
+        "es": {"male": ("es-ES-AlvaroNeural", 125.0), "female": ("es-ES-ElviraNeural", 200.0)},
+        "fr": {"male": ("fr-FR-HenriNeural", 125.0), "female": ("fr-FR-DeniseNeural", 205.0)},
+        "de": {"male": ("de-DE-ConradNeural", 120.0), "female": ("de-DE-KatjaNeural", 200.0)},
+        "it": {"male": ("it-IT-DiegoNeural", 125.0), "female": ("it-IT-ElsaNeural", 205.0)},
+        "pt": {"male": ("pt-BR-AntonioNeural", 125.0), "female": ("pt-BR-FranciscaNeural", 210.0)},
+        "ru": {"male": ("ru-RU-DmitryNeural", 120.0), "female": ("ru-RU-SvetlanaNeural", 210.0)},
+        "th": {"male": ("th-TH-NiwatNeural", 130.0), "female": ("th-TH-PremwadeeNeural", 215.0)},
+        "id": {"male": ("id-ID-ArdiNeural", 130.0), "female": ("id-ID-GadisNeural", 210.0)},
+        "hi": {"male": ("hi-IN-MadhurNeural", 125.0), "female": ("hi-IN-SwaraNeural", 210.0)},
+        "ar": {"male": ("ar-SA-HamedNeural", 125.0), "female": ("ar-SA-ZariyahNeural", 205.0)},
+    }
 
-    if is_vietnamese:
-        if detected_gender == "male":
-            base_voice = "vi-VN-NamMinhNeural"
-            ref_f0 = 130.0
-        else:
-            base_voice = "vi-VN-HoaiMyNeural"
-            ref_f0 = 210.0
-        pitch_shift_st = round(12.0 * math.log2(max(50.0, f0_median) / ref_f0), 1)
+    clean_acc = (accent or "en").lower().strip()
+    target_k = clean_acc[:2]
+
+    if target_k in LANG_BASE_MAP:
+        spec = LANG_BASE_MAP[target_k]
+        pair = spec.get(detected_gender, spec["male"])
+        base_voice = pair[0]
+        ref_f0 = pair[1]
+        pitch_shift_st = round(12.0 * math.log2(max(65.0, f0_median) / ref_f0), 1)
     else:
         if detected_gender == "male":
             if f0_median < 115.0:
@@ -213,7 +244,7 @@ def extract_timbre_features(audio_path, voice_name="Cloned Voice", gender_hint="
             else:
                 base_voice = "en-US-AndrewMultilingualNeural"
                 ref_f0 = 125.0
-            pitch_shift_st = round(12.0 * math.log2(max(50.0, f0_median) / ref_f0), 1)
+            pitch_shift_st = round(12.0 * math.log2(max(65.0, f0_median) / ref_f0), 1)
         else:
             if f0_median > 210.0:
                 base_voice = "en-US-EmmaMultilingualNeural"
@@ -221,29 +252,21 @@ def extract_timbre_features(audio_path, voice_name="Cloned Voice", gender_hint="
             else:
                 base_voice = "en-US-AvaMultilingualNeural"
                 ref_f0 = 195.0
-            pitch_shift_st = round(12.0 * math.log2(max(50.0, f0_median) / ref_f0), 1)
+            pitch_shift_st = round(12.0 * math.log2(max(90.0, f0_median) / ref_f0), 1)
 
-    # Clamp pitch shift to safe musical range (-6 to +6 semitones)
-    pitch_shift_st = max(-6.0, min(6.0, pitch_shift_st))
+    # Clamp fallback pitch shift to conservative natural range (-4.5 to +4.5 semitones)
+    pitch_shift_st = max(-4.5, min(4.5, pitch_shift_st))
 
-    # Calculate parametric EQ curve to match speaker's timbre
-    # Low-end warmth (100Hz - 250Hz)
-    bass_gain = 0.0
-    if f0_median < 120.0 or mean_centroid < 2200.0:
-        bass_gain = min(4.0, (2200.0 - mean_centroid) / 400.0)
-    elif mean_centroid > 2800.0:
-        bass_gain = -1.5
+    # Gentle fallback EQ offsets (ONLY used when Edge-TTS fallback runs, NEVER applied to neural clones!)
+    ref_centroid = 1520.0 if (detected_gender == "male" and target_k == "vi") else (1800.0 if detected_gender == "male" else 2300.0)
+    c_diff = mean_centroid - ref_centroid
+    treble_gain = round(min(3.0, max(-2.5, c_diff / 220.0)), 1)
+    bass_gain = round(min(2.5, max(-2.5, -c_diff / 260.0)), 1)
 
-    # Treble presence (3.5kHz - 6kHz)
-    treble_gain = 0.0
-    if mean_rolloff > 4500.0:
-        treble_gain = min(3.5, (mean_rolloff - 4500.0) / 800.0)
-    elif mean_rolloff < 3500.0:
-        treble_gain = -1.5
+    report_progress(75, "Caching Zero-Shot Neural Speaker Latents...")
+    npz_path = os.path.join(os.path.dirname(ref_audio_dest), f"{profile_id}_vieneu.npz")
+    tts_provider.cache_vieneu_latents_for_profile(ref_audio_dest, npz_path)
 
-    report_progress(85, "Constructing Neural Timbre Embedding...")
-    # 64-dimensional timbre embedding vector:
-    # 20 MFCC means, 20 MFCC stds, normalized F0, centroid, bandwidth, rolloff, etc.
     embed_vector = []
     embed_vector.extend(mfcc_mean)
     embed_vector.extend(mfcc_std)
@@ -255,23 +278,20 @@ def extract_timbre_features(audio_path, voice_name="Cloned Voice", gender_hint="
         mean_rolloff / 8000.0,
         bass_gain / 5.0,
         treble_gain / 5.0,
-        1.0 if detected_gender == "female" else -1.0
+        1.0 if detected_gender == "female" else -1.0,
     ]
     embed_vector.extend(extra_features)
-    # Pad to 64
     while len(embed_vector) < 64:
         embed_vector.append(0.0)
     embed_vector = embed_vector[:64]
-    # L2 normalize
     norm = np.linalg.norm(embed_vector)
     if norm > 1e-6:
         embed_vector = [round(float(v / norm), 5) for v in embed_vector]
 
-    profile_id = f"clone_{int(time.time())}"
     profile = {
         "id": profile_id,
         "name": voice_name,
-        "desc": f"Zero-shot Timbre Clone ({detected_gender.title()} · F0 {int(f0_median)}Hz)",
+        "desc": f"Zero-shot Neural Clone ({detected_gender.title()} · F0 {int(round(f0_median))}Hz · {cleaned_meta['duration_sec']}s)",
         "type": "cloned",
         "avatar": "🧬",
         "gender": detected_gender,
@@ -284,11 +304,15 @@ def extract_timbre_features(audio_path, voice_name="Cloned Voice", gender_hint="
         "speed_multiplier": 1.0,
         "eq_preset": {
             "bass_gain_db": round(bass_gain, 1),
-            "treble_gain_db": round(treble_gain, 1)
+            "treble_gain_db": round(treble_gain, 1),
         },
         "timbre_embedding": embed_vector,
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "source_audio": os.path.abspath(audio_path)
+        "source_audio": ref_audio_dest,
+        "ref_audio_path": ref_audio_dest,
+        "ref_duration_sec": cleaned_meta["duration_sec"],
+        "vieneu_npz_path": npz_path if os.path.isfile(npz_path) else "",
+        "opt_version": 2,
     }
 
     report_progress(100, "Voice Clone Ready!")
@@ -296,7 +320,7 @@ def extract_timbre_features(audio_path, voice_name="Cloned Voice", gender_hint="
 
 
 def detect_text_language(text: str) -> str:
-    """Detect language code (vi, ja, ko, zh, en) from raw text."""
+    """Detect language code (vi, ja, ko, zh, ru, th, ar, hi, en) from raw text."""
     if not text:
         return "en"
     vi_chars = set("àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ"
@@ -309,167 +333,223 @@ def detect_text_language(text: str) -> str:
         return "ko"
     if any('\u4e00' <= c <= '\u9fff' for c in text):
         return "zh"
+    if any('\u0400' <= c <= '\u04ff' for c in text):
+        return "ru"
+    if any('\u0e00' <= c <= '\u0e7f' for c in text):
+        return "th"
+    if any('\u0600' <= c <= '\u06ff' for c in text):
+        return "ar"
+    if any('\u0900' <= c <= '\u097f' for c in text):
+        return "hi"
     return "en"
 
 
 # Built-in curated studio voice catalog
 CURATED_VOICE_MAP = {
     # 🇻🇳 Vietnamese Voices & Creator Personas
-    "vi_nam_minh_recap": {
-        "id": "vi_nam_minh_recap",
-        "name": "Nam Minh · Review Phim / Movie Recap",
+    "vi_thai_son": {
+        "id": "vi_thai_son",
+        "name": "Thái Sơn · Cinematic & Storytelling",
+        "vieneu_voice": "Thái Sơn",
         "voice": "vi-VN-NamMinhNeural",
-        "pitch_shift": -1.5,
-        "bass_gain": 3.5,
+        "pitch_shift": 0.0,
+        "bass_gain": 2.5,
         "treble_gain": 1.0,
         "default_rate": "+0%",
         "gender": "male",
         "lang": "vi",
-        "style": "Movie Recap & Deep Narration"
+        "style": "Cinematic & Storytelling"
     },
-    "vi_nam_minh_news": {
-        "id": "vi_nam_minh_news",
-        "name": "Nam Minh · Tin Tức & Thời Sự",
+    "vi_minh_duc": {
+        "id": "vi_minh_duc",
+        "name": "Minh Đức · News & Broadcast",
+        "vieneu_voice": "Minh Đức",
         "voice": "vi-VN-NamMinhNeural",
         "pitch_shift": 0.0,
         "bass_gain": 1.0,
         "treble_gain": 1.5,
-        "default_rate": "+5%",
+        "default_rate": "+0%",
         "gender": "male",
         "lang": "vi",
         "style": "News & Formal Broadcast"
     },
-    "vi_nam_minh_audiobook": {
-        "id": "vi_nam_minh_audiobook",
-        "name": "Nam Minh · Sách Nói & Triết Lý",
-        "voice": "vi-VN-NamMinhNeural",
-        "pitch_shift": -0.8,
-        "bass_gain": 2.0,
-        "treble_gain": 0.5,
-        "default_rate": "-4%",
-        "gender": "male",
+    "vi_truc_ly": {
+        "id": "vi_truc_ly",
+        "name": "Trúc Ly · Gentle Narrator",
+        "vieneu_voice": "Trúc Ly",
+        "voice": "vi-VN-HoaiMyNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 1.2,
+        "treble_gain": 0.8,
+        "default_rate": "+0%",
+        "gender": "female",
         "lang": "vi",
         "style": "Storytelling & Audiobook"
     },
-    "vi_nam_minh_story": {
-        "id": "vi_nam_minh_story",
-        "name": "Nam Minh · Truyện Ma & Kịch Tính",
+    "vi_xuan_vinh": {
+        "id": "vi_xuan_vinh",
+        "name": "Xuân Vĩnh · TikTok & Viral Shorts",
+        "vieneu_voice": "Xuân Vĩnh",
         "voice": "vi-VN-NamMinhNeural",
-        "pitch_shift": -3.2,
-        "bass_gain": 4.0,
-        "treble_gain": -1.0,
+        "pitch_shift": 0.0,
+        "bass_gain": 1.0,
+        "treble_gain": 2.5,
+        "default_rate": "+6%",
+        "gender": "male",
+        "lang": "vi",
+        "style": "Commercial & Viral Shorts"
+    },
+    "vi_thuc_doan": {
+        "id": "vi_thuc_doan",
+        "name": "Thục Đoan · Melodic Storytelling",
+        "vieneu_voice": "Thục Đoan",
+        "voice": "vi-VN-HoaiMyNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 1.5,
+        "treble_gain": 1.0,
+        "default_rate": "+0%",
+        "gender": "female",
+        "lang": "vi",
+        "style": "Emotional Storytelling"
+    },
+    "vi_pham_tuyen": {
+        "id": "vi_pham_tuyen",
+        "name": "Phạm Tuyên · Everyday Vlogger",
+        "vieneu_voice": "Phạm Tuyên",
+        "voice": "vi-VN-NamMinhNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 1.5,
+        "treble_gain": 1.2,
+        "default_rate": "+0%",
+        "gender": "male",
+        "lang": "vi",
+        "style": "Conversational & Vlog"
+    },
+    "vi_thanh_binh": {
+        "id": "vi_thanh_binh",
+        "name": "Thanh Bình · Mystery & Drama",
+        "vieneu_voice": "Thanh Bình",
+        "voice": "vi-VN-NamMinhNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 3.0,
+        "treble_gain": -0.5,
         "default_rate": "-2%",
         "gender": "male",
         "lang": "vi",
         "style": "Dramatic Thriller & Mystery"
     },
-    "vi_nam_minh_shorts": {
-        "id": "vi_nam_minh_shorts",
-        "name": "Nam Minh · Trẻ Trung / TikTok Shorts",
-        "voice": "vi-VN-NamMinhNeural",
-        "pitch_shift": 1.0,
-        "bass_gain": 1.0,
-        "treble_gain": 2.5,
-        "default_rate": "+8%",
-        "gender": "male",
-        "lang": "vi",
-        "style": "Commercial & Viral Shorts"
-    },
-    "vi_nam_minh": {
-        "id": "vi_nam_minh",
-        "name": "Nam Minh · Chuẩn Tự Nhiên",
-        "voice": "vi-VN-NamMinhNeural",
-        "pitch_shift": 0.0,
-        "bass_gain": 2.0,
-        "treble_gain": 0.5,
-        "default_rate": "+0%",
-        "gender": "male",
-        "lang": "vi",
-        "style": "Movie Recap & Deep Narration"
-    },
-    "vietnamese_narrator_male": {
-        "id": "vietnamese_narrator_male",
-        "name": "Nam Minh · Chuẩn Tự Nhiên",
-        "voice": "vi-VN-NamMinhNeural",
-        "pitch_shift": 0.0,
-        "bass_gain": 2.0,
-        "treble_gain": 0.5,
-        "default_rate": "+0%",
-        "gender": "male",
-        "lang": "vi",
-        "style": "Movie Recap & Deep Narration"
-    },
-    "vi_hoai_my_story": {
-        "id": "vi_hoai_my_story",
-        "name": "Hoài My · Kể Chuyện & Sách Nói",
-        "voice": "vi-VN-HoaiMyNeural",
-        "pitch_shift": -0.5,
-        "bass_gain": 1.2,
-        "treble_gain": 1.0,
-        "default_rate": "-2%",
-        "gender": "female",
-        "lang": "vi",
-        "style": "Storytelling & Audiobook"
-    },
-    "vi_hoai_my_review": {
-        "id": "vi_hoai_my_review",
-        "name": "Hoài My · Review & Đập Hộp KOC",
-        "voice": "vi-VN-HoaiMyNeural",
-        "pitch_shift": 1.2,
-        "bass_gain": 0.8,
-        "treble_gain": 2.2,
-        "default_rate": "+6%",
-        "gender": "female",
-        "lang": "vi",
-        "style": "Commercial & Lifestyle"
-    },
-    "vi_hoai_my_news": {
-        "id": "vi_hoai_my_news",
-        "name": "Hoài My · Bản Tin & Phóng Sự",
+    "vi_doan_trang": {
+        "id": "vi_doan_trang",
+        "name": "Đoan Trang · Calm & Relaxing",
+        "vieneu_voice": "Đoan Trang",
         "voice": "vi-VN-HoaiMyNeural",
         "pitch_shift": 0.0,
-        "bass_gain": 0.5,
-        "treble_gain": 1.5,
-        "default_rate": "+4%",
-        "gender": "female",
-        "lang": "vi",
-        "style": "News & Formal Broadcast"
-    },
-    "vi_hoai_my_lullaby": {
-        "id": "vi_hoai_my_lullaby",
-        "name": "Hoài My · Tâm Sự Đêm Khuya",
-        "voice": "vi-VN-HoaiMyNeural",
-        "pitch_shift": -1.2,
         "bass_gain": 1.8,
-        "treble_gain": 0.2,
-        "default_rate": "-6%",
+        "treble_gain": 0.5,
+        "default_rate": "-2%",
         "gender": "female",
         "lang": "vi",
         "style": "Soothing Relaxation & Whisper"
     },
-    "vi_hoai_my": {
-        "id": "vi_hoai_my",
-        "name": "Hoài My · Chuẩn Tự Nhiên",
+    "vi_minh_triet": {
+        "id": "vi_minh_triet",
+        "name": "Minh Triết · Business & Tech",
+        "vieneu_voice": "Minh Triết",
+        "voice": "vi-VN-NamMinhNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 1.5,
+        "treble_gain": 1.2,
+        "default_rate": "+0%",
+        "gender": "male",
+        "lang": "vi",
+        "style": "Business & Presentations"
+    },
+    "vi_thuy_dung": {
+        "id": "vi_thuy_dung",
+        "name": "Thùy Dung · Radio & Daily Show",
+        "vieneu_voice": "Thùy Dung",
         "voice": "vi-VN-HoaiMyNeural",
         "pitch_shift": 0.0,
-        "bass_gain": 0.5,
+        "bass_gain": 1.0,
+        "treble_gain": 1.8,
+        "default_rate": "+2%",
+        "gender": "female",
+        "lang": "vi",
+        "style": "Radio & Talk Show"
+    },
+    "vi_quang_son": {
+        "id": "vi_quang_son",
+        "name": "Quang Sơn · Central Echoes",
+        "vieneu_voice": "Quang Sơn",
+        "voice": "vi-VN-NamMinhNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 1.5,
+        "treble_gain": 1.0,
+        "default_rate": "+0%",
+        "gender": "male",
+        "lang": "vi",
+        "style": "Regional Cultural Heritage"
+    },
+    "vi_ngoc_tran": {
+        "id": "vi_ngoc_tran",
+        "name": "Ngọc Trân · Central Charm",
+        "vieneu_voice": "Ngọc Trân",
+        "voice": "vi-VN-HoaiMyNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 1.0,
+        "treble_gain": 1.2,
+        "default_rate": "+0%",
+        "gender": "female",
+        "lang": "vi",
+        "style": "Regional Cultural Heritage"
+    },
+    "vi_nam_minh": {
+        "id": "vi_nam_minh",
+        "name": "Nam Minh · Standard Neural (Classic)",
+        "voice": "vi-VN-NamMinhNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 1.5,
+        "treble_gain": 1.0,
+        "default_rate": "+0%",
+        "gender": "male",
+        "lang": "vi",
+        "style": "Balanced Natural Speech"
+    },
+    "vietnamese_narrator_male": {
+        "id": "vietnamese_narrator_male",
+        "name": "Nam Minh · Standard Neural (Classic)",
+        "voice": "vi-VN-NamMinhNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 1.5,
+        "treble_gain": 1.0,
+        "default_rate": "+0%",
+        "gender": "male",
+        "lang": "vi",
+        "style": "Balanced Natural Speech"
+    },
+    "vi_hoai_my": {
+        "id": "vi_hoai_my",
+        "name": "Hoài My · Standard Neural (Classic)",
+        "voice": "vi-VN-HoaiMyNeural",
+        "pitch_shift": 0.0,
+        "bass_gain": 1.0,
         "treble_gain": 1.0,
         "default_rate": "+0%",
         "gender": "female",
         "lang": "vi",
-        "style": "Storytelling & Audiobook"
+        "style": "Balanced Natural Speech"
     },
     "vietnamese_narrator_female": {
         "id": "vietnamese_narrator_female",
-        "name": "Hoài My · Chuẩn Tự Nhiên",
+        "name": "Hoài My · Standard Neural (Classic)",
         "voice": "vi-VN-HoaiMyNeural",
         "pitch_shift": 0.0,
-        "bass_gain": 0.5,
+        "bass_gain": 1.0,
         "treble_gain": 1.0,
         "default_rate": "+0%",
         "gender": "female",
         "lang": "vi",
-        "style": "Storytelling & Audiobook"
+        "style": "Balanced Natural Speech"
     },
     # 🇺🇸 English Voices
     "en_andrew": {
@@ -709,37 +789,148 @@ CURATED_VOICE_MAP = {
 }
 
 
-def resolve_voice_params(voice_id_or_profile, text_hint=""):
+_VIENEU_ENGINE = None
+
+def get_vieneu_engine():
+    global _VIENEU_ENGINE
+    if _VIENEU_ENGINE is None:
+        try:
+            import vieneu
+            _VIENEU_ENGINE = vieneu.Vieneu(mode="v3turbo")
+            sys.stderr.write("[INFO] Vieneu v3turbo neural TTS engine loaded successfully.\n")
+        except Exception as e:
+            sys.stderr.write(f"[DEBUG] Vieneu not available: {e}\n")
+            _VIENEU_ENGINE = False
+    return _VIENEU_ENGINE if _VIENEU_ENGINE is not False else None
+
+
+def find_voice_profile_path(vid):
+    if not vid:
+        return None
+    if os.path.isfile(vid):
+        return vid
+    candidates = [
+        os.path.join(os.environ.get("APPDATA", ""), "NeelFlow.PizzaConverter", "voice_profiles"),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "NeelFlow.PizzaConverter", "voice_profiles"),
+        os.path.join(os.environ.get("APPDATA", ""), "Pizza Converter", "voice_profiles"),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Pizza Converter", "voice_profiles"),
+        os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "NeelFlow.PizzaConverter", "voice_profiles"),
+        os.path.join(os.path.expanduser("~"), "AppData", "Local", "NeelFlow.PizzaConverter", "voice_profiles"),
+        os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "Pizza Converter", "voice_profiles"),
+        os.path.join(os.path.expanduser("~"), "AppData", "Local", "Pizza Converter", "voice_profiles"),
+        os.path.join(os.path.expanduser("~"), "Library", "Application Support", "NeelFlow.PizzaConverter", "voice_profiles"),
+        os.path.join(os.path.expanduser("~"), "Library", "Application Support", "Pizza Converter", "voice_profiles"),
+    ]
+    for cdir in candidates:
+        if not cdir or not os.path.isdir(cdir):
+            continue
+        direct = os.path.join(cdir, f"{vid}.json" if not vid.endswith(".json") else vid)
+        if os.path.isfile(direct):
+            return direct
+        try:
+            for fname in os.listdir(cdir):
+                if fname.endswith(".json"):
+                    full = os.path.join(cdir, fname)
+                    try:
+                        with open(full, "r", encoding="utf-8") as f:
+                            d = json.load(f)
+                            if d.get("id") == vid or d.get("name", "").strip().lower() == vid.strip().lower():
+                                return full
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+    return None
+
+
+def resolve_voice_params(voice_id_or_profile, text_hint="", target_lang=None):
     """
     Resolve voice settings from either a curated voice ID, a profile dict,
     or a path to a custom cloned JSON profile.
-    If text_hint is Vietnamese and an English-only voice was passed, auto-routes to Vietnamese.
+    Supports explicit target_lang, text_hint language auto-detection, and cross-lingual cloning.
     """
-    detected_lang = detect_text_language(text_hint) if text_hint else "en"
+    detected_lang = target_lang[:2].lower() if target_lang else (detect_text_language(text_hint) if text_hint else "en")
 
     # 1. Check if it's already a dict
     if isinstance(voice_id_or_profile, dict):
         p = voice_id_or_profile
-        base_v = p.get("base_neural_voice", "vi-VN-NamMinhNeural" if detected_lang == "vi" else "en-US-AndrewMultilingualNeural")
+        gender = str(p.get("gender", "male")).lower()
+        accent = str(p.get("accent", "en")).lower()
+        active_lang = detected_lang if (detected_lang and detected_lang != "en") else (target_lang[:2].lower() if target_lang else (accent[:2] if accent else "en"))
+
+        LANG_BASE_MAP = {
+            "vi": {"male": "vi-VN-NamMinhNeural", "female": "vi-VN-HoaiMyNeural"},
+            "en": {"male": "en-US-AndrewMultilingualNeural", "female": "en-US-AvaMultilingualNeural"},
+            "ja": {"male": "ja-JP-KeitaNeural", "female": "ja-JP-NanamiNeural"},
+            "ko": {"male": "ko-KR-InJoonNeural", "female": "ko-KR-SunHiNeural"},
+            "zh": {"male": "zh-CN-YunxiNeural", "female": "zh-CN-XiaoxiaoNeural"},
+            "es": {"male": "es-ES-AlvaroNeural", "female": "es-ES-ElviraNeural"},
+            "fr": {"male": "fr-FR-HenriNeural", "female": "fr-FR-DeniseNeural"},
+            "de": {"male": "de-DE-ConradNeural", "female": "de-DE-KatjaNeural"},
+            "it": {"male": "it-IT-DiegoNeural", "female": "it-IT-ElsaNeural"},
+            "pt": {"male": "pt-BR-AntonioNeural", "female": "pt-BR-FranciscaNeural"},
+            "ru": {"male": "ru-RU-DmitryNeural", "female": "ru-RU-SvetlanaNeural"},
+            "th": {"male": "th-TH-NiwatNeural", "female": "th-TH-PremwadeeNeural"},
+            "id": {"male": "id-ID-ArdiNeural", "female": "id-ID-GadisNeural"},
+            "hi": {"male": "hi-IN-MadhurNeural", "female": "hi-IN-SwaraNeural"},
+            "ar": {"male": "ar-SA-HamedNeural", "female": "ar-SA-ZariyahNeural"},
+        }
+
+        base_v = p.get("base_neural_voice")
+        is_multilingual = base_v and "multilingual" in base_v.lower()
+        lang_match = base_v and base_v.lower().startswith(active_lang)
+
+        if is_multilingual or lang_match:
+            # Respect clone's explicit base neural voice if multilingual or language-matched
+            pass
+        elif active_lang in LANG_BASE_MAP:
+            base_v = LANG_BASE_MAP[active_lang].get(gender, LANG_BASE_MAP[active_lang]["male"])
+        else:
+            if not base_v or active_lang == "en":
+                base_v = "en-US-AvaMultilingualNeural" if gender == "female" else "en-US-AndrewMultilingualNeural"
+
+        b_gain = float(p.get("eq_preset", {}).get("bass_gain_db", 0.0))
+        t_gain = float(p.get("eq_preset", {}).get("treble_gain_db", 0.0))
+        if abs(b_gain) < 0.5 and abs(t_gain) < 0.5:
+            b_gain = -3.2
+            t_gain = 4.2
+
+        ref_audio = p.get("ref_audio_path") or p.get("source_audio")
+        prof_id = p.get("id")
+        if not ref_audio and prof_id:
+            cand = find_voice_profile_path(prof_id)
+            if cand:
+                ref_cand = os.path.splitext(cand)[0] + "_ref.wav"
+                if os.path.isfile(ref_cand):
+                    ref_audio = ref_cand
+
         return {
             "voice": base_v,
             "pitch_shift": float(p.get("pitch_shift_st", 0.0)),
-            "bass_gain": float(p.get("eq_preset", {}).get("bass_gain_db", 0.0)),
-            "treble_gain": float(p.get("eq_preset", {}).get("treble_gain_db", 0.0)),
+            "bass_gain": b_gain,
+            "treble_gain": t_gain,
             "default_rate": "+0%",
-            "gender": p.get("gender", "male")
+            "gender": gender,
+            "is_clone": True,
+            "ref_audio_path": ref_audio,
+            "vieneu_voice": p.get("vieneu_voice")
         }
 
     vid = str(voice_id_or_profile).strip()
 
-    # 2. Check if it's a file path to profile JSON
-    if os.path.isfile(vid):
+    # 2. Check if it's a file path or a cloned voice profile ID
+    prof_path = find_voice_profile_path(vid)
+    if prof_path and os.path.isfile(prof_path):
         try:
-            with open(vid, "r", encoding="utf-8") as f:
+            with open(prof_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return resolve_voice_params(data, text_hint=text_hint)
-        except Exception:
-            pass
+                if not data.get("ref_audio_path") and not data.get("source_audio"):
+                    cand_ref = os.path.splitext(prof_path)[0] + "_ref.wav"
+                    if os.path.isfile(cand_ref):
+                        data["ref_audio_path"] = cand_ref
+                return resolve_voice_params(data, text_hint=text_hint, target_lang=target_lang)
+        except Exception as e:
+            sys.stderr.write(f"[DEBUG] Error reading profile JSON {prof_path}: {e}\n")
 
     # 3. Smart Vietnamese fallback: if text is Vietnamese and an English-only voice was passed,
     # preserve any chosen Vietnamese voice/style or multilingual model; otherwise route to Nam Minh or Hoai My
@@ -777,71 +968,46 @@ def apply_audio_post_processing(raw_audio_path, output_path, pitch_shift_st=0.0,
                                  bass_gain=0.0, treble_gain=0.0, stability=85,
                                  target_tempo=1.0, ffmpeg_bin=None):
     """
-    Apply studio post-processing using FFmpeg audio filters:
-    - Pitch shifting via asetrate + atempo (preserves exact tempo, modifies timbre)
-    - Dynamic tempo adjustment (for subtitle auto-time-fit)
-    - Parametric EQ (bass warmth & treble presence)
-    - Studio broadcast compressor & peak limiter based on stability factor
-    - Codec encoding (.mp3, .wav, .flac, .aac)
+    Apply studio 48kHz post-processing using FFmpeg audio filters:
+    - Formant-preserving pitch & tempo (`rubberband` when available, graceful `atempo` fallback on LGPL builds)
+    - Optional parametric EQ (only when explicitly non-zero)
+    - Broadcast compressor & true-peak limiter
+    - 48kHz multi-format encoding (.mp3, .wav, .flac, .aac)
     """
     import subprocess
-    ffmpeg_bin = ffmpeg_bin or find_system_ffmpeg()
+    ffmpeg_bin = find_system_ffmpeg(ffmpeg_bin)
 
-    filters = []
+    filters = list(
+        tts_provider.build_tempo_pitch_filters(
+            ffmpeg_bin,
+            tempo=float(target_tempo or 1.0),
+            pitch_st=float(pitch_shift_st or 0.0),
+            sample_rate=48000,
+        )
+    )
 
-    # 1. Pitch shift (if non-zero)
-    # asetrate changes pitch & duration; subsequent atempo restores duration
-    if abs(pitch_shift_st) >= 0.2:
-        pitch_ratio = 2.0 ** (pitch_shift_st / 12.0)
-        orig_sr = 48000
-        new_sr = int(orig_sr * pitch_ratio)
-        tempo_comp = 1.0 / pitch_ratio
-        # Split into safe atempo stages if needed (atempo accepts 0.5 to 2.0)
-        filters.append(f"asetrate={new_sr}")
-        if 0.5 <= tempo_comp <= 2.0:
-            filters.append(f"atempo={tempo_comp:.4f}")
-        elif tempo_comp > 2.0:
-            filters.append(f"atempo=2.0,atempo={tempo_comp / 2.0:.4f}")
-        elif tempo_comp < 0.5:
-            filters.append(f"atempo=0.5,atempo={tempo_comp / 0.5:.4f}")
-        filters.append(f"aresample={orig_sr}")
-
-    # 2. Subtitle Cue Dynamic Tempo Fit (if target_tempo != 1.0)
-    if abs(target_tempo - 1.0) > 0.02:
-        if 0.5 <= target_tempo <= 2.0:
-            filters.append(f"atempo={target_tempo:.4f}")
-        elif target_tempo > 2.0:
-            filters.append(f"atempo=2.0,atempo={target_tempo / 2.0:.4f}")
-        elif target_tempo < 0.5:
-            filters.append(f"atempo=0.5,atempo={target_tempo / 0.5:.4f}")
-
-    # 3. Parametric EQ
     if abs(bass_gain) >= 0.3:
-        filters.append(f"equalizer=f=120:width_type=o:w=1.2:g={bass_gain:.1f}")
+        filters.append(f"equalizer=f=150:width_type=o:w=1.2:g={bass_gain:.1f}")
     if abs(treble_gain) >= 0.3:
-        filters.append(f"equalizer=f=3500:width_type=o:w=1.0:g={treble_gain:.1f}")
+        filters.append(f"equalizer=f=3400:width_type=o:w=1.1:g={treble_gain:.1f}")
 
-    # 4. Studio broadcast stability compression
-    # High stability = tight vocal leveling, low stability = wide dynamic range
     if stability >= 60:
-        threshold = -18 - int((stability - 60) * 0.15)  # -18dB to -24dB
-        ratio = 2.5 + ((stability - 60) / 40.0) * 1.5   # 2.5 to 4.0
-        filters.append(f"acompressor=threshold={threshold}dB:ratio={ratio:.1f}:attack=10:release=100:makeup=2dB")
-        filters.append("alimiter=limit=-0.8dB")
+        threshold = -18 - int((stability - 60) * 0.15)
+        ratio = 2.4 + ((stability - 60) / 40.0) * 1.4
+        filters.append(f"acompressor=threshold={threshold}dB:ratio={ratio:.1f}:attack=10:release=100:makeup=1.5dB")
+    filters.append("alimiter=limit=0.912:attack=5:release=50")
 
-    # Determine encoder flags based on output file extension
     ext = os.path.splitext(output_path)[1].lower()
-    codec_args = []
     if ext == ".mp3":
-        codec_args = ["-c:a", "libmp3lame", "-b:a", "320k"]
+        codec_args = ["-ar", "48000", "-c:a", "libmp3lame", "-b:a", "320k"]
     elif ext == ".wav":
-        codec_args = ["-c:a", "pcm_s16le", "-ar", "48000"]
+        codec_args = ["-ar", "48000", "-c:a", "pcm_s16le"]
     elif ext == ".flac":
-        codec_args = ["-c:a", "flac"]
+        codec_args = ["-ar", "48000", "-c:a", "flac"]
     elif ext in (".aac", ".m4a"):
-        codec_args = ["-c:a", "aac", "-b:a", "256k"]
+        codec_args = ["-ar", "48000", "-c:a", "aac", "-b:a", "256k"]
     else:
-        codec_args = ["-c:a", "libmp3lame", "-b:a", "320k"]
+        codec_args = ["-ar", "48000", "-c:a", "libmp3lame", "-b:a", "320k"]
 
     cmd = [ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error", "-i", raw_audio_path]
     if filters:
@@ -857,96 +1023,77 @@ def apply_audio_post_processing(raw_audio_path, output_path, pitch_shift_st=0.0,
         raise RuntimeError(f"FFmpeg audio processing failed: {proc.stderr.decode('utf-8', errors='ignore')}")
 
 
-async def synthesize_speech_raw(text, voice_name, output_raw_path, rate_str="+0%"):
-    """Call Edge-TTS async engine to produce pristine 48kHz audio with resilient fallbacks."""
-    import edge_tts
-    clean_text = text.strip()
-    if not clean_text:
-        raise ValueError("Cannot synthesize empty text.")
-
-    candidates = [voice_name]
-    if "Multilingual" in voice_name:
-        candidates.append(voice_name.replace("Multilingual", ""))
-    if voice_name.startswith("en-") and "en-US-AndrewNeural" not in candidates:
-        candidates.append("en-US-AndrewNeural")
-
-    last_err = None
-    for cand in candidates:
-        try:
-            communicate = edge_tts.Communicate(clean_text, cand, rate=rate_str)
-            await communicate.save(output_raw_path)
-            if os.path.isfile(output_raw_path) and os.path.getsize(output_raw_path) > 128:
-                return
-        except Exception as e:
-            last_err = e
-
-    if last_err:
-        raise last_err
+async def synthesize_speech_raw(text, voice_name, output_raw_path, rate_str="+0%", pitch_str="+0Hz"):
+    """Call Edge-TTS async engine with resilient fallbacks and native neural pitch."""
+    await tts_provider._edge_tts_save_async(text, voice_name, output_raw_path, rate_str=rate_str, pitch_str=pitch_str)
 
 
 def synthesize_text_to_file(text, voice_id, output_path, speed=1.0, pitch_st=0.0, stability=85,
                             target_lang="en", ffmpeg_bin=None):
     """
-    Full text-to-speech pipeline:
-    1. Resolves voice profile & parameters
-    2. Synthesizes base speech
-    3. Applies studio post-processing
-    4. Exports to desired format
+    Studio 48kHz Text-to-Speech pipeline powered by `tts_provider`:
+    - Supports Cloud TTS (ElevenLabs / OpenAI / Gemini via OS Vault), Local 48kHz VieNeu v3 Turbo
+      (strictly guarded to Vietnamese text with cached `.npz` clone latents), and Edge-TTS fallback.
+    - Eliminates double-EQ distortion on neural clones and honors Speed/Pitch sliders across all engines.
+    - Automatically chunks long scripts (>1,800 chars) to prevent WebSocket stream drops.
     """
-    report_progress(20, "Resolving Neural Voice Parameters...")
-    vparams = resolve_voice_params(voice_id, text_hint=text)
+    ff = find_system_ffmpeg(ffmpeg_bin)
+    ai_cfg = tts_provider.read_stdin_ai_payload()
+    clean_txt = str(text or "").strip()
+    if not clean_txt:
+        raise ValueError("Cannot synthesize empty text.")
 
-    # Calculate rate string
-    # speed can be float (e.g. 1.0, 1.15) or string
     try:
         speed_float = float(speed)
     except Exception:
         speed_float = 1.0
 
-    rate_pct = int(round((speed_float - 1.0) * 100))
-    rate_sign = "+" if rate_pct >= 0 else ""
-    rate_str = f"{rate_sign}{rate_pct}%"
+    # Auto-detect language when target_lang is "auto" or default "en" with clear Vietnamese/CJK script
+    eff_lang = str(target_lang or "auto").strip()
+    detected = detect_text_language(clean_txt)
+    if eff_lang.lower() in ("", "auto") or (eff_lang.lower().startswith("en") and detected != "en"):
+        eff_lang = detected
 
-    temp_raw = tempfile.mktemp(suffix=".mp3")
-    try:
-        report_progress(45, "Synthesizing Neural Speech...")
-        asyncio.run(synthesize_speech_raw(text, vparams["voice"], temp_raw, rate_str=rate_str))
+    report_progress(25, "Resolving Studio Voice & Neural Engine...")
 
-        report_progress(75, "Applying Studio EQ & Timbre Morphing...")
-        effective_pitch = vparams.get("pitch_shift", 0.0) + float(pitch_st or 0.0)
-        apply_audio_post_processing(
-            temp_raw,
-            output_path,
-            pitch_shift_st=effective_pitch,
-            bass_gain=vparams["bass_gain"],
-            treble_gain=vparams["treble_gain"],
-            stability=stability,
-            ffmpeg_bin=ffmpeg_bin
+    if len(clean_txt) > 1800:
+        res = tts_provider.synthesize_document_audiobook(
+            clean_txt,
+            voice_spec=voice_id,
+            lang_code=eff_lang,
+            output_path=output_path,
+            speed=speed_float,
+            ai_cfg=ai_cfg,
+            ffmpeg_bin=ff,
+            progress_cb=report_progress,
         )
-
-        # Get audio duration
-        duration = 0.0
-        try:
-            info = sf.info(output_path)
-            duration = float(info.duration)
-        except Exception:
-            # Fallback duration calculation
-            if os.path.exists(output_path):
-                duration = round(os.path.getsize(output_path) / 32000.0, 2)
-
         report_progress(100, "Speech Synthesis Complete!")
         return {
             "success": True,
-            "audio_path": os.path.abspath(output_path),
-            "duration": round(duration, 2),
-            "voice_used": vparams["voice"]
+            "audio_path": res["audio_path"],
+            "duration": round(float(res.get("duration", 0.0)), 2),
+            "voice_used": res.get("voice_used", "Neural Voice"),
         }
-    finally:
-        if os.path.isfile(temp_raw):
-            try:
-                os.remove(temp_raw)
-            except Exception:
-                pass
+
+    report_progress(50, "Synthesizing 48kHz Studio Speech...")
+    res = tts_provider.synthesize_cue_or_text(
+        clean_txt,
+        voice_spec=voice_id,
+        lang_code=eff_lang,
+        out_wav_48k=output_path,
+        speed=speed_float,
+        pitch_st=float(pitch_st or 0.0),
+        ai_cfg=ai_cfg,
+        ffmpeg_bin=ff,
+        stability=int(stability or 85),
+    )
+    report_progress(100, "Speech Synthesis Complete!")
+    return {
+        "success": True,
+        "audio_path": res["audio_path"],
+        "duration": round(float(res.get("duration", 0.0)), 2),
+        "voice_used": res.get("voice_used", "Neural Voice"),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -987,7 +1134,6 @@ def parse_subtitles(file_path):
     with open(file_path, "r", encoding="utf-8-sig", errors="ignore") as f:
         content = f.read()
 
-    # Regex for timestamp line: 00:01:23,450 --> 00:01:26,800
     time_pattern = re.compile(
         r"((?:\d{1,2}:)?\d{2}:\d{2}[,\.]\d{1,3})\s*-->\s*((?:\d{1,2}:)?\d{2}:\d{2}[,\.]\d{1,3})"
     )
@@ -1015,9 +1161,7 @@ def parse_subtitles(file_path):
             end_sec = parse_timestamp_to_seconds(match.group(2))
             text_lines = lines[match_line_idx + 1:]
             raw_text = " ".join(text_lines)
-            # Clean HTML tags (e.g. <i>, <b>, <font color="...">)
             clean_text = re.sub(r"<[^>]+>", "", raw_text)
-            # Remove VTT alignment hints
             clean_text = re.sub(r"\{[^\}]+\}", "", clean_text)
             clean_text = clean_text.strip()
             if clean_text:
@@ -1030,132 +1174,134 @@ def parse_subtitles(file_path):
 def dub_subtitles_to_file(srt_path, voice_id, output_path, auto_time_fit=True,
                           speed=1.0, stability=85, target_lang="en", ffmpeg_bin=None):
     """
-    Synchronized Subtitle Dubbing:
-    1. Parse all subtitle cues with exact start/end timestamps.
-    2. Synthesize each cue's speech.
-    3. If cue duration is shorter than speech and auto_time_fit is True:
-       Dynamically accelerates speech tempo (up to 1.8x) so it never overflows its timestamp window!
-    4. Assemble full timeline with sample-accurate silence padding between cues.
-    5. Export master audio to target format.
+    Synchronized 48kHz Subtitle Dubbing:
+    1. Parses all subtitle cues with exact start/end timestamps.
+    2. Synthesizes each cue at 48kHz via `tts_provider.synthesize_cue_or_text` (cached VieNeu latents / Cloud TTS / Edge-TTS).
+    3. Applies elastic trailing-gap borrowing + formant-preserving `rubberband` time-fit (with `atempo` LGPL fallback)
+       and zero mid-word truncation.
+    4. Assembles sample-accurate 48kHz master track and masters with EBU R128 `loudnorm`.
     """
-    ffmpeg_bin = ffmpeg_bin or find_system_ffmpeg()
+    ffmpeg_bin = find_system_ffmpeg(ffmpeg_bin)
+    ai_cfg = tts_provider.read_stdin_ai_payload()
 
     report_progress(5, "Parsing Subtitle Cues & Timestamps...")
     cues = parse_subtitles(srt_path)
     if not cues:
         raise ValueError(f"No subtitle dialogue cues found in: {srt_path}")
 
-    vparams = resolve_voice_params(voice_id)
-    work_dir = tempfile.mkdtemp(prefix="pizza_dub_")
+    sample_probe = " ".join(c.text for c in cues[:5])
+    detected = detect_text_language(sample_probe)
+    eff_lang = str(target_lang or "auto").strip()
+    if eff_lang.lower() in ("", "auto") or (eff_lang.lower().startswith("en") and detected != "en"):
+        eff_lang = detected
 
+    try:
+        base_speed = max(0.6, min(1.8, float(speed or 1.0)))
+    except Exception:
+        base_speed = 1.0
+
+    work_dir = tempfile.mkdtemp(prefix="pizza_dub_")
     total_cues = len(cues)
-    cue_records = []
-    target_sr = 24000  # High-quality assembly sample rate
+    target_sr = 48000
+    placed_cues = []
 
     try:
         for idx, cue in enumerate(cues):
-            pct = int(10 + (idx / total_cues) * 75)
+            pct = int(10 + (idx / max(1, total_cues)) * 75)
             report_progress(pct, f"Synthesizing Cue {idx + 1} of {total_cues} ({cue.duration:.1f}s)...")
 
-            raw_cue_mp3 = os.path.join(work_dir, f"raw_{idx}.mp3")
-            timed_cue_wav = os.path.join(work_dir, f"timed_{idx}.wav")
+            raw_cue_wav = os.path.join(work_dir, f"raw48k_{idx:04d}.wav")
+            prev_t = cues[idx - 1].text if idx > 0 else ""
+            next_t = cues[idx + 1].text if idx + 1 < total_cues else ""
 
-            # Synthesize raw speech for this cue
-            asyncio.run(synthesize_speech_raw(cue.text, vparams["voice"], raw_cue_mp3, rate_str="+0%"))
-
-            # Measure raw speech duration
-            raw_dur = 0.5
-            try:
-                cmd = [
-                    ffmpeg_bin, "-hide_banner", "-i", raw_cue_mp3,
-                    "-f", "null", "-"
-                ]
-                proc = subprocess.run(
-                    cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                    creationflags=CREATE_NO_WINDOW, check=False
-                )
-                err_text = proc.stderr.decode("utf-8", errors="ignore")
-                dur_match = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.\d+)", err_text)
-                if dur_match:
-                    h, m, s = float(dur_match.group(1)), float(dur_match.group(2)), float(dur_match.group(3))
-                    raw_dur = h * 3600.0 + m * 60.0 + s
-            except Exception:
-                pass
-
-            # Calculate auto-time-fit tempo adjustment if needed
-            tempo_factor = 1.0
-            cue_window = cue.duration
-            if auto_time_fit and cue_window > 0.2:
-                # If speech is longer than subtitle display window, speed it up
-                if raw_dur > cue_window:
-                    tempo_factor = raw_dur / cue_window
-                    # Cap tempo at 1.85x so voice remains intelligible
-                    tempo_factor = min(1.85, max(0.85, tempo_factor))
-
-            # Apply audio processing & tempo stretch into timed WAV
-            apply_audio_post_processing(
-                raw_cue_mp3,
-                timed_cue_wav,
-                pitch_shift_st=vparams["pitch_shift"],
-                bass_gain=vparams["bass_gain"],
-                treble_gain=vparams["treble_gain"],
-                stability=stability,
-                target_tempo=tempo_factor,
-                ffmpeg_bin=ffmpeg_bin
+            tts_provider.synthesize_cue_or_text(
+                cue.text,
+                voice_spec=voice_id,
+                lang_code=eff_lang,
+                out_wav_48k=raw_cue_wav,
+                speed=base_speed,
+                pitch_st=0.0,
+                ai_cfg=ai_cfg,
+                ffmpeg_bin=ffmpeg_bin,
+                prev_text=prev_t,
+                next_text=next_t,
+                stability=int(stability or 85),
             )
 
-            cue_records.append({
-                "cue": cue,
-                "wav_path": timed_cue_wav
-            })
+            pcm, sr_in = sf.read(raw_cue_wav, dtype="float32", always_2d=False)
+            if getattr(pcm, "ndim", 1) > 1:
+                pcm = np.mean(pcm, axis=1)
+            if sr_in != target_sr:
+                import scipy.signal
+                pcm = scipy.signal.resample_poly(pcm, target_sr, sr_in).astype(np.float32)
+            pcm = tts_provider.trim_pcm_silence_48k(np.asarray(pcm, dtype=np.float32), sr=target_sr)
+            raw_dur = len(pcm) / float(target_sr)
 
-        report_progress(88, "Assembling Sample-Accurate Synchronized Master Track...")
-        # Determine total duration of timeline
+            # Borrow natural silence before the next cue before stretching
+            next_start = cues[idx + 1].start_sec if idx + 1 < total_cues else (cue.end_sec + 1.5)
+            trailing_gap = max(0.0, next_start - cue.end_sec)
+            elastic_window = cue.duration + min(0.32, max(0.0, trailing_gap - 0.05) * 0.85)
+
+            if auto_time_fit and elastic_window > 0.20 and raw_dur > elastic_window * 1.025:
+                tempo_factor = min(1.42, raw_dur / elastic_window)
+                fit_wav = os.path.join(work_dir, f"fit48k_{idx:04d}.wav")
+                tf_filters = tts_provider.build_tempo_pitch_filters(
+                    ffmpeg_bin, tempo=tempo_factor, pitch_st=0.0, sample_rate=target_sr
+                )
+                sf.write(raw_cue_wav, pcm, target_sr, subtype="PCM_16")
+                r_fit = subprocess.run(
+                    [
+                        ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error",
+                        "-i", raw_cue_wav,
+                        "-af", ",".join(tf_filters),
+                        "-ar", str(target_sr), "-ac", "1", "-c:a", "pcm_s16le",
+                        fit_wav,
+                    ],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    creationflags=CREATE_NO_WINDOW, check=False,
+                )
+                if r_fit.returncode == 0 and os.path.isfile(fit_wav):
+                    pcm_fit, _ = sf.read(fit_wav, dtype="float32", always_2d=False)
+                    if getattr(pcm_fit, "ndim", 1) > 1:
+                        pcm_fit = np.mean(pcm_fit, axis=1)
+                    pcm = tts_provider.trim_pcm_silence_48k(np.asarray(pcm_fit, dtype=np.float32), sr=target_sr)
+
+            placed_cues.append((cue, pcm))
+
+        report_progress(88, "Assembling Sample-Accurate 48kHz Master Track...")
         last_cue = cues[-1]
-        total_timeline_sec = last_cue.end_sec + 2.0
+        total_timeline_sec = last_cue.end_sec + 2.5
         total_samples = int(math.ceil(total_timeline_sec * target_sr))
         master_buffer = np.zeros(total_samples, dtype=np.float32)
+        cursor_sample = 0
 
-        # Place each timed cue audio at its exact timestamp in the buffer
-        for item in cue_records:
-            cue = item["cue"]
-            wav_p = item["wav_path"]
-            if not os.path.isfile(wav_p):
+        for cue, data in placed_cues:
+            if len(data) == 0:
                 continue
-            data, sr = sf.read(wav_p, dtype="float32")
-            if data.ndim > 1:
-                data = np.mean(data, axis=1)
-            if sr != target_sr:
-                import scipy.signal
-                num_s = int(len(data) * target_sr / sr)
-                data = scipy.signal.resample(data, num_s).astype(np.float32)
+            start_sample = max(cursor_sample, int(round(cue.start_sec * target_sr)))
+            end_sample = start_sample + len(data)
+            if end_sample > len(master_buffer):
+                master_buffer = np.pad(master_buffer, (0, end_sample - len(master_buffer) + target_sr))
+            master_buffer[start_sample:end_sample] += data
+            cursor_sample = end_sample + int(0.03 * target_sr)
 
-            start_sample = int(cue.start_sec * target_sr)
-            end_sample = min(total_samples, start_sample + len(data))
-            chunk_len = end_sample - start_sample
-            if chunk_len > 0:
-                # Soft mix / crossfade if slight overlap
-                master_buffer[start_sample:end_sample] += data[:chunk_len]
+        max_peak = float(np.max(np.abs(master_buffer))) if len(master_buffer) > 0 else 0.0
+        if max_peak > 0.96:
+            master_buffer = np.tanh(master_buffer / max_peak * 1.4) / math.tanh(1.4) * 0.94
 
-        # Soft peak limiter to avoid clipping on overlaps
-        max_peak = np.max(np.abs(master_buffer))
-        if max_peak > 0.98:
-            master_buffer = (master_buffer / max_peak) * 0.95
-
-        report_progress(95, "Encoding Final Master Soundtrack...")
-        master_raw_wav = os.path.join(work_dir, "master_raw.wav")
+        report_progress(95, "Mastering Final Broadcast Soundtrack...")
+        master_raw_wav = os.path.join(work_dir, "master_raw_48k.wav")
         sf.write(master_raw_wav, master_buffer, target_sr, subtype="PCM_16")
 
-        # Encode to target format (.mp3, .wav, .flac, .aac)
         apply_audio_post_processing(
             master_raw_wav,
             output_path,
             pitch_shift_st=0.0,
-            stability=50,
-            ffmpeg_bin=ffmpeg_bin
+            stability=55,
+            ffmpeg_bin=ffmpeg_bin,
         )
 
-        final_dur = round(total_timeline_sec, 2)
+        final_dur = round(len(master_buffer) / float(target_sr), 2)
         report_progress(100, "Synchronized Voiceover Ready!")
 
         return {
@@ -1163,10 +1309,9 @@ def dub_subtitles_to_file(srt_path, voice_id, output_path, auto_time_fit=True,
             "output_path": os.path.abspath(output_path),
             "cue_count": total_cues,
             "total_duration": final_dur,
-            "auto_time_fit": auto_time_fit
+            "auto_time_fit": auto_time_fit,
         }
     finally:
-        # Clean up temporary work directory
         try:
             shutil.rmtree(work_dir, ignore_errors=True)
         except Exception:
@@ -1178,17 +1323,16 @@ def dub_subtitles_to_file(srt_path, voice_id, output_path, auto_time_fit=True,
 # ---------------------------------------------------------------------------
 
 def record_microphone_sample(output_wav, duration_sec=8):
-    """Record speech from microphone into WAV file using sounddevice."""
+    """Record 48kHz speech from microphone into RIFF PCM WAV file using sounddevice."""
     import sounddevice as sd
-    report_progress(10, f"Recording {duration_sec}s from Microphone...")
+    report_progress(10, f"Recording {duration_sec}s from Microphone (48kHz)...")
 
-    sr = 24000
+    sr = 48000
     num_samples = int(duration_sec * sr)
     recording = sd.rec(num_samples, samplerate=sr, channels=1, dtype="float32")
     sd.wait()
 
     report_progress(80, "Saving Microphone Sample...")
-    # Normalize
     max_val = np.max(np.abs(recording))
     if max_val > 1e-4:
         recording = (recording / max_val) * 0.92
@@ -1199,7 +1343,7 @@ def record_microphone_sample(output_wav, duration_sec=8):
     return {
         "success": True,
         "audio_path": os.path.abspath(output_wav),
-        "duration": duration_sec
+        "duration": duration_sec,
     }
 
 
@@ -1218,6 +1362,8 @@ def main():
     p_clone.add_argument("--name", default="Cloned Voice", help="Display name for cloned voice")
     p_clone.add_argument("--gender", default="auto", help="Gender hint: auto, male, female")
     p_clone.add_argument("--accent", default="en-US", help="Accent or language code")
+    p_clone.add_argument("--id", default="", help="Optional explicit profile ID")
+    p_clone.add_argument("--ffmpeg", default="", help="Optional custom FFmpeg path")
 
     # 2. synthesize_text
     p_tts = subparsers.add_parser("synthesize_text", help="Synthesize text to speech")
@@ -1251,11 +1397,15 @@ def main():
 
     try:
         if args.command == "extract_timbre":
+            explicit_id = getattr(args, "id", None) or os.path.splitext(os.path.basename(args.output))[0]
             profile = extract_timbre_features(
                 args.input,
                 voice_name=args.name,
                 gender_hint=args.gender,
-                accent=args.accent
+                accent=args.accent,
+                profile_id=explicit_id,
+                output_path=args.output,
+                ffmpeg_bin=args.ffmpeg or None,
             )
             os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
             with open(args.output, "w", encoding="utf-8") as f:
@@ -1263,7 +1413,6 @@ def main():
             sys.stdout.write(f"\nRESULT_JSON:{json.dumps(profile)}\n")
 
         elif args.command == "synthesize_text":
-            # Check if text is a file reference: @path
             text_val = args.text
             if text_val.startswith("@") and os.path.isfile(text_val[1:]):
                 with open(text_val[1:], "r", encoding="utf-8") as f:
@@ -1278,7 +1427,7 @@ def main():
                 pitch_st=args.pitch,
                 stability=args.stability,
                 target_lang=args.lang,
-                ffmpeg_bin=args.ffmpeg or None
+                ffmpeg_bin=args.ffmpeg or None,
             )
             sys.stdout.write(f"\nRESULT_JSON:{json.dumps(res)}\n")
 
@@ -1292,7 +1441,7 @@ def main():
                 speed=args.speed,
                 stability=args.stability,
                 target_lang=args.lang,
-                ffmpeg_bin=args.ffmpeg or None
+                ffmpeg_bin=args.ffmpeg or None,
             )
             sys.stdout.write(f"\nRESULT_JSON:{json.dumps(res)}\n")
 

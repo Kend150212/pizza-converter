@@ -19,8 +19,41 @@ pub static CANCEL_REQUESTED: AtomicBool = AtomicBool::new(false);
 static ACTIVE_TASKS: Mutex<Vec<ActiveTaskInfo>> = Mutex::new(Vec::new());
 static CANCELLED_TASKS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
+thread_local! {
+    static CURRENT_TASK_CTX: std::cell::RefCell<Option<(String, String)>> = const { std::cell::RefCell::new(None) };
+}
+
+struct TaskCtxGuard;
+impl Drop for TaskCtxGuard {
+    fn drop(&mut self) {
+        CURRENT_TASK_CTX.with(|c| {
+            *c.borrow_mut() = None;
+        });
+    }
+}
+
+fn set_current_task_ctx(task_id: &str, target: &str) -> TaskCtxGuard {
+    CURRENT_TASK_CTX.with(|c| {
+        *c.borrow_mut() = Some((task_id.to_string(), target.to_string()));
+    });
+    TaskCtxGuard
+}
+
+fn current_task_id() -> Option<String> {
+    CURRENT_TASK_CTX.with(|c| c.borrow().as_ref().map(|(tid, _)| tid.clone()))
+}
+
 pub fn is_cancelled() -> bool {
-    CANCEL_REQUESTED.load(Ordering::SeqCst)
+    if CANCEL_REQUESTED.load(Ordering::SeqCst) {
+        return true;
+    }
+    CURRENT_TASK_CTX.with(|c| {
+        if let Some((ref tid, ref tgt)) = *c.borrow() {
+            is_task_cancelled(Some(tid.as_str()), Some(tgt.as_str()))
+        } else {
+            false
+        }
+    })
 }
 
 pub fn is_task_cancelled(task_id: Option<&str>, target: Option<&str>) -> bool {
@@ -29,12 +62,12 @@ pub fn is_task_cancelled(task_id: Option<&str>, target: Option<&str>) -> bool {
     }
     if let Ok(cancelled) = CANCELLED_TASKS.lock() {
         if let Some(tid) = task_id {
-            if cancelled.iter().any(|k| k == tid) {
+            if !tid.is_empty() && cancelled.iter().any(|k| k == tid) {
                 return true;
             }
         }
         if let Some(tgt) = target {
-            if cancelled.iter().any(|k| k == tgt) {
+            if !tgt.is_empty() && cancelled.iter().any(|k| k == tgt) {
                 return true;
             }
         }
@@ -50,6 +83,10 @@ pub fn reset_cancel() {
 }
 
 pub fn reset_task_cancel(task_id: Option<&str>, target: Option<&str>) {
+    let no_active = ACTIVE_TASKS.lock().map(|l| l.is_empty()).unwrap_or(true);
+    if no_active {
+        CANCEL_REQUESTED.store(false, Ordering::SeqCst);
+    }
     if let Ok(mut cancelled) = CANCELLED_TASKS.lock() {
         if let Some(tid) = task_id {
             cancelled.retain(|k| k != tid);
@@ -61,12 +98,21 @@ pub fn reset_task_cancel(task_id: Option<&str>, target: Option<&str>) {
 }
 
 pub fn register_task_child_pid(pid: u32, target: &str, task_id: Option<&str>) {
+    let ctx = CURRENT_TASK_CTX.with(|c| c.borrow().clone());
+    let eff_target = if !target.is_empty() {
+        target.to_string()
+    } else {
+        ctx.as_ref().map(|(_, t)| t.clone()).unwrap_or_default()
+    };
+    let eff_tid = task_id
+        .map(|s| s.to_string())
+        .or_else(|| ctx.map(|(tid, _)| tid));
     if let Ok(mut list) = ACTIVE_TASKS.lock() {
         if !list.iter().any(|item| item.pid == pid) {
             list.push(ActiveTaskInfo {
                 pid,
-                target: target.to_string(),
-                task_id: task_id.map(|s| s.to_string()),
+                target: eff_target,
+                task_id: eff_tid,
             });
         }
     }
@@ -79,6 +125,17 @@ pub fn register_child_pid(pid: u32) {
 pub fn unregister_child_pid(pid: u32) {
     if let Ok(mut list) = ACTIVE_TASKS.lock() {
         list.retain(|t| t.pid != pid);
+    }
+}
+
+pub fn kill_all_active_children() {
+    CANCEL_REQUESTED.store(true, Ordering::SeqCst);
+    let pids: Vec<u32> = ACTIVE_TASKS
+        .lock()
+        .map(|mut list| list.drain(..).map(|t| t.pid).collect())
+        .unwrap_or_default();
+    for pid in pids {
+        kill_pid_tree(pid);
     }
 }
 
@@ -153,18 +210,25 @@ pub fn cancel_task_cmd(
         kill_pid_tree(pid);
     }
 
-    let tgt = target.unwrap_or_else(|| "convert".to_string());
-    append_convert_log(&app, &format!("STOPPED target={tgt} (cancelled by user)"));
-    emit_progress(
-        &app,
-        "stopped",
-        0,
-        1,
-        0,
-        "⏹ Stopped by user",
-        &tgt,
-        None,
-        None,
+    let tgt = target
+        .clone()
+        .or_else(|| task_id.clone())
+        .unwrap_or_else(|| "convert".to_string());
+    append_convert_log(&app, &format!("STOPPED target={tgt} task_id={task_id:?} (cancelled by user)"));
+    crate::hotkey::show_hud(&app);
+    let _ = app.emit(
+        "convert-progress",
+        serde_json::json!({
+            "state": "stopped",
+            "done": 0,
+            "total": 1,
+            "percent": 0,
+            "current": "⏹ Stopped by user",
+            "target": tgt,
+            "task_id": task_id.unwrap_or_else(|| tgt.clone()),
+            "error": serde_json::Value::Null,
+            "out_path": serde_json::Value::Null,
+        }),
     );
     Ok(())
 }
@@ -186,6 +250,7 @@ fn emit_progress(
     if state != "running" || (done == 0 && percent <= 18) {
         crate::hotkey::show_hud(app);
     }
+    let tid = current_task_id().unwrap_or_else(|| target.to_string());
     let _ = app.emit(
         "convert-progress",
         serde_json::json!({
@@ -195,6 +260,7 @@ fn emit_progress(
             "percent": percent,
             "current": current,
             "target": target,
+            "task_id": tid,
             "error": error,
             "out_path": out_path,
         }),
@@ -224,56 +290,113 @@ pub fn get_convert_log(app: tauri::AppHandle) -> String {
         .unwrap_or_default()
 }
 
-/// Open a converted file with the default OS application.
+/// Open a converted file, folder, or HTTPS URL with the default OS handler (shell-injection safe).
 #[tauri::command]
 pub fn open_file(path: String) -> Result<(), String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("Empty path".into());
+    }
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("cmd")
-            .args(["/c", "start", "", &path])
-            .spawn()
-            .map_err(|e| e.to_string())?;
+        use std::os::windows::process::CommandExt;
+        if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+            std::process::Command::new("rundll32.exe")
+                .args(["url.dll,FileProtocolHandler", trimmed])
+                .creation_flags(0x08000000)
+                .spawn()
+                .map_err(|e| e.to_string())?;
+            return Ok(());
+        }
+        let norm = trimmed.replace('/', "\\");
+        let clean = norm.strip_prefix(r"\\?\").unwrap_or(&norm);
+        let p = Path::new(clean);
+        if !p.exists() {
+            return Err(format!("File or folder not found: {clean}"));
+        }
+        if p.is_dir() {
+            std::process::Command::new("explorer.exe")
+                .arg(clean)
+                .creation_flags(0x08000000)
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        } else {
+            std::process::Command::new("rundll32.exe")
+                .args(["url.dll,FileProtocolHandler", clean])
+                .creation_flags(0x08000000)
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        }
     }
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open")
-            .arg(&path)
+            .arg(trimmed)
             .spawn()
             .map_err(|e| e.to_string())?;
     }
     #[cfg(target_os = "linux")]
     {
         std::process::Command::new("xdg-open")
-            .arg(&path)
+            .arg(trimmed)
             .spawn()
             .map_err(|e| e.to_string())?;
     }
     Ok(())
 }
 
-/// Show the converted file in the system file manager (Explorer / Finder).
+/// Show the converted file in the system file manager (Explorer / Finder) with the item highlighted.
 #[tauri::command]
 pub fn show_in_folder(path: String) -> Result<(), String> {
-    if path.starts_with("http://") || path.starts_with("https://") {
-        return open_file(path);
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("Empty path".into());
+    }
+    if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        return open_file(trimmed.to_string());
     }
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("explorer")
-            .args(["/select,", &path])
-            .spawn()
-            .map_err(|e| e.to_string())?;
+        use std::os::windows::process::CommandExt;
+        let norm = trimmed.replace('/', "\\");
+        let resolved = std::fs::canonicalize(&norm)
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or(norm);
+        let clean = resolved.strip_prefix(r"\\?\").unwrap_or(&resolved);
+        let p = Path::new(clean);
+        if p.is_dir() {
+            std::process::Command::new("explorer.exe")
+                .arg(clean)
+                .creation_flags(0x08000000)
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        } else if p.exists() {
+            let safe = clean.replace('"', "");
+            std::process::Command::new("explorer.exe")
+                .raw_arg(format!("/select,\"{safe}\""))
+                .creation_flags(0x08000000)
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        } else if let Some(parent) = p.parent().filter(|d| d.exists()) {
+            std::process::Command::new("explorer.exe")
+                .arg(parent)
+                .creation_flags(0x08000000)
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        } else {
+            return Err(format!("Path no longer exists: {clean}"));
+        }
     }
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open")
-            .args(["-R", &path])
+            .args(["-R", trimmed])
             .spawn()
             .map_err(|e| e.to_string())?;
     }
     #[cfg(target_os = "linux")]
     {
-        let p = Path::new(&path);
+        let p = Path::new(trimmed);
         let dir = if p.is_dir() { p } else { p.parent().unwrap_or(p) };
         std::process::Command::new("xdg-open")
             .arg(dir)
@@ -310,21 +433,19 @@ pub fn convert_image_cmd(
     out_ext: String,
     quality: u8,
 ) -> Result<String, String> {
-    let pro = crate::licensing::is_pro_inner(&app);
     let out = crate::config::resolve_output(&app, Path::new(&input), &out_ext);
-    convertx_engine::convert_image(Path::new(&input), &out, quality, pro).map_err(|e| e.to_string())?;
+    convertx_engine::convert_image(Path::new(&input), &out, quality, true).map_err(|e| e.to_string())?;
     crate::radial_model::track_usage(&app, &input, &out_ext);
     Ok(out.to_string_lossy().into_owned())
 }
 
-/// Combine images into one PDF (Pro). Returns the output path.
+/// Combine images into one PDF (100% Free per v1.0.2+ tier model). Returns the output path.
 #[tauri::command(async)]
 pub fn images_to_pdf_cmd(
     app: tauri::AppHandle,
     inputs: Vec<String>,
     output: String,
 ) -> Result<String, String> {
-    let pro = crate::licensing::is_pro_inner(&app);
     let paths: Vec<std::path::PathBuf> = inputs.iter().map(std::path::PathBuf::from).collect();
     // If the caller passed an empty output, resolve from the first input + config.
     let out_path = if output.is_empty() {
@@ -335,27 +456,26 @@ pub fn images_to_pdf_cmd(
     } else {
         std::path::PathBuf::from(&output)
     };
-    convertx_engine::images_to_pdf(&paths, &out_path, pro).map_err(|e| e.to_string())?;
+    convertx_engine::images_to_pdf(&paths, &out_path, true).map_err(|e| e.to_string())?;
     Ok(out_path.to_string_lossy().into_owned())
 }
 
-/// Merge PDFs — Pro only (final Free/Pro mapping, 29/10/2026). Returns the output path.
+/// Merge PDFs (100% Free per v1.0.2+ tier model). Returns the output path.
 #[tauri::command(async)]
 pub fn merge_pdfs_cmd(
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
     inputs: Vec<String>,
     output: String,
 ) -> Result<String, String> {
-    let pro = crate::licensing::is_pro_inner(&app);
     let paths: Vec<std::path::PathBuf> = inputs.iter().map(std::path::PathBuf::from).collect();
-    convertx_engine::merge_pdfs(&paths, Path::new(&output), pro).map_err(|e| e.to_string())?;
+    convertx_engine::merge_pdfs(&paths, Path::new(&output), true).map_err(|e| e.to_string())?;
     Ok(output)
 }
 
 /// Generic conversion for the radial v2 menu.
 /// `target`: a format id (png/jpg/...) or an op (compress/split/merge).
 /// Returns the output path (split returns newline-joined paths).
-/// Honors the configured output folder. Audio/video targets need Pro.\
+/// Honors the configured output folder. AI Studio targets require Pro / Trial.
 /// `async`: conversions can take seconds — never block the main/UI thread.
 #[tauri::command(async)]
 pub fn convert_any_cmd(
@@ -365,51 +485,37 @@ pub fn convert_any_cmd(
     quality: u8,
     password: Option<String>,
 ) -> Result<String, String> {
-    reset_cancel();
+    let task_millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let task_id = format!("conv_{}_{}", target, task_millis);
+    reset_task_cancel(Some(&task_id), Some(&target));
+    let _task_ctx_guard = set_current_task_ctx(&task_id, &target);
     let pro = crate::licensing::is_pro_inner(&app);
 
-    let is_pro_target = target.starts_with("cloud_")
-        || target.starts_with("design_")
-        || target.starts_with("bc_")
-        || target.starts_with("tpl_")
-        || target.starts_with("ai_")
-        || target.starts_with("upscale_")
-        || target.starts_with("cmp_img_")
+    let is_pro_target = target.starts_with("ai_")
         || target.starts_with("cap_")
         || target.starts_with("dub_")
         || target.starts_with("rev_")
         || target.starts_with("ag_")
         || target.starts_with("sub_")
+        || target.starts_with("doc_to_mp3")
+        || target.starts_with("auto_montage")
         || matches!(
             target.as_str(),
-            "removebg"
-                | "scan_doc"
-                | "vector_svg"
-                | "seo_alt"
-                | "ocr_text"
-                | "clean_privacy"
-                | "barcode_pdf"
-                | "cmp_img_web"
-                | "cmp_10mb"
-                | "cmp_25mb"
-                | "cmp_50mb"
-                | "cmp_half"
-                | "to_srt"
+            "to_srt"
                 | "to_vtt"
                 | "to_ass"
                 | "to_transcript"
                 | "sub_to_voice"
                 | "doc_to_mp3"
-                | "compress"
-                | "split"
-                | "merge"
-                | "protect"
-                | "unlock"
-                | "merge_video"
-                | "merge_img_pdf"
+                | "doc_summary"
+                | "ai_doc_summary"
+                | "auto_montage"
         );
     if !pro && is_pro_target {
-        let err = "This feature requires Pizza Converter Pro".to_string();
+        let err = "This AI Studio feature requires Pizza Converter Pro".to_string();
         emit_progress(&app, "error", 0, 1, 0, "", &target, Some(&err), None);
         crate::show_settings_window(&app);
         return Err(err);
@@ -452,7 +558,9 @@ pub fn convert_any_cmd(
     }
 
     if inputs.is_empty() {
-        return Err("no input".into());
+        let err = "No input file selected. Select a file first and try again.".to_string();
+        emit_progress(&app, "error", 0, 1, 0, "", &target, Some(&err), None);
+        return Err(err);
     }
     let in_paths: Vec<std::path::PathBuf> =
         inputs.iter().map(std::path::PathBuf::from).collect();
@@ -471,12 +579,6 @@ pub fn convert_any_cmd(
             convertx_engine::is_image_ext(&ext) || convertx_engine::heic::is_heic(p)
         });
     if target == "merge_img_pdf" || (target == "pdf" && all_images) {
-        if !pro {
-            let err = "Merging multiple images into 1 PDF requires Pizza Converter Pro".to_string();
-            emit_progress(&app, "error", 0, total, 0, "", &target, Some(&err), None);
-            crate::show_settings_window(&app);
-            return Err(err);
-        }
         let first_name = first
             .file_name()
             .and_then(|n| n.to_str())
@@ -492,7 +594,7 @@ pub fn convert_any_cmd(
             None,
             None,
         );
-        match merge_images_into_one_pdf(&app, &in_paths, pro) {
+        match merge_images_into_one_pdf(&app, &in_paths, true) {
             Ok(res) => {
                 let out_name = Path::new(&res)
                     .file_name()
@@ -547,7 +649,7 @@ pub fn convert_any_cmd(
             None,
         );
         let out = crate::config::resolve_output(&app, first, "pdf");
-        match convertx_engine::merge_pdfs(&in_paths, &out, pro).map_err(|e| e.to_string()) {
+        match convertx_engine::merge_pdfs(&in_paths, &out, true).map_err(|e| e.to_string()) {
             Ok(()) => {
                 let res = out.to_string_lossy().into_owned();
                 let out_name = out
@@ -736,6 +838,63 @@ pub fn convert_any_cmd(
         }
     }
 
+    // Special case: "auto_montage" joins, smart-cuts fillers & dead air, reframes (16:9, 9:16, 1:1),
+    // overlays logo, burns captions, and attaches intro/outro.
+    if target.starts_with("auto_montage") {
+        let first_name = first
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("Video");
+        let aspect_override = if target.contains(':') {
+            target.splitn(2, ':').nth(1)
+        } else {
+            None
+        };
+        emit_progress(
+            &app,
+            "running",
+            0,
+            total,
+            8,
+            &format!("Auto Montage: analyzing speech & editing ({first_name}…)"),
+            &target,
+            None,
+            None,
+        );
+        match crate::ai_studio::run_auto_montage_task(&app, &in_paths, aspect_override) {
+            Ok(res) => {
+                let out_name = Path::new(&res)
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("montage.mp4");
+                append_convert_log(&app, &format!("OK inputs={inputs:?} target=auto_montage -> {res}"));
+                crate::radial_model::track_usage(&app, &inputs[0], "auto_montage");
+                crate::radial_model::record_history(&app, &inputs[0], &res, "auto_montage");
+                emit_progress(
+                    &app,
+                    "done",
+                    total,
+                    total,
+                    100,
+                    &format!("Saved {out_name}"),
+                    &target,
+                    None,
+                    Some(&res),
+                );
+                return Ok(res);
+            }
+            Err(err) => {
+                if is_cancelled() || err.contains("STOPPED_BY_USER") {
+                    emit_progress(&app, "stopped", 0, total, 0, "⏹ Stopped by user", &target, None, None);
+                    return Err("Stopped by user".into());
+                }
+                append_convert_log(&app, &format!("ERR inputs={inputs:?} target=auto_montage :: {err}"));
+                emit_progress(&app, "error", 0, total, 0, "", &target, Some(&err), None);
+                return Err(err);
+            }
+        }
+    }
+
     // Multi-file parallel batch processing across CPU cores
     if total > 1 && target != "split" {
         use std::sync::atomic::{AtomicUsize, Ordering};
@@ -789,6 +948,7 @@ pub fn convert_any_cmd(
             for _ in 0..pool_size {
                 let app = app.clone();
                 let target = target.clone();
+                let task_id = task_id.clone();
                 let password = password.clone();
                 let in_paths = &in_paths;
                 let next_idx = next_idx.clone();
@@ -797,6 +957,7 @@ pub fn convert_any_cmd(
                 let first_err = first_err.clone();
 
                 s.spawn(move || {
+                    let _worker_ctx = set_current_task_ctx(&task_id, &target);
                     loop {
                         if first_err.lock().unwrap().is_some() {
                             break;
@@ -827,7 +988,8 @@ pub fn convert_any_cmd(
                                 "design_rename" => rename_batch_file(&app, item_path, idx, total)?,
                                 s if s.starts_with("tpl_") => run_design_studio_template(&app, item_path, s)?,
                                 "ocr_text" => ocr_image_to_text(&app, item_path)?,
-                                "doc_to_mp3" => convert_doc_to_mp3(&app, item_path, idx, total)?,
+                                "doc_summary" | "ai_doc_summary" => summarize_document_ai(&app, item_path)?,
+                                s if s.starts_with("doc_to_mp3") => convert_doc_to_mp3(&app, item_path, idx, total, Some(s))?,
                                 "clean_privacy" => clean_privacy_file(&app, item_path, idx, total)?,
                                 "cmp_10mb" | "cmp_25mb" | "cmp_50mb" | "cmp_half" | "cmp_img_web" | "cmp_img_200kb" | "cmp_img_500kb" | "cmp_img_1mb" | "cmp_img_auto" => {
                                     compress_media_target(&app, item_path, target.as_str(), idx, total)?
@@ -860,14 +1022,14 @@ pub fn convert_any_cmd(
                                 }
                                 "compress" => {
                                     let out = crate::config::resolve_output(&app, item_path, "pdf");
-                                    convertx_engine::compress_pdf(item_path, &out, pro)
+                                    convertx_engine::compress_pdf(item_path, &out, true)
                                         .map_err(|e| e.to_string())?;
                                     out.to_string_lossy().into_owned()
                                 }
                                 "to_png" => {
                                     let probe = crate::config::resolve_output(&app, item_path, "png");
                                     let base = probe.parent().unwrap_or_else(|| Path::new("."));
-                                    let pngs = convertx_engine::office::pdf_to_pngs(item_path, base, pro)
+                                    let pngs = convertx_engine::office::pdf_to_pngs(item_path, base, true)
                                         .map_err(|e| e.to_string())?;
                                     if pngs.len() == 1 {
                                         let p = &pngs[0];
@@ -920,7 +1082,7 @@ pub fn convert_any_cmd(
                                         }
                                         ff_res.map_err(|e| e.to_string())?;
                                     } else {
-                                        convertx_engine::convert_pair(item_path, &out, quality, pro)
+                                        convertx_engine::convert_pair(item_path, &out, quality, true)
                                             .map_err(|e| e.to_string())?;
                                     }
                                     out.to_string_lossy().into_owned()
@@ -1059,7 +1221,8 @@ pub fn convert_any_cmd(
                 "design_rename" => rename_batch_file(&app, item_path, idx, total)?,
                 s if s.starts_with("tpl_") => run_design_studio_template(&app, item_path, s)?,
                 "ocr_text" => ocr_image_to_text(&app, item_path)?,
-                "doc_to_mp3" => convert_doc_to_mp3(&app, item_path, idx, total)?,
+                "doc_summary" | "ai_doc_summary" => summarize_document_ai(&app, item_path)?,
+                s if s.starts_with("doc_to_mp3") => convert_doc_to_mp3(&app, item_path, idx, total, Some(s))?,
                 "clean_privacy" => clean_privacy_file(&app, item_path, idx, total)?,
                 "cmp_10mb" | "cmp_25mb" | "cmp_50mb" | "cmp_half" | "cmp_img_web" | "cmp_img_200kb" | "cmp_img_500kb" | "cmp_img_1mb" | "cmp_img_auto" => {
                     compress_media_target(&app, item_path, target.as_str(), idx, total)?
@@ -1097,7 +1260,7 @@ pub fn convert_any_cmd(
                         .unwrap_or("split");
                     let dir = base.join(format!("{stem}_split"));
                     let _ = std::fs::create_dir_all(&dir);
-                    let files = convertx_engine::split_pdf(item_path, &dir, pro)
+                    let files = convertx_engine::split_pdf(item_path, &dir, true)
                         .map_err(|e| e.to_string())?;
                     files
                         .iter()
@@ -1107,14 +1270,14 @@ pub fn convert_any_cmd(
                 }
                 "compress" => {
                     let out = crate::config::resolve_output(&app, item_path, "pdf");
-                    convertx_engine::compress_pdf(item_path, &out, pro)
+                    convertx_engine::compress_pdf(item_path, &out, true)
                         .map_err(|e| e.to_string())?;
                     out.to_string_lossy().into_owned()
                 }
                 "to_png" => {
                     let probe = crate::config::resolve_output(&app, item_path, "png");
                     let base = probe.parent().unwrap_or_else(|| Path::new("."));
-                    let pngs = convertx_engine::office::pdf_to_pngs(item_path, base, pro)
+                    let pngs = convertx_engine::office::pdf_to_pngs(item_path, base, true)
                         .map_err(|e| e.to_string())?;
                     if pngs.len() == 1 {
                         let p = &pngs[0];
@@ -1179,7 +1342,7 @@ pub fn convert_any_cmd(
                         }
                         ff_res.map_err(|e| e.to_string())?;
                     } else {
-                        convertx_engine::convert_pair(item_path, &out, quality, pro)
+                        convertx_engine::convert_pair(item_path, &out, quality, true)
                             .map_err(|e| e.to_string())?;
                     }
                     out.to_string_lossy().into_owned()
@@ -1804,12 +1967,68 @@ fn generate_barcode_labels(
     let fake_in = input.with_file_name(format!("{}_{suffix}.{out_ext}", if clean_stem.is_empty() { "barcode" } else { &clean_stem }));
     let out = crate::config::resolve_output(app, &fake_in, out_ext);
 
+    let mut ai_sku = String::new();
+    let mut ai_title = String::new();
+    let mut ai_price = String::new();
+    let mut ai_brand = String::new();
+    if is_img
+        && custom_override.unwrap_or("").trim().is_empty()
+        && crate::cloud_ai::resolve_active_llm_provider(app, Some("barcode_ai"), true).is_some()
+    {
+        if let Some(b64) = crate::cloud_ai::encode_image_b64(input) {
+            if let Some(raw_ai) = crate::cloud_ai::run_feature_chat(
+                app,
+                "barcode_ai",
+                "You are a retail product label analyzer. Inspect the product image and return ONLY a compact single-line JSON object with keys {\"sku\":\"\",\"title\":\"\",\"price\":\"\",\"brand\":\"\"}. Leave unknown fields empty.",
+                &format!("Filename hint: {stem}\nReturn JSON only:"),
+                &[b64],
+            ) {
+                let trimmed = raw_ai.trim();
+                let json_slice = trimmed
+                    .find('{')
+                    .and_then(|s| trimmed.rfind('}').map(|e| &trimmed[s..=e]))
+                    .unwrap_or(trimmed);
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(json_slice) {
+                    ai_sku = v.get("sku").and_then(|x| x.as_str()).unwrap_or("").trim().to_string();
+                    ai_title = v.get("title").and_then(|x| x.as_str()).unwrap_or("").trim().to_string();
+                    ai_price = v.get("price").and_then(|x| x.as_str()).unwrap_or("").trim().to_string();
+                    ai_brand = v.get("brand").and_then(|x| x.as_str()).unwrap_or("").trim().to_string();
+                }
+            }
+        }
+    }
+
+    let eff_brand = if cfg.bc_show_brand {
+        if !cfg.bc_brand_text.trim().is_empty() {
+            cfg.bc_brand_text.clone()
+        } else {
+            ai_brand
+        }
+    } else {
+        String::new()
+    };
+    let eff_price = if cfg.bc_show_price {
+        if !cfg.bc_price_text.trim().is_empty() {
+            cfg.bc_price_text.clone()
+        } else {
+            ai_price
+        }
+    } else {
+        String::new()
+    };
+    let eff_code = if !cfg.bc_custom_code.trim().is_empty() {
+        cfg.bc_custom_code.clone()
+    } else {
+        ai_sku
+    };
+
     let cfg_json = serde_json::json!({
         "bc_format": cfg.bc_format,
         "layout_mode": layout_mode,
-        "brand_text": if cfg.bc_show_brand { cfg.bc_brand_text.clone() } else { String::new() },
-        "price_text": if cfg.bc_show_price { cfg.bc_price_text.clone() } else { String::new() },
-        "custom_code": cfg.bc_custom_code,
+        "brand_text": eff_brand,
+        "price_text": eff_price,
+        "custom_code": eff_code,
+        "ai_title": ai_title,
         "sheet_grid": cfg.bc_sheet_grid,
         "layouts": cfg.bc_layouts_json,
         "override_str": custom_override.unwrap_or(""),
@@ -1817,7 +2036,7 @@ fn generate_barcode_labels(
     })
     .to_string();
 
-    let script = r#"
+    let script = r###"
 import sys, os, csv, json, re, hashlib
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
@@ -2142,10 +2361,12 @@ def get_layout(mode):
 
 def hex_rgb(h, d=(0, 0, 0)):
     try:
-        h = str(h).lstrip("")
+        h = str(h).strip().lstrip("#")
         if len(h) == 3:
             h = "".join(c * 2 for c in h)
-        return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+        if len(h) >= 6:
+            return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+        return d
     except Exception:
         return d
 
@@ -2176,15 +2397,18 @@ def draw_text_el(draw, e, text, ox, oy, W, H, kind):
     bb = draw.textbbox((0, 0), text, font=f)
     tw, th = bb[2] - bb[0], bb[3] - bb[1]
     align = e.get("align", "center")
+    ty = y0 + (h - th) / 2
     if kind == "brand":
         pw = min(w, tw + 2 * pad)
         px = x0 + (w - pw) / 2 if align == "center" else (x0 if align == "left" else x0 + w - pw)
-        draw.rounded_rectangle([px, y0, px + pw, y0 + h], radius=int(h / 2), fill=hex_rgb(e.get("bg", "0f172a")))
+        bg_col = hex_rgb(e.get("bg", "0f172a"), (15, 23, 42))
+        draw.rounded_rectangle([px, y0, px + pw, y0 + h], radius=int(h / 2), fill=bg_col)
         tx = px + (pw - tw) / 2
+        txt_col = hex_rgb(e.get("color", "ffffff"), (255, 255, 255))
+        draw.text((tx - bb[0], ty - bb[1]), text, fill=txt_col, font=f)
     else:
         tx = x0 + (w - tw) / 2 if align == "center" else (x0 if align == "left" else x0 + w - tw)
-    ty = y0 + (h - th) / 2
-    draw.text((tx - bb[0], ty - bb[1]), text, fill=hex_rgb(e.get("color", "000000")), font=f)
+        draw.text((tx - bb[0], ty - bb[1]), text, fill=hex_rgb(e.get("color", "000000"), (0, 0, 0)), font=f)
 
 def draw_bars_el(canvas, draw, e, code, fmt, ox, oy, W, H):
     x0, y0, w, h = [int(v) for v in el_box(e, ox, oy, W, H)]
@@ -2249,7 +2473,8 @@ def render_label(canvas, L, ox, oy, W, H, code, title, price, brand, fmt, photo=
 
 raw_stem = os.path.splitext(os.path.basename(in_path))[0]
 default_sku = custom_code_cfg if custom_code_cfg else (re.sub(r"[^A-Za-z0-9\-_.]", "-", raw_stem).strip("-") or "SKU-001")
-default_title = raw_stem[:34]
+ai_title_cfg = (opts.get("ai_title") or "").strip()
+default_title = (ai_title_cfg or raw_stem)[:34]
 default_price = price_default
 default_brand = brand_default
 
@@ -2412,7 +2637,7 @@ for p_start in range(0, len(items), PER_PAGE):
     pages.append(page)
 
 pages[0].save(out_path, "PDF", resolution=300.0, save_all=True, append_images=pages[1:])
-"#;
+"###;
 
     let in_s = input.to_string_lossy().into_owned();
     let out_s = out.to_string_lossy().into_owned();
@@ -2928,17 +3153,49 @@ fn generate_image_seo_alt_title(app: &tauri::AppHandle, input: &Path) -> Result<
     let out = crate::config::resolve_output(app, &fake_in, "txt");
     let app_lang = crate::config::load(app).language;
 
-    // Optional Cloud AI Vision SEO Alt Text & Title generator (falls back automatically to local engine)
-    if crate::cloud_ai::feature_provider(app, "seo_alt").is_some() {
+    // Optional Cloud AI Vision SEO Alt Text & Title generator (embeds metadata + falls back automatically to local engine)
+    if crate::cloud_ai::resolve_active_llm_provider(app, Some("seo_alt"), true).is_some() {
         if let Some(b64) = crate::cloud_ai::encode_image_b64(input) {
             let fname = input.file_name().and_then(|s| s.to_str()).unwrap_or("image.png");
+            let lang_hint = if app_lang.to_ascii_lowercase().starts_with("vi") {
+                "Vietnamese (vi)"
+            } else {
+                "English (en)"
+            };
             if let Some(ai_report) = crate::cloud_ai::run_feature_chat(
                 app,
                 "seo_alt",
-                "You are an expert e-commerce and web SEO specialist. Analyze the image and output a clean report with: File, SEO Title, SEO Alt Text, SEO Filename (kebab-case), HTML Tag (<img ... />), and Markdown (![alt](filename \"title\")).",
-                &format!("Source file: {fname}\nPreferred language code: {app_lang}\nGenerate the SEO Alt Text & Title report for this image:"),
+                "You are an expert e-commerce and web SEO specialist. Analyze the image and output a clean report with exact labels on separate lines:\nFile: ...\nSEO Title: ...\nSEO Alt Text: ...\nSEO Filename: ...\nHTML Tag: <img ... />\nMarkdown: ![alt](filename \"title\")",
+                &format!("Source file: {fname}\nOutput language: {lang_hint}\nGenerate the SEO Alt Text & Title report for this image:"),
                 &[b64],
             ) {
+                let embed_py = r#"
+import sys, os, re
+from PIL import Image, PngImagePlugin
+in_path, report_txt = sys.argv[1], sys.argv[2]
+m_title = re.search(r"SEO Title:\s*(.+)", report_txt, re.I)
+m_alt = re.search(r"SEO Alt Text:\s*(.+)", report_txt, re.I)
+seo_title = (m_title.group(1).strip() if m_title else "").strip("*` ")
+seo_alt = (m_alt.group(1).strip() if m_alt else "").strip("*` ")
+if (seo_title or seo_alt) and os.path.isfile(in_path) and os.access(in_path, os.W_OK):
+    ext = os.path.splitext(in_path)[1].lower()
+    im = Image.open(in_path)
+    if ext == ".png":
+        meta = PngImagePlugin.PngInfo()
+        if seo_title: meta.add_itxt("Title", seo_title)
+        if seo_alt: meta.add_itxt("Description", seo_alt)
+        meta.add_itxt("XML:com.adobe.xmp", f'<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>{seo_title}</dc:title><dc:description>{seo_alt}</dc:description></rdf:Description></rdf:RDF></x:xmpmeta>')
+        im.save(in_path, "PNG", pnginfo=meta)
+    elif ext in (".jpg", ".jpeg", ".webp"):
+        exif = im.getexif()
+        exif[0x010E] = seo_alt or seo_title
+        if ext == ".webp":
+            im.save(in_path, "WEBP", quality=92, exif=exif.tobytes())
+        else:
+            im.convert("RGB").save(in_path, "JPEG", quality=92, exif=exif.tobytes())
+"#;
+                let in_s = input.to_string_lossy().into_owned();
+                let _ = convertx_engine::office::run_python(embed_py, &[&in_s, &ai_report]);
                 let _ = std::fs::write(&out, format!("{ai_report}\n"));
                 let _ = crate::cloud_drop::copy_text_cmd(ai_report);
                 return Ok(out.to_string_lossy().into_owned());
@@ -3183,13 +3440,101 @@ with open(out_path, "w", encoding="utf-8") as f:
     Ok(out_s)
 }
 
+/// Summarize any PDF, Word (.docx/.doc/.odt/.rtf), or Text (.txt/.md/.srt) document (`doc_summary`).
+/// Uses Cloud AI (`doc_summary`) when configured, with clean local extractive Markdown fallback.
+fn summarize_document_ai(app: &tauri::AppHandle, input: &Path) -> Result<String, String> {
+    let stem = input
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("document");
+    let fake_in = input.with_file_name(format!("{stem}_summary.md"));
+    let out = crate::config::resolve_output(app, &fake_in, "md");
+    let ext = input
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+
+    let raw_text = match ext.as_str() {
+        "pdf" => convertx_engine::office::extract_pdf_text_smart(input).map_err(|e| e.to_string())?,
+        "docx" | "doc" | "odt" | "rtf" => {
+            convertx_engine::office::extract_doc_text(input).map_err(|e| e.to_string())?
+        }
+        _ => std::fs::read_to_string(input).map_err(|e| e.to_string())?,
+    };
+
+    let trimmed = raw_text.trim();
+    if trimmed.is_empty() {
+        return Err("Document contains no readable text to summarize".into());
+    }
+
+    let app_lang = crate::config::load(app).language;
+    let is_vi = app_lang.to_ascii_lowercase().starts_with("vi");
+    let snippet: String = trimmed.chars().take(24_000).collect();
+
+    if crate::cloud_ai::resolve_active_llm_provider(app, Some("doc_summary"), false).is_some() {
+        let lang_instruction = if is_vi {
+            "Write the summary in natural Vietnamese."
+        } else {
+            "Write the summary in clear, professional English."
+        };
+        if let Some(ai_md) = crate::cloud_ai::run_feature_chat(
+            app,
+            "doc_summary",
+            &format!(
+                "You are an executive document analyst. {lang_instruction} Produce a structured Markdown summary with: # Executive Summary, ## Key Takeaways (bullet points), and ## Action Items / Conclusions."
+            ),
+            &format!("Document: {stem}.{ext}\n\n---\n{snippet}"),
+            &[],
+        ) {
+            std::fs::write(&out, format!("{}\n", ai_md.trim())).map_err(|e| e.to_string())?;
+            let _ = crate::cloud_drop::copy_text_cmd(ai_md);
+            return Ok(out.to_string_lossy().into_owned());
+        }
+    }
+
+    // Local extractive fallback (100% English unless user selected 'vi')
+    let paras: Vec<&str> = trimmed
+        .lines()
+        .map(str::trim)
+        .filter(|l| l.chars().count() >= 35)
+        .take(8)
+        .collect();
+    let heading = if is_vi {
+        format!("# Tóm tắt tài liệu: {stem}\n\n## Các ý chính\n")
+    } else {
+        format!("# Document Summary: {stem}\n\n## Key Points\n")
+    };
+    let bullets = if paras.is_empty() {
+        format!("- {}\n", trimmed.chars().take(600).collect::<String>())
+    } else {
+        paras
+            .into_iter()
+            .map(|p| {
+                let line: String = p.chars().take(280).collect();
+                format!("- {line}")
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n"
+    };
+    let md = format!("{heading}{bullets}");
+    std::fs::write(&out, &md).map_err(|e| e.to_string())?;
+    let _ = crate::cloud_drop::copy_text_cmd(md);
+    Ok(out.to_string_lossy().into_owned())
+}
+
 /// Convert any PDF, Word (.docx/.doc/.odt/.rtf), or Text (.txt/.md) document into a natural Neural MP3 Audiobook (`doc_to_mp3`)!
+/// Supports Cloud TTS (ElevenLabs / OpenAI / Gemini), VieNeu cloned voices (`.json` / `.npz`), and chunked Edge-TTS neural synthesis.
 fn convert_doc_to_mp3(
     app: &tauri::AppHandle,
     input: &Path,
     idx: usize,
     total: usize,
+    target_spec: Option<&str>,
 ) -> Result<String, String> {
+    const TTS_PROVIDER_PY: &str = include_str!("tts_provider.py");
+
     let stem = input
         .file_stem()
         .and_then(|s| s.to_str())
@@ -3203,101 +3548,248 @@ fn convert_doc_to_mp3(
     let cfg = crate::config::load(app);
     let prefer_male = cfg.ai_dub_voice == "male";
 
+    let raw_voice = target_spec
+        .and_then(|s| s.split_once(':').map(|(_, v)| v.trim()))
+        .unwrap_or("");
+    let voice_clean = raw_voice.strip_prefix("spk_vc_").unwrap_or(raw_voice);
+    let chosen_voice = if !voice_clean.is_empty() && voice_clean != "auto" {
+        crate::ai_studio::resolve_voice_alias_or_clone(app, voice_clean)
+    } else {
+        "auto".to_string()
+    };
+
+    let ai_payload = crate::cloud_ai::build_worker_ai_payload(app, "doc_to_mp3", false);
+    let ai_payload_json = serde_json::to_string(&ai_payload).unwrap_or_else(|_| "{}".to_string());
+
     let script = r#"
-import sys, os, re, asyncio
+import sys, os, re, json, asyncio, shutil, subprocess, tempfile
+
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
+work_dir = os.path.dirname(os.path.abspath(__file__))
+if work_dir not in sys.path:
+    sys.path.insert(0, work_dir)
 
 in_path, out_path, prefer_male_s = sys.argv[1], sys.argv[2], sys.argv[3]
+chosen_voice = (sys.argv[4].strip() if len(sys.argv) > 4 else "")
 prefer_male = (prefer_male_s == "1")
 ext = os.path.splitext(in_path)[1].lower()
 
-print("PROGRESS:15:Extracting text from document...", flush=True)
+ai_cfg = {}
+try:
+    if not sys.stdin.isatty():
+        raw_stdin = sys.stdin.read()
+        if raw_stdin and raw_stdin.strip():
+            ai_cfg = json.loads(raw_stdin)
+except Exception:
+    ai_cfg = {}
+
+print("PROGRESS:12:Extracting text from document...", flush=True)
 text = ""
 if ext == ".pdf":
-    import pypdf
-    reader = pypdf.PdfReader(in_path)
-    chunks = []
-    for p in reader.pages:
-        t = p.extract_text() or ""
-        if t.strip():
-            chunks.append(t.strip())
-    text = "\n\n".join(chunks)
+    try:
+        import pypdf
+        reader = pypdf.PdfReader(in_path)
+        pages = [(p.extract_text() or "").strip() for p in reader.pages]
+        text = "\n\n".join(t for t in pages if t)
+    except Exception:
+        import pypdfium2 as pdfium
+        doc = pdfium.PdfDocument(in_path)
+        text = "\n\n".join((doc[i].get_textpage().get_text_range() or "").strip() for i in range(len(doc)))
 elif ext == ".docx":
     import docx
     doc = docx.Document(in_path)
-    text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+    text = "\n\n".join(p.text.strip() for p in doc.paragraphs if p.text.strip())
 else:
     with open(in_path, "r", encoding="utf-8", errors="replace") as f:
         text = f.read()
 
-# Clean markdown/Formatting artifacts & collapse excessive whitespace
 text = re.sub(r"https?://\S+", "", text)
 text = re.sub(r"[#*_`~>|]+", " ", text)
-text = re.sub(r"\s+", " ", text).strip()
+text = re.sub(r"[ \t]+", " ", text)
+text = re.sub(r"\n{3,}", "\n\n", text).strip()
 
 if not text:
-    raise RuntimeError("Document contains no readable text to convert to audio")
+    raise RuntimeError("Document contains no readable text to convert to audio.")
 
-# Cap to ~45,000 chars (~45 mins of speech) for responsive synthesis
-if len(text) > 45000:
-    text = text[:45000]
+if len(text) > 90000:
+    text = text[:90000]
 
-# Auto-detect language for Neural Voice selection
 vi_chars = len(re.findall(r"[ăâđêôơưĂÂĐÊÔƠƯáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]", text))
 zh_chars = len(re.findall(r"[\u4e00-\u9fff]", text))
 ja_chars = len(re.findall(r"[\u3040-\u30ff]", text))
 ko_chars = len(re.findall(r"[\uac00-\ud7af]", text))
 
 if vi_chars > max(8, len(text) * 0.015):
-    voice = "vi-VN-NamMinhNeural" if prefer_male else "vi-VN-HoaiMyNeural"
+    lang_code = "vi"
+    auto_voice = "vi-VN-NamMinhNeural" if prefer_male else "vi-VN-HoaiMyNeural"
 elif ja_chars > 10:
-    voice = "ja-JP-KeitaNeural" if prefer_male else "ja-JP-NanamiNeural"
+    lang_code = "ja"
+    auto_voice = "ja-JP-KeitaNeural" if prefer_male else "ja-JP-NanamiNeural"
 elif ko_chars > 10:
-    voice = "ko-KR-InJoonNeural" if prefer_male else "ko-KR-SunHiNeural"
+    lang_code = "ko"
+    auto_voice = "ko-KR-InJoonNeural" if prefer_male else "ko-KR-SunHiNeural"
 elif zh_chars > 10:
-    voice = "zh-CN-YunxiNeural" if prefer_male else "zh-CN-XiaoxiaoNeural"
+    lang_code = "zh"
+    auto_voice = "zh-CN-YunxiNeural" if prefer_male else "zh-CN-XiaoxiaoNeural"
 else:
-    voice = "en-US-GuyNeural" if prefer_male else "en-US-AriaNeural"
+    lang_code = "en"
+    auto_voice = "en-US-AndrewMultilingualNeural" if prefer_male else "en-US-AvaMultilingualNeural"
 
-print(f"PROGRESS:35:Synthesizing Neural Audiobook ({voice})...", flush=True)
+voice_spec = chosen_voice if (chosen_voice and chosen_voice != "auto") else auto_voice
 
-import edge_tts, subprocess, tempfile, shutil
+def split_into_chunks(src_text, max_chars=1500):
+    sentences = re.split(r"(?<=[.!?。！？\n])\s+", src_text)
+    chunks = []
+    cur = ""
+    for sent in sentences:
+        sent = sent.strip()
+        if not sent:
+            continue
+        while len(sent) > max_chars:
+            cut = sent.rfind(" ", 0, max_chars)
+            if cut < max_chars // 2:
+                cut = max_chars
+            if cur:
+                chunks.append(cur.strip())
+                cur = ""
+            chunks.append(sent[:cut].strip())
+            sent = sent[cut:].strip()
+        if len(cur) + len(sent) + 1 <= max_chars:
+            cur = f"{cur} {sent}".strip() if cur else sent
+        else:
+            if cur:
+                chunks.append(cur.strip())
+            cur = sent
+    if cur:
+        chunks.append(cur.strip())
+    return chunks or [src_text[:max_chars]]
 
-async def make_audio():
+def find_ffmpeg():
+    ff = shutil.which("ffmpeg")
+    if ff:
+        return ff
+    for cand in (
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Microsoft", "WinGet", "Links", "ffmpeg.exe"),
+        r"C:\ProgramData\chocolatey\bin\ffmpeg.exe",
+        "/opt/homebrew/bin/ffmpeg",
+        "/usr/local/bin/ffmpeg",
+    ):
+        if cand and os.path.isfile(cand):
+            return cand
+    return "ffmpeg"
+
+ff_bin = find_ffmpeg()
+run_kw = {"creationflags": 0x08000000} if os.name == "nt" else {}
+chunks = split_into_chunks(text, 1500)
+total_chunks = len(chunks)
+
+voice_label = os.path.splitext(os.path.basename(voice_spec))[0] if os.path.isfile(voice_spec) else voice_spec
+print(f"PROGRESS:22:Synthesizing Neural Audiobook ({total_chunks} part{'s' if total_chunks != 1 else ''} · {voice_label})...", flush=True)
+
+try:
+    import tts_provider
+except Exception:
+    tts_provider = None
+
+async def fallback_edge_wav(chunk_txt, v_spec, dst_wav):
+    import edge_tts
+    edge_voice = auto_voice
+    pitch_arg = "+0Hz"
+    rate_arg = "+0%"
+    if v_spec and v_spec.lower().endswith(".json") and os.path.isfile(v_spec):
+        try:
+            with open(v_spec, "r", encoding="utf-8") as pf:
+                prof = json.load(pf)
+            edge_voice = prof.get("base_neural_voice") or auto_voice
+            st = float(prof.get("pitch_shift_semitones") or 0.0)
+            hz = int(round(st * 12.0))
+            if hz != 0:
+                pitch_arg = f"{hz:+d}Hz"
+        except Exception:
+            edge_voice = auto_voice
+    elif v_spec and "Neural" in v_spec:
+        edge_voice = v_spec
+    tmp_mp3 = dst_wav + ".edge.mp3"
     last_err = None
     for attempt in range(3):
         try:
-            comm = edge_tts.Communicate(text, voice)
-            with open(out_path, "wb") as f:
-                chunk_count = 0
-                async for chunk in comm.stream():
-                    if chunk["type"] == "audio":
-                        f.write(chunk["data"])
-                        chunk_count += 1
-                        if chunk_count % 25 == 0:
-                            pct = min(95, 35 + int(chunk_count / 3))
-                            print(f"PROGRESS:{pct}:Synthesizing Neural Audiobook ({voice})...", flush=True)
-            if os.path.isfile(out_path) and os.path.getsize(out_path) > 256:
+            comm = edge_tts.Communicate(chunk_txt, edge_voice, pitch=pitch_arg, rate=rate_arg)
+            await comm.save(tmp_mp3)
+            if os.path.isfile(tmp_mp3) and os.path.getsize(tmp_mp3) > 128:
+                subprocess.run(
+                    [ff_bin, "-y", "-hide_banner", "-loglevel", "error", "-i", tmp_mp3, "-ar", "48000", "-ac", "1", "-c:a", "pcm_s16le", dst_wav],
+                    check=True,
+                    timeout=90,
+                    **run_kw,
+                )
+                try:
+                    os.remove(tmp_mp3)
+                except Exception:
+                    pass
                 return
         except Exception as e:
             last_err = e
             await asyncio.sleep(0.5 * (attempt + 1))
-    if sys.platform == "darwin":
-        tmp_aiff = os.path.join(tempfile.gettempdir(), f"pizza_say_{os.getpid()}.aiff")
-        try:
-            subprocess.run(["/usr/bin/say", "-o", tmp_aiff, text], check=True, timeout=120)
-            ff = shutil.which("ffmpeg") or ("/usr/local/bin/ffmpeg" if os.path.isfile("/usr/local/bin/ffmpeg") else "/opt/homebrew/bin/ffmpeg")
-            subprocess.run([ff, "-y", "-hide_banner", "-loglevel", "error", "-i", tmp_aiff, "-c:a", "libmp3lame", "-q:a", "2", out_path], check=True, timeout=120)
-            if os.path.isfile(out_path) and os.path.getsize(out_path) > 256:
-                return
-        finally:
-            try:
-                if os.path.exists(tmp_aiff): os.remove(tmp_aiff)
-            except Exception:
-                pass
     if last_err:
         raise last_err
+    raise RuntimeError("Edge-TTS failed to generate audio chunk.")
 
-asyncio.run(make_audio())
+chunk_wavs = []
+for i, chunk_txt in enumerate(chunks):
+    pct = 24 + int(((i) / max(1, total_chunks)) * 68)
+    print(f"PROGRESS:{min(93, pct)}:Synthesizing chunk {i + 1}/{total_chunks} ({voice_label})...", flush=True)
+    c_wav = os.path.join(work_dir, f"chunk_{i:04d}.wav")
+    ok_chunk = False
+    if tts_provider is not None and hasattr(tts_provider, "synthesize_cue_or_text"):
+        try:
+            res = tts_provider.synthesize_cue_or_text(
+                chunk_txt,
+                voice_spec,
+                lang_code,
+                c_wav,
+                speed=1.0,
+                pitch_st=0.0,
+                ai_cfg=ai_cfg,
+                ffmpeg_bin=ff_bin,
+            )
+            if os.path.isfile(c_wav) and os.path.getsize(c_wav) > 256:
+                ok_chunk = True
+        except Exception:
+            ok_chunk = False
+    if not ok_chunk:
+        asyncio.run(fallback_edge_wav(chunk_txt, voice_spec, c_wav))
+    if not os.path.isfile(c_wav) or os.path.getsize(c_wav) <= 256:
+        raise RuntimeError(f"Failed to synthesize audio for chunk {i + 1}/{total_chunks}")
+    chunk_wavs.append(c_wav)
+
+print("PROGRESS:95:Mastering final MP3 audiobook...", flush=True)
+silence_wav = os.path.join(work_dir, "pause_220ms.wav")
+subprocess.run(
+    [ff_bin, "-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono", "-t", "0.22", "-c:a", "pcm_s16le", silence_wav],
+    check=False,
+    timeout=30,
+    **run_kw,
+)
+concat_txt = os.path.join(work_dir, "concat_list.txt")
+with open(concat_txt, "w", encoding="utf-8") as cf:
+    for idx_c, cw in enumerate(chunk_wavs):
+        safe_cw = cw.replace("'", "'\\''")
+        cf.write(f"file '{safe_cw}'\n")
+        if idx_c + 1 < len(chunk_wavs) and os.path.isfile(silence_wav):
+            safe_sw = silence_wav.replace("'", "'\\''")
+            cf.write(f"file '{safe_sw}'\n")
+
+subprocess.run(
+    [ff_bin, "-y", "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", concat_txt, "-c:a", "libmp3lame", "-q:a", "2", out_path],
+    check=True,
+    timeout=300,
+    **run_kw,
+)
 print("PROGRESS:99:Finalizing MP3 audiobook...", flush=True)
 "#;
 
@@ -3307,7 +3799,22 @@ print("PROGRESS:99:Finalizing MP3 audiobook...", flush=True)
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    let tmp_py = std::env::temp_dir().join(format!("pizza_doc_mp3_{nanos}.py"));
+    let work_dir = std::env::temp_dir()
+        .join("pizza_converter_tmp")
+        .join(format!("doc_mp3_{}_{}", std::process::id(), nanos));
+    std::fs::create_dir_all(&work_dir).map_err(|e| e.to_string())?;
+
+    struct TempDirGuard(std::path::PathBuf);
+    impl Drop for TempDirGuard {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let _work_guard = TempDirGuard(work_dir.clone());
+
+    let tts_mod_py = work_dir.join("tts_provider.py");
+    std::fs::write(&tts_mod_py, TTS_PROVIDER_PY).map_err(|e| e.to_string())?;
+    let tmp_py = work_dir.join("run_doc_mp3.py");
     std::fs::write(&tmp_py, script).map_err(|e| e.to_string())?;
 
     let in_s = input.to_string_lossy().into_owned();
@@ -3316,10 +3823,12 @@ print("PROGRESS:99:Finalizing MP3 audiobook...", flush=True)
 
     let mut cmd = std::process::Command::new(py);
     cmd.env("PYTHONIOENCODING", "utf-8")
+        .env("PYTHONUTF8", "1")
         .env("PYTHONUNBUFFERED", "1")
         .arg("-u")
         .arg(&tmp_py)
-        .args([&in_s, &out_s, male_s])
+        .args([&in_s, &out_s, male_s, &chosen_voice])
+        .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
     #[cfg(windows)]
@@ -3333,12 +3842,27 @@ print("PROGRESS:99:Finalizing MP3 audiobook...", flush=True)
         cmd.env("PATH", format!("/opt/homebrew/bin:/usr/local/bin:{cur_path}"));
     }
 
-    let mut child = cmd.spawn().map_err(|e| {
-        let _ = std::fs::remove_file(&tmp_py);
-        e.to_string()
-    })?;
+    let mut child = cmd.spawn().map_err(|e| e.to_string())?;
     let pid = child.id();
     register_child_pid(pid);
+
+    if let Some(mut stdin_pipe) = child.stdin.take() {
+        let _ = stdin_pipe.write_all(ai_payload_json.as_bytes());
+    }
+
+    let stderr_handle = child.stderr.take().map(|stderr| {
+        std::thread::spawn(move || {
+            use std::io::{BufRead, BufReader};
+            let mut lines = Vec::new();
+            for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                let t = line.trim();
+                if !t.is_empty() {
+                    lines.push(t.to_string());
+                }
+            }
+            lines
+        })
+    });
 
     if let Some(stdout) = child.stdout.take() {
         use std::io::{BufRead, BufReader};
@@ -3370,13 +3894,20 @@ print("PROGRESS:99:Finalizing MP3 audiobook...", flush=True)
 
     let status = child.wait().map_err(|e| e.to_string())?;
     unregister_child_pid(pid);
-    let _ = std::fs::remove_file(&tmp_py);
+    let stderr_lines = stderr_handle
+        .and_then(|h| h.join().ok())
+        .unwrap_or_default();
+
     if is_cancelled() {
         let _ = std::fs::remove_file(&out);
         return Err("STOPPED_BY_USER".into());
     }
     if !status.success() || !out.is_file() {
-        return Err("Failed to synthesize document audiobook MP3".into());
+        let detail = stderr_lines
+            .last()
+            .cloned()
+            .unwrap_or_else(|| "Failed to synthesize document audiobook MP3".into());
+        return Err(detail);
     }
     Ok(out_s)
 }
@@ -3653,6 +4184,69 @@ pub fn pick_file(app: tauri::AppHandle) -> Result<Option<String>, String> {
     });
     let picked = rx.recv().map_err(|e| e.to_string())?;
     Ok(picked.map(|p| p.to_string()))
+}
+
+#[tauri::command(async)]
+pub fn pick_files(app: tauri::AppHandle) -> Result<Option<Vec<String>>, String> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.dialog().file().pick_files(move |picked| {
+        let _ = tx.send(picked);
+    });
+    let picked = rx.recv().map_err(|e| e.to_string())?;
+    Ok(picked.map(|paths| {
+        paths
+            .into_iter()
+            .map(|p| p.to_string())
+            .collect()
+    }))
+}
+
+/// Native folder picker (`pick_dir` & `pick_folder` aliases used across Settings, Video Downloader, and Voice Studio).
+/// Runs off the UI thread (`async`) so `rx.recv()` never deadlocks the Windows dialog message pump.
+#[tauri::command(async)]
+pub fn pick_dir(app: tauri::AppHandle) -> Option<String> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.dialog().file().pick_folder(move |picked| {
+        let _ = tx.send(picked);
+    });
+    rx.recv().ok().flatten().map(|p| p.to_string())
+}
+
+#[tauri::command(async)]
+pub fn pick_folder(app: tauri::AppHandle) -> Option<String> {
+    pick_dir(app)
+}
+
+#[tauri::command(async)]
+pub fn run_auto_montage_cmd(
+    app: tauri::AppHandle,
+    inputs: Vec<String>,
+    aspect: Option<String>,
+) -> Result<String, String> {
+    let in_paths: Vec<std::path::PathBuf> = inputs.into_iter().map(std::path::PathBuf::from).collect();
+    crate::ai_studio::run_auto_montage_task(&app, &in_paths, aspect.as_deref())
+}
+
+#[tauri::command(async)]
+pub fn get_image_data_url_cmd(path: String) -> Result<String, String> {
+    let p = std::path::Path::new(&path);
+    if !p.exists() || !p.is_file() {
+        return Err(format!("File not found: {path}"));
+    }
+    let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("png").to_lowercase();
+    let mime = match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "gif" => "image/gif",
+        _ => "image/png",
+    };
+    let bytes = std::fs::read(p).map_err(|e| e.to_string())?;
+    if bytes.len() > 20 * 1024 * 1024 {
+        return Err("Image exceeds 20MB limit for preview".to_string());
+    }
+    Ok(format!("data:{mime};base64,{}", encode_base64(&bytes)))
 }
 
 /// Photoroom-Style AI Product & Design Studio (`design_cutout_png` + `tpl_*` templates):
@@ -4400,9 +4994,9 @@ fn rename_batch_file(
         .and_then(|e| e.to_str())
         .unwrap_or("");
 
-    // Optional Cloud AI Vision Smart Rename (`rename_me`): reads image content to build a descriptive SEO slug
-    let ai_stem = if crate::cloud_ai::feature_provider(app, "rename_me").is_some() {
-        crate::cloud_ai::encode_image_b64(input).and_then(|b64| {
+    // Optional Cloud AI Smart Rename (`rename_me`): supports both Vision (images) and Text (PDF/DOCX/TXT/MD/CSV)
+    let ai_stem = if let Some(b64) = crate::cloud_ai::encode_image_b64(input) {
+        if crate::cloud_ai::resolve_active_llm_provider(app, Some("rename_me"), true).is_some() {
             crate::cloud_ai::run_feature_chat(
                 app,
                 "rename_me",
@@ -4410,17 +5004,49 @@ fn rename_batch_file(
                 &format!("Original filename: {orig_stem}\nReturn only the new kebab-case filename slug:"),
                 &[b64],
             )
-        }).map(|s| {
-            let clean: String = s
-                .chars()
-                .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
-                .collect();
-            let slug = clean.split('-').filter(|p| !p.is_empty()).collect::<Vec<_>>().join("-");
-            if slug.is_empty() { String::new() } else { format!("{slug}-{:02}", idx + 1) }
-        }).filter(|s| !s.is_empty())
+        } else {
+            None
+        }
+    } else if crate::cloud_ai::resolve_active_llm_provider(app, Some("rename_me"), false).is_some() {
+        let ext_lc = ext.to_ascii_lowercase();
+        let doc_snippet = match ext_lc.as_str() {
+            "pdf" => convertx_engine::office::extract_pdf_text_smart(input).ok(),
+            "docx" | "doc" | "odt" | "rtf" => convertx_engine::office::extract_doc_text(input).ok(),
+            "txt" | "md" | "csv" | "json" | "srt" => std::fs::read_to_string(input).ok(),
+            _ => None,
+        }
+        .map(|s| s.chars().take(1_200).collect::<String>())
+        .filter(|s| !s.trim().is_empty());
+
+        doc_snippet.and_then(|snip| {
+            crate::cloud_ai::run_feature_chat(
+                app,
+                "rename_me",
+                "You are an intelligent document naming engine. Read the document excerpt and return ONLY a concise 3-to-6 word lowercase kebab-case filename slug (e.g. 'q3-revenue-forecast-report') with no extension and no explanation.",
+                &format!("Original filename: {orig_stem}\nExcerpt:\n{snip}\n\nReturn only the new kebab-case filename slug:"),
+                &[],
+            )
+        })
     } else {
         None
-    };
+    }
+    .map(|s| {
+        let clean: String = s
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+            .collect();
+        let slug = clean
+            .split('-')
+            .filter(|p| !p.is_empty())
+            .collect::<Vec<_>>()
+            .join("-");
+        if slug.is_empty() {
+            String::new()
+        } else {
+            format!("{slug}-{:02}", idx + 1)
+        }
+    })
+    .filter(|s| !s.is_empty());
 
     let new_stem = if let Some(s) = ai_stem {
         s

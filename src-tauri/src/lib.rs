@@ -8,12 +8,13 @@ pub mod config;
 pub mod convert_cmd;
 pub mod hotkey;
 pub mod licensing;
-pub mod mcp_hub;
 pub mod radial_model;
 pub mod selection;
 pub mod tray;
 pub mod security;
+pub mod video_downloader;
 pub mod voice_studio;
+pub mod voice_api;
 
 use tauri::Manager;
 use tauri_plugin_autostart::ManagerExt;
@@ -71,6 +72,14 @@ fn show_settings(app: tauri::AppHandle) {
     }
 }
 
+/// Show the Settings window and immediately activate a specific navigation view.
+#[tauri::command]
+fn open_settings_view(app: tauri::AppHandle, view: String) {
+    use tauri::Emitter;
+    show_settings_window(&app);
+    let _ = app.emit("settings-open-view", view);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "macos")]
@@ -85,20 +94,97 @@ pub fn run() {
     );
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            let tmp_dir = std::env::temp_dir().join("pizza_converter_tmp");
+            let _ = std::fs::create_dir_all(&tmp_dir);
+            let log_p = tmp_dir.join("pizza_single_args.txt");
+            let _ = std::fs::write(&log_p, format!("ARGS: {args:?}\nCWD: {cwd:?}\n"));
+            if args.iter().any(|a| a == "--phone-to-pc" || a == "--receive-from-phone") {
+                let _ = crate::cloud_drop::start_phone_to_pc_drop(app);
+                return;
+            }
+            if let Some(pos) = args.iter().position(|a| a == "--send-to-phone" || a == "--transfer") {
+                let cwd_buf = std::path::PathBuf::from(&cwd);
+                let files: Vec<std::path::PathBuf> = args[pos + 1..]
+                    .iter()
+                    .filter(|a| !a.starts_with("--"))
+                    .map(|a| {
+                        let clean = a.trim_matches('"').trim_matches('\'').trim();
+                        let p = std::path::PathBuf::from(clean);
+                        if p.is_relative() { cwd_buf.join(p) } else { p }
+                    })
+                    .filter(|p| p.exists())
+                    .collect();
+                if !files.is_empty() {
+                    let _ = crate::cloud_drop::start_pc_to_phone_drop(app, &files);
+                    return;
+                }
+            }
             show_settings_window(app);
         }))
         .plugin(autostart_plugin)
         .plugin(tauri_plugin_dialog::init())
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "settings" {
-                    api.prevent_close();
-                    let _ = window.hide();
+            match event {
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    if window.label() == "settings" {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    } else if window.label() == "phone_drop" {
+                        crate::cloud_drop::cleanup_phone_drop_window_daemons();
+                    }
                 }
+                tauri::WindowEvent::Destroyed => {
+                    if window.label() == "phone_drop" {
+                        crate::cloud_drop::cleanup_phone_drop_window_daemons();
+                    }
+                }
+                _ => {}
             }
         })
         .setup(|app| {
+            // Sweep stale >24h Pizza Converter temporary scripts/staging folders on startup
+            crate::cloud_drop::sweep_stale_temp_files();
+
+            // Ensure Windows Explorer context menu ("Transfer to Phone (Pizza)") is registered
+            #[cfg(windows)]
+            {
+                crate::cloud_drop::ensure_explorer_context_menu();
+            }
+
+            // Handle CLI flags on cold startup (e.g. Explorer context menu launch)
+            let cli_args: Vec<String> = std::env::args().collect();
+            if cli_args.iter().any(|a| a == "--phone-to-pc" || a == "--receive-from-phone") {
+                let app_h = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(350));
+                    let _ = crate::cloud_drop::start_phone_to_pc_drop(&app_h);
+                });
+            }
+            if let Some(pos) = cli_args.iter().position(|a| a == "--send-to-phone" || a == "--transfer") {
+                let files: Vec<std::path::PathBuf> = cli_args[pos + 1..]
+                    .iter()
+                    .filter(|a| !a.starts_with("--"))
+                    .map(|a| {
+                        let clean = a.trim_matches('"').trim_matches('\'').trim();
+                        let p = std::path::PathBuf::from(clean);
+                        if p.is_relative() {
+                            std::env::current_dir().map(|cd| cd.join(&p)).unwrap_or(p)
+                        } else {
+                            p
+                        }
+                    })
+                    .filter(|p| p.exists())
+                    .collect();
+                if !files.is_empty() {
+                    let app_h = app.handle().clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(350));
+                        let _ = crate::cloud_drop::start_pc_to_phone_drop(&app_h, &files);
+                    });
+                }
+            }
+
             // Refresh Pro entitlement from the Microsoft Store (best-effort,
             // fails closed; grandfathered local unlocks are never downgraded).
             licensing::refresh_license_from_store(app.handle());
@@ -115,23 +201,29 @@ pub fn run() {
             security::init_anti_tamper_shield();
             tray::build_tray(app.handle())?;
 
-            // Ensure HUD and Radial overlay windows start completely hidden, off-screen, and click-through
+            // Ensure HUD, Radial, and Quick Download overlay windows start completely hidden, off-screen, and click-through
             hotkey::hide_hud(app.handle());
             hotkey::hide_radial(app.handle());
+            hotkey::hide_quick_download(app.handle());
 
-            // On initial launch, show the main Settings window so the user immediately sees the app
-            show_settings_window(app.handle());
+            // On initial launch, show the main Settings window only if not launched via transfer hotkey/menu or minimized
+            let has_transfer = cli_args.iter().any(|a| a == "--send-to-phone" || a == "--transfer" || a == "--phone-to-pc" || a == "--receive-from-phone");
+            let is_minimized = cli_args.iter().any(|a| a == "--minimized");
+            if !has_transfer && !is_minimized {
+                show_settings_window(app.handle());
+            }
 
             // Start global instant shortcut listener
             hotkey::spawn_shift_hold_listener(app.handle().clone());
 
-            // Start AI Agent & MCP Hub local/remote server if enabled
-            mcp_hub::spawn_mcp_http_server(app.handle().clone());
+            // Start Voice Studio Local REST API Server if enabled
+            voice_api::spawn_server(app.handle().clone());
 
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             show_settings,
+            open_settings_view,
             security::get_app_version,
             convert_cmd::get_convert_log,
             convert_cmd::open_file,
@@ -146,11 +238,14 @@ pub fn run() {
             convert_cmd::cancel_task_cmd,
             convert_cmd::file_meta,
             convert_cmd::pick_file,
+            convert_cmd::pick_dir,
+            convert_cmd::pick_folder,
             config::get_config,
             config::set_enabled,
             config::set_trigger_key,
             config::set_autostart,
             config::set_output_dir,
+            config::set_video_dl_output_dir,
             config::set_language,
             config::set_menu_layout,
             config::set_ai_highlight_config,
@@ -174,6 +269,7 @@ pub fn run() {
             cloud_drop::clear_cloud_history,
             cloud_drop::copy_text_cmd,
             cloud_drop::get_qr_svg_cmd,
+            cloud_drop::start_phone_to_pc_drop_cmd,
             cloud_drop::start_cloud_oauth,
             cloud_drop::disconnect_cloud_oauth,
             ai_studio::detect_ai_hardware,
@@ -196,15 +292,10 @@ pub fn run() {
             hotkey::sync_hud_bounds_cmd,
             hotkey::set_recording_hotkey,
             hotkey::open_accessibility_settings,
-            mcp_hub::mcp_get_status,
-            mcp_hub::mcp_toggle_enabled,
-            mcp_hub::mcp_toggle_remote,
-            mcp_hub::mcp_regenerate_token,
-            mcp_hub::mcp_install_claude_desktop,
-            mcp_hub::mcp_install_cursor,
-            mcp_hub::mcp_get_config_snippet,
-            mcp_hub::mcp_get_agent_prompt,
+            hotkey::check_accessibility_permission,
+            hotkey::request_accessibility_permission,
             voice_studio::voice_studio_get_profiles,
+            voice_studio::get_cloned_voices,
             voice_studio::voice_studio_set_enabled,
             voice_studio::voice_studio_set_override_global,
             voice_studio::voice_studio_set_active_voice,
@@ -214,6 +305,30 @@ pub fn run() {
             voice_studio::voice_studio_synthesize_text,
             voice_studio::voice_studio_dub_subtitles,
             voice_studio::voice_studio_record_sample,
+            video_downloader::video_dl_check_env,
+            video_downloader::video_dl_install_tool,
+            video_downloader::video_dl_resolve_url,
+            video_downloader::video_dl_start,
+            video_downloader::video_dl_cancel,
+            video_downloader::video_dl_get_history,
+            video_downloader::video_dl_delete_history,
+            video_downloader::video_dl_clear_history,
+            video_downloader::get_clipboard_url_cmd,
+            config::get_video_downloader_trigger_key,
+            config::set_video_downloader_trigger_key,
+            hotkey::show_quick_download_cmd,
+            hotkey::hide_quick_download_cmd,
+            hotkey::toggle_quick_download_cmd,
+            voice_api::voice_api_get_status,
+            voice_api::voice_api_set_enabled,
+            voice_api::voice_api_set_config,
+            voice_api::voice_api_get_keys,
+            voice_api::voice_api_create_key,
+            voice_api::voice_api_delete_key,
+            config::set_montage_config,
+            convert_cmd::pick_files,
+            convert_cmd::run_auto_montage_cmd,
+            convert_cmd::get_image_data_url_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Pizza Converter");

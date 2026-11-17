@@ -21,7 +21,7 @@ const DUAL_OUT_LABEL_R = 186.5, DUAL_OUT_ACCENT_R = 218.5;
 const AI_OUTER_IDS = new Set([
   'vector_svg', 'seo_alt', 'removebg', 'ai_upscale', 'barcode_pdf', 'design_barcode',
   'scan_doc', 'ocr_text', 'cmp_img_web', 'clean_privacy', 'merge_img_pdf',
-  'ai_studio', 'ai_review', 'ai_subtitles', 'ai_burn_captions', 'ai_dubbing', 'ai_audiogram',
+  'ai_studio', 'ai_review', 'ai_subtitles', 'ai_burn_captions', 'ai_dubbing', 'ai_audiogram', 'auto_montage',
   'smart_compress', 'merge_video',
   'doc_to_mp3', 'compress', 'split', 'merge', 'protect', 'unlock',
   'sub_translate', 'sub_to_voice', 'cloud_drop'
@@ -32,6 +32,16 @@ function isAiOuterFmt(fmt) {
   return AI_OUTER_IDS.has(fmt.id);
 }
 let renderedSlices = []; // [{ ringLayer: 'in'|'out', fIdx, fmt, r0, r1, a0, a1, mid, labelR, corner }]
+
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 const SVG_OPEN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">';
 const GROUP_ICONS = {
@@ -81,6 +91,7 @@ const SLICE_ICONS = {
   ai_burn_captions: SVG_OPEN + '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
   ai_dubbing: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>',
   ai_audiogram: SVG_OPEN + '<path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3"/></svg>',
+  auto_montage: SVG_OPEN + '<polygon points="5 3 19 12 5 21 5 3"/><path d="M19 7v10"/><path d="M2 12h3"/></svg>',
   tpl_default: SVG_OPEN + '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
   dub_vc_auto: SVG_OPEN + '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M7 12h10"/></svg>',
   dub_vc_active: SVG_OPEN + '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
@@ -91,6 +102,7 @@ const SLICE_ICONS = {
   dub_vc_namminh: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
   dub_vc_hoaimy: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
   dub_vc_cloned: SVG_OPEN + '<circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M6 9v3a6 6 0 0 0 6 6h3"/></svg>',
+  dub_clone_add_new: SVG_OPEN + '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>',
   rev_vc_auto: SVG_OPEN + '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M7 12h10"/></svg>',
   rev_vc_active: SVG_OPEN + '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
   rev_vc_andrew: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
@@ -100,6 +112,14 @@ const SLICE_ICONS = {
   rev_vc_namminh: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
   rev_vc_hoaimy: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
   rev_vc_cloned: SVG_OPEN + '<circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M6 9v3a6 6 0 0 0 6 6h3"/></svg>',
+  spk_vc_auto: SVG_OPEN + '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M7 12h10"/></svg>',
+  spk_vc_namminh: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
+  spk_vc_hoaimy: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
+  spk_vc_andrew: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
+  spk_vc_ava: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
+  spk_vc_brian: SVG_OPEN + '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>',
+  spk_vc_cloned: SVG_OPEN + '<circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M6 9v3a6 6 0 0 0 6 6h3"/></svg>',
+  spk_clone_add_new: SVG_OPEN + '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>',
 };
 const IMG_ONLY_EXTS = new Set(['png', 'jpg', 'jpeg', 'webp', 'bmp', 'ico', 'gif', 'tif', 'tiff', 'avif', 'heic', 'heif', 'svg']);
 function isNonImageSelected() {
@@ -152,7 +172,7 @@ const stage = $('stage'), labelsEl = $('labels');
 const inBase = $('in-base'), inHi = $('in-hi'), outBase = $('out-base'), outHi = $('out-hi');
 const centerEl = $('center'), chipEl = $('chip'), tooltipEl = $('tooltip'), toastEl = $('toast');
 
-// §11: palette accent gốc cho từng format (viền ngoài 9px + hover glow).
+// §11: Base accent palette per format (outer 9px rim + hover glow).
 const FCOL = {
   png: '#5b9dff', jpg: '#ffb020', webp: '#2fd08c', avif: '#9a7bff', bmp: '#8a94a8',
   ico: '#3fd2ff', gif: '#ff7ab8', tiff: '#7a86ff', heic: '#2dd4bf', removebg: '#ff6b8a',
@@ -163,12 +183,13 @@ const FCOL = {
   ai_studio: '#fbbf24', ai_shorts: '#f43f5e', ai_summary: '#38bdf8', ai_compilation: '#a855f7', ai_clean_um: '#10b981', ai_back: '#94a3b8',
   merge_video: '#2dd4bf', ai_subtitles: '#38bdf8', to_srt: '#38bdf8', to_vtt: '#2fd08c', to_ass: '#f43f5e', to_transcript: '#ffb020',
   srt: '#38bdf8', vtt: '#2fd08c', ass: '#f43f5e', sub_translate: '#a855f7', sub_to_voice: '#10b981', sub_en: '#5b9dff', sub_vi: '#f43f5e', sub_zh: '#ffb020', sub_ja: '#ff7ab8', sub_ko: '#3fd2ff', sub_es: '#2fd08c', sub_fr: '#9a7bff', sub_custom: '#fbbf24',
-  ai_burn_captions: '#f59e0b', cap_beasty: '#fbbf24', cap_roleplay: '#ef4444', cap_popline: '#a855f7', cap_deep_diver: '#38bdf8', cap_one_punch: '#f43f5e', cap_glow: '#2dd4bf',
+  ai_burn_captions: '#f59e0b', auto_montage: '#ec4899', cap_beasty: '#fbbf24', cap_roleplay: '#ef4444', cap_popline: '#a855f7', cap_deep_diver: '#38bdf8', cap_one_punch: '#f43f5e', cap_glow: '#2dd4bf',
   ai_dubbing: '#ec4899', dub_vi: '#f43f5e', dub_en: '#5b9dff', dub_zh: '#ffb020', dub_ja: '#ff7ab8', dub_ko: '#3fd2ff', dub_es: '#2fd08c', dub_fr: '#9a7bff', dub_custom: '#fbbf24',
   ai_review: '#06b6d4', rev_pin_1: '#f43f5e', rev_pin_2: '#3b82f6', rev_pin_3: '#f59e0b', rev_pin_4: '#ec4899', rev_pin_5: '#10b981', rev_custom: '#a855f7',
   dub_style_default: '#38bdf8', dub_style_beasty: '#fbbf24', dub_style_roleplay: '#ef4444', dub_style_popline: '#a855f7', dub_style_deep_diver: '#06b6d4', dub_style_one_punch: '#f43f5e', dub_style_glow: '#2dd4bf', dub_style_none: '#64748b',
-  dub_vc_auto: '#38bdf8', dub_vc_active: '#f59e0b', dub_vc_male: '#3b82f6', dub_vc_female: '#ec4899', dub_vc_andrew: '#5b9dff', dub_vc_ava: '#f43f5e', dub_vc_namminh: '#ffb020', dub_vc_hoaimy: '#ff7ab8', dub_vc_cloned: '#a855f7',
-  rev_vc_auto: '#38bdf8', rev_vc_active: '#f59e0b', rev_vc_andrew: '#5b9dff', rev_vc_ava: '#f43f5e', rev_vc_brian: '#10b981', rev_vc_emma: '#ffb020', rev_vc_namminh: '#ec4899', rev_vc_hoaimy: '#ff7ab8', rev_vc_cloned: '#a855f7',
+  dub_vc_auto: '#38bdf8', dub_vc_active: '#f59e0b', dub_vc_male: '#3b82f6', dub_vc_female: '#ec4899', dub_vc_andrew: '#5b9dff', dub_vc_ava: '#f43f5e', dub_vc_brian: '#10b981', dub_vc_emma: '#ffb020', dub_vc_namminh: '#ffb020', dub_vc_hoaimy: '#ff7ab8', dub_vc_keita: '#38bdf8', dub_vc_nanami: '#ff7ab8', dub_vc_yunxi: '#ffb020', dub_vc_xiaoxiao: '#ec4899', dub_vc_injoon: '#3fd2ff', dub_vc_sunhi: '#ff7ab8', dub_vc_alvaro: '#2fd08c', dub_vc_elvira: '#f43f5e', dub_vc_henri: '#9a7bff', dub_vc_denise: '#ec4899', dub_vc_cloned: '#a855f7',
+  rev_vc_auto: '#38bdf8', rev_vc_active: '#f59e0b', rev_vc_andrew: '#5b9dff', rev_vc_ava: '#f43f5e', rev_vc_brian: '#10b981', rev_vc_emma: '#ffb020', rev_vc_namminh: '#ec4899', rev_vc_hoaimy: '#ff7ab8', rev_vc_cloned: '#a855f7', rev_clone_add_new: '#10b981',
+  spk_vc_auto: '#38bdf8', spk_vc_namminh: '#ffb020', spk_vc_hoaimy: '#ff7ab8', spk_vc_andrew: '#5b9dff', spk_vc_ava: '#f43f5e', spk_vc_brian: '#10b981', spk_vc_cloned: '#a855f7', spk_clone_add_new: '#38bdf8',
   ai_audiogram: '#10b981', ag_daily_cafe: '#f59e0b', ag_vinyl_vibes: '#ef4444', ag_after_dark: '#8b5cf6', ag_studio_pulse: '#2dd4bf',
   cloud_drop: '#38bdf8', cloud_gdrive: '#3b82f6', cloud_dropbox: '#0ea5e9', cloud_icloud: '#38bdf8', cloud_onedrive: '#6366f1', cloud_quick_link: '#10b981', cloud_zip_share: '#f59e0b', cloud_pc_to_phone: '#14b8a6', cloud_phone_drop: '#a855f7',
   cmp_img_web: '#10b981', cmp_img_200kb: '#38bdf8', cmp_img_500kb: '#10b981', cmp_img_1mb: '#f59e0b', cmp_img_auto: '#a855f7',
@@ -187,6 +208,8 @@ const FCOL = {
 };
 const fcol = id => {
   if (FCOL[id]) return FCOL[id];
+  if (id && (id.startsWith('dub_clone_item_') || id.startsWith('spk_clone_item_') || id.startsWith('rev_clone_item_'))) return '#a855f7';
+  if (id === 'dub_clone_add_new' || id === 'rev_clone_add_new') return '#10b981';
   if (id && id.startsWith('tpl_') && aiCfg && Array.isArray(aiCfg.design_templates)) {
     const tpl = aiCfg.design_templates.find(x => x.id === id);
     if (tpl) return tpl.badge_color || tpl.bg_color2 || '#8b5cf6';
@@ -202,13 +225,16 @@ const PROV_SHORT_LABELS = {
   openrouter: 'ROUTER',
   meta: 'LLAMA',
   deepseek: 'DEEPSEEK',
+  elevenlabs: '11LABS',
 };
 const SLICE_TO_CLOUDAI_FEAT = {
   ai_review: 'ai_review', rev_pin_1: 'ai_review', rev_pin_2: 'ai_review', rev_pin_3: 'ai_review', rev_pin_4: 'ai_review', rev_pin_5: 'ai_review', rev_custom: 'ai_review',
-  ai_studio: 'ai_highlight', ai_shorts: 'ai_highlight', ai_summary: 'ai_highlight', ai_compilation: 'ai_highlight',
-  ai_subtitles: 'sub_translate', sub_translate: 'sub_translate', sub_en: 'sub_translate', sub_vi: 'sub_translate', sub_zh: 'sub_translate', sub_ja: 'sub_translate', sub_ko: 'sub_translate', sub_es: 'sub_translate', sub_fr: 'sub_translate', sub_custom: 'sub_translate',
+  ai_studio: 'ai_highlight', ai_shorts: 'ai_highlight', ai_summary: 'ai_highlight', ai_compilation: 'ai_highlight', ai_clean_um: 'ai_highlight',
+  auto_montage: 'auto_montage',
+  ai_subtitles: 'sub_translate', to_srt: 'sub_translate', to_vtt: 'sub_translate', to_ass: 'sub_translate', to_transcript: 'sub_translate', sub_translate: 'sub_translate', sub_en: 'sub_translate', sub_vi: 'sub_translate', sub_zh: 'sub_translate', sub_ja: 'sub_translate', sub_ko: 'sub_translate', sub_es: 'sub_translate', sub_fr: 'sub_translate', sub_custom: 'sub_translate',
   ai_dubbing: 'ai_dubbing', dub_vi: 'ai_dubbing', dub_en: 'ai_dubbing', dub_zh: 'ai_dubbing', dub_ja: 'ai_dubbing', dub_ko: 'ai_dubbing', dub_es: 'ai_dubbing', dub_fr: 'ai_dubbing', dub_custom: 'ai_dubbing',
   ai_burn_captions: 'burn_captions', cap_beasty: 'burn_captions', cap_roleplay: 'burn_captions', cap_popline: 'burn_captions', cap_deep_diver: 'burn_captions', cap_one_punch: 'burn_captions', cap_glow: 'burn_captions',
+  ai_audiogram: 'ai_audiogram', ag_daily_cafe: 'ai_audiogram', ag_vinyl_vibes: 'ai_audiogram', ag_after_dark: 'ai_audiogram', ag_studio_pulse: 'ai_audiogram',
   seo_alt: 'seo_alt',
   design_rename: 'rename_me',
   barcode_pdf: 'barcode_ai', design_barcode: 'barcode_ai', bc_only_png: 'barcode_ai', bc_with_photo: 'barcode_ai', bc_stamp_photo: 'barcode_ai', bc_sheet_a4: 'barcode_ai',
@@ -275,6 +301,7 @@ let ring2Mode = null;
 let pendingDubTarget = null;
 let pendingDubVoice = 'auto';
 let pendingRevTarget = null;
+let userClonedVoices = [];
 let radialLaunchMode = 'convert';
 
 function normExt(e) {
@@ -293,7 +320,12 @@ function isSameFormat(fmt) {
   return files.every(f => normExt((f.split('.').pop() || '')) === targetNorm);
 }
 
+const FREE_COMPRESSION_IDS = new Set([
+  'smart_compress', 'cmp_10mb', 'cmp_25mb', 'cmp_50mb', 'cmp_half',
+  'cmp_img_web', 'cmp_img_200kb', 'cmp_img_500kb', 'cmp_img_1mb', 'cmp_img_auto',
+]);
 function needsPro(fmt) {
+  if (fmt && FREE_COMPRESSION_IDS.has(fmt.id)) return false;
   return Boolean(fmt.pro || (files.length && PRO_INPUT_EXTS.has(fileExt)));
 }
 
@@ -375,6 +407,7 @@ function fmtName(fmt) {
   if (id === 'sub_fr') return 'French';
   if (id === 'sub_custom') return aiCfg.custom_lang_name || 'German';
   if (id === 'ai_burn_captions') return t('fmt_ai_burn_captions') || 'Burn Captions';
+  if (id === 'auto_montage') return t('fmt_auto_montage') || 'Auto Montage';
   if (id === 'cap_beasty') return 'Beasty';
   if (id === 'cap_roleplay') return 'Role-Play';
   if (id === 'cap_popline') return 'Popline';
@@ -402,11 +435,33 @@ function fmtName(fmt) {
   if (id === 'dub_vc_active') return '⚡ Studio Voice';
   if (id === 'dub_vc_male') return 'Male Voice';
   if (id === 'dub_vc_female') return 'Female Voice';
-  if (id === 'dub_vc_andrew') return 'Andrew (Cinematic)';
-  if (id === 'dub_vc_ava') return 'Ava (Expressive)';
+  if (id === 'dub_vc_andrew') return 'Andrew (US)';
+  if (id === 'dub_vc_ava') return 'Ava (US)';
+  if (id === 'dub_vc_brian') return 'Brian (UK)';
+  if (id === 'dub_vc_emma') return 'Emma (UK)';
   if (id === 'dub_vc_namminh') return 'Nam Minh (VN)';
   if (id === 'dub_vc_hoaimy') return 'Hoai My (VN)';
-  if (id === 'dub_vc_cloned') return '🧬 Cloned Voice';
+  if (id === 'dub_vc_keita') return 'Keita (JP)';
+  if (id === 'dub_vc_nanami') return 'Nanami (JP)';
+  if (id === 'dub_vc_yunxi') return 'Yunxi (CN)';
+  if (id === 'dub_vc_xiaoxiao') return 'Xiaoxiao (CN)';
+  if (id === 'dub_vc_injoon') return 'InJoon (KR)';
+  if (id === 'dub_vc_sunhi') return 'SunHi (KR)';
+  if (id === 'dub_vc_alvaro') return 'Alvaro (ES)';
+  if (id === 'dub_vc_elvira') return 'Elvira (ES)';
+  if (id === 'dub_vc_henri') return 'Henri (FR)';
+  if (id === 'dub_vc_denise') return 'Denise (FR)';
+  if (id === 'dub_vc_cloned') {
+    if (!userClonedVoices || userClonedVoices.length === 0) return '🧬 + Clone Voice';
+    if (userClonedVoices.length === 1) return `🧬 ${userClonedVoices[0].name || 'Cloned'}`;
+    return `🧬 Cloned (${userClonedVoices.length})`;
+  }
+  if (id === 'dub_clone_add_new') return '➕ New Clone';
+  if (id && id.startsWith('dub_clone_item_')) {
+    const cid = id.replace('dub_clone_item_', '');
+    const cv = (userClonedVoices || []).find(v => v.id === cid);
+    return cv ? `🧬 ${cv.name}` : '🧬 Cloned Voice';
+  }
   if (id === 'rev_vc_auto') return 'Preset Voice';
   if (id === 'rev_vc_active') return '⚡ Studio Voice';
   if (id === 'rev_vc_andrew') return 'Andrew (Cinematic)';
@@ -415,7 +470,34 @@ function fmtName(fmt) {
   if (id === 'rev_vc_emma') return 'Emma (Narrator)';
   if (id === 'rev_vc_namminh') return 'Nam Minh (VN)';
   if (id === 'rev_vc_hoaimy') return 'Hoai My (VN)';
-  if (id === 'rev_vc_cloned') return '🧬 Cloned Voice';
+  if (id === 'rev_vc_cloned') {
+    if (!userClonedVoices || userClonedVoices.length === 0) return '🧬 + Clone Voice';
+    if (userClonedVoices.length === 1) return `🧬 ${userClonedVoices[0].name || 'Cloned'}`;
+    return `🧬 Cloned (${userClonedVoices.length})`;
+  }
+  if (id === 'rev_clone_add_new') return '➕ New Clone';
+  if (id && id.startsWith('rev_clone_item_')) {
+    const cid = id.replace('rev_clone_item_', '');
+    const cv = (userClonedVoices || []).find(v => v.id === cid);
+    return cv ? `🧬 ${cv.name}` : '🧬 Cloned Voice';
+  }
+  if (id === 'spk_vc_auto') return 'Auto Detect';
+  if (id === 'spk_vc_namminh') return 'Nam Minh (VN)';
+  if (id === 'spk_vc_hoaimy') return 'Hoai My (VN)';
+  if (id === 'spk_vc_andrew') return 'Andrew (US)';
+  if (id === 'spk_vc_ava') return 'Ava (US)';
+  if (id === 'spk_vc_brian') return 'Brian (US)';
+  if (id === 'spk_vc_cloned') {
+    if (!userClonedVoices || userClonedVoices.length === 0) return '🧬 + Clone Voice';
+    if (userClonedVoices.length === 1) return `🧬 ${userClonedVoices[0].name || 'Cloned'}`;
+    return `🧬 Cloned (${userClonedVoices.length})`;
+  }
+  if (id === 'spk_clone_add_new') return '➕ New Clone';
+  if (id && id.startsWith('spk_clone_item_')) {
+    const cid = id.replace('spk_clone_item_', '');
+    const cv = (userClonedVoices || []).find(v => v.id === cid);
+    return cv ? `🧬 ${cv.name}` : '🧬 Cloned Voice';
+  }
   if (id === 'ai_review') return tOr('fmt_ai_review', 'AI Review');
   if (id.startsWith('rev_pin_') || id === 'rev_custom') {
     const info = getReviewSlotInfo(id);
@@ -498,7 +580,7 @@ function fmtLabelHTML(fmt) {
   const id = fmt.id;
   const name = fmtName(fmt);
   const lock = (needsPro(fmt) && !isPro) ? `<span class="lock">${LOCK_SVG}</span>` : '';
-  const sliceSvg = SLICE_ICONS[id] || (id.startsWith('tpl_') ? SLICE_ICONS.tpl_default : '');
+  const sliceSvg = SLICE_ICONS[id] || (id.startsWith('tpl_') ? SLICE_ICONS.tpl_default : ((id.startsWith('dub_clone_item_') || id.startsWith('spk_clone_item_') || id.startsWith('rev_clone_item_')) ? SLICE_ICONS.dub_vc_cloned : (id === 'rev_clone_add_new' ? SLICE_ICONS.dub_clone_add_new : '')));
   const icon = sliceSvg ? `<span class="lock" style="color:${fcol(id)}">${sliceSvg}</span>` : '';
   const isDefaultAg = (ring2Mode === 'ai_audiogram' && id === `ag_${aiCfg.ag_template || 'daily_cafe'}`);
   const isDefaultCap = (ring2Mode === 'ai_burn_captions' && id === `cap_${aiCfg.cap_style || 'beasty'}`);
@@ -826,7 +908,7 @@ function showProTooltip(fmt, label) {
   tooltipEl.classList.remove('hidden');
 }
 function showSizeTooltip(fmt, label) {
-  const isOp = (['vector_svg', 'seo_alt', 'design_open_tpl_ring', 'design_cutout_png', 'design_watermark', 'design_iconize', 'design_barcode', 'barcode_pdf', 'bc_only_png', 'bc_with_photo', 'bc_stamp_photo', 'bc_sheet_a4', 'bc_custom_input', 'design_rename', 'ai_upscale', 'upscale_2x', 'upscale_4x', 'compress', 'split', 'merge', 'merge_video', 'merge_img_pdf', 'cmp_img_web', 'cmp_img_200kb', 'cmp_img_500kb', 'cmp_img_1mb', 'cmp_img_auto', 'smart_compress', 'cmp_10mb', 'cmp_25mb', 'cmp_50mb', 'cmp_half', 'ocr_text', 'doc_to_mp3', 'clean_privacy', 'cloud_pc_to_phone', 'cloud_phone_drop', 'ai_studio', 'ai_shorts', 'ai_summary', 'ai_compilation', 'ai_clean_um', 'ai_review', 'rev_pin_1', 'rev_pin_2', 'rev_pin_3', 'rev_pin_4', 'rev_pin_5', 'rev_custom', 'ai_subtitles', 'to_srt', 'to_vtt', 'to_ass', 'to_transcript', 'sub_translate', 'sub_to_voice', 'sub_en', 'sub_vi', 'sub_zh', 'sub_ja', 'sub_ko', 'sub_es', 'sub_fr', 'sub_custom', 'ai_burn_captions', 'cap_beasty', 'cap_roleplay', 'cap_popline', 'cap_deep_diver', 'cap_one_punch', 'cap_glow', 'ai_dubbing', 'dub_vi', 'dub_en', 'dub_zh', 'dub_ja', 'dub_ko', 'dub_es', 'dub_fr', 'dub_custom', 'dub_style_default', 'dub_style_beasty', 'dub_style_roleplay', 'dub_style_popline', 'dub_style_deep_diver', 'dub_style_one_punch', 'dub_style_glow', 'dub_style_none', 'ai_audiogram', 'ag_daily_cafe', 'ag_vinyl_vibes', 'ag_after_dark', 'ag_studio_pulse', 'ai_back'].includes(fmt.id) || fmt.id.startsWith('tpl_') || fmt.id.startsWith('dub_vc_') || fmt.id.startsWith('rev_vc_'));
+  const isOp = (['vector_svg', 'seo_alt', 'design_open_tpl_ring', 'design_cutout_png', 'design_watermark', 'design_iconize', 'design_barcode', 'barcode_pdf', 'bc_only_png', 'bc_with_photo', 'bc_stamp_photo', 'bc_sheet_a4', 'bc_custom_input', 'design_rename', 'ai_upscale', 'upscale_2x', 'upscale_4x', 'compress', 'split', 'merge', 'merge_video', 'merge_img_pdf', 'cmp_img_web', 'cmp_img_200kb', 'cmp_img_500kb', 'cmp_img_1mb', 'cmp_img_auto', 'smart_compress', 'cmp_10mb', 'cmp_25mb', 'cmp_50mb', 'cmp_half', 'ocr_text', 'doc_to_mp3', 'clean_privacy', 'cloud_pc_to_phone', 'cloud_phone_drop', 'ai_studio', 'ai_shorts', 'ai_summary', 'ai_compilation', 'ai_clean_um', 'ai_review', 'rev_pin_1', 'rev_pin_2', 'rev_pin_3', 'rev_pin_4', 'rev_pin_5', 'rev_custom', 'ai_subtitles', 'to_srt', 'to_vtt', 'to_ass', 'to_transcript', 'sub_translate', 'sub_to_voice', 'sub_en', 'sub_vi', 'sub_zh', 'sub_ja', 'sub_ko', 'sub_es', 'sub_fr', 'sub_custom', 'ai_burn_captions', 'auto_montage', 'cap_beasty', 'cap_roleplay', 'cap_popline', 'cap_deep_diver', 'cap_one_punch', 'cap_glow', 'ai_dubbing', 'dub_vi', 'dub_en', 'dub_zh', 'dub_ja', 'dub_ko', 'dub_es', 'dub_fr', 'dub_custom', 'dub_style_default', 'dub_style_beasty', 'dub_style_roleplay', 'dub_style_popline', 'dub_style_deep_diver', 'dub_style_one_punch', 'dub_style_glow', 'dub_style_none', 'ai_audiogram', 'ag_daily_cafe', 'ag_vinyl_vibes', 'ag_after_dark', 'ag_studio_pulse', 'ai_back', 'dub_clone_add_new', 'spk_clone_add_new'].includes(fmt.id) || fmt.id.startsWith('tpl_') || fmt.id.startsWith('dub_vc_') || fmt.id.startsWith('rev_vc_') || fmt.id.startsWith('dub_clone_') || fmt.id.startsWith('spk_vc_') || fmt.id.startsWith('spk_clone_'));
   const proTagHtml = needsPro(fmt) ? `<span class="tag pro">PRO</span>` : '';
   tooltipTitle(`<span>${label}</span>${proTagHtml}${isOp ? '' : `<span class="tag">${t('estimate_tag')}</span>`}`);
   const sizeEl = $('tooltip-size'), deltaEl = $('tooltip-delta'), textEl = $('tooltip-text');
@@ -883,7 +965,8 @@ function showSizeTooltip(fmt, label) {
     bc_custom_input: '✏️ Custom Barcode & Brand · Enter custom SKU, Product Title, Price & Brand Header on the fly',
     ocr_text: 'Extract text from image (VN/EN/99+ langs) to .TXT & auto-copy to clipboard',
     sub_to_voice: '🎙️ Voice Studio · Dub SRT/VTT subtitle cues into high-fidelity AI voiceover audio track',
-    doc_to_mp3: 'SpeakMe · Convert PDF / Word / TXT document into a natural Neural MP3 Audiobook',
+    doc_to_mp3: '🎧 SpeakMe · Click to choose Neural Voice (Auto, Nam Minh, Hoai My, Andrew, Ava, Brian, Cloned) & convert to MP3',
+    spk_clone_add_new: '➕ Create new custom voice clone in Voice Studio',
     clean_privacy: 'Strip 100% hidden GPS, Camera EXIF, C2PA & AI watermarks/fingerprints',
     merge_img_pdf: 'Combine all selected images in order into 1 single multi-page PDF',
     vector_svg: 'Convert image/logo into full-color scalable Vector .SVG (VTracer spline engine)',
@@ -905,6 +988,12 @@ function showSizeTooltip(fmt, label) {
   }
   if (!tipDesc && fmt.id.startsWith('rev_vc_')) {
     tipDesc = `🎙️ AI Review Voice (${label}) · Select voice or cloned timbre for video recap`;
+  }
+  if (!tipDesc && fmt.id.startsWith('spk_vc_')) {
+    tipDesc = `🎧 SpeakMe Voice (${label}) · Select voice for Neural MP3 Audiobook`;
+  }
+  if (!tipDesc && fmt.id.startsWith('spk_clone_item_')) {
+    tipDesc = `🎧 SpeakMe Voice (${label}) · Synthesize document with custom voice clone`;
   }
   if (!tipDesc && fmt.id.startsWith('tpl_')) {
     tipDesc = `🎨 Studio Template (${label}) · AI Cutout + ${aiCfg.design_pos_mode === 'keep_orig' ? 'Keep Original Pos' : 'Auto-Center 13%'} + 3D Studio Shadow`;
@@ -1168,7 +1257,7 @@ function renderAiRing2Center() {
   if (ring2Mode === 'smart_compress') {
     iconEl.innerHTML =
       `<div class="ai-center-hub">` +
-      `<div class="ai-center-head"><span>🎯 TARGET COMPRESS · PRO</span></div>` +
+      `<div class="ai-center-head"><span>🎯 TARGET COMPRESS · FREE</span></div>` +
       `<div class="ai-pill-list">` +
       `<div class="ai-pill-btn on"><span>Exact Size Cap</span><span class="ai-pill-val">AUTO BITRATE</span></div>` +
       `<div class="ai-pill-btn on"><span>Discord / Email</span><span class="ai-pill-val">10 / 25 MB</span></div>` +
@@ -1179,7 +1268,7 @@ function renderAiRing2Center() {
   if (ring2Mode === 'smart_compress_img') {
     iconEl.innerHTML =
       `<div class="ai-center-hub">` +
-      `<div class="ai-center-head"><span>🗜️ IMAGE COMPRESS · PRO</span></div>` +
+      `<div class="ai-center-head"><span>🗜️ IMAGE COMPRESS · FREE</span></div>` +
       `<div class="ai-pill-list">` +
       `<div class="ai-pill-btn on"><span>Exact Size Cap</span><span class="ai-pill-val">200KB / 500KB</span></div>` +
       `<div class="ai-pill-btn on"><span>Visual Sharpness</span><span class="ai-pill-val">LOSSLESS</span></div>` +
@@ -1198,6 +1287,18 @@ function renderAiRing2Center() {
       `</div>`;
     return;
   }
+  if (ring2Mode === 'speak_voice' || ring2Mode === 'speak_clone_picker') {
+    const cloneCount = (userClonedVoices || []).length;
+    iconEl.innerHTML =
+      `<div class="ai-center-hub">` +
+      `<div class="ai-center-head"><span>🎧 SPEAKME MP3 · VOICE</span></div>` +
+      `<div class="ai-pill-list">` +
+      `<div class="ai-pill-btn on"><span>Engine</span><span class="ai-pill-val">NEURAL TTS</span></div>` +
+      `<div class="ai-pill-btn on"><span>Cloned Voices</span><span class="ai-pill-val">${cloneCount} READY</span></div>` +
+      `</div>` +
+      `</div>`;
+    return;
+  }
   if (ring2Mode === 'barcode_studio') {
     const fmtMap = {
       code128: 'Code-128 (SKU)',
@@ -1211,17 +1312,34 @@ function renderAiRing2Center() {
     const brOn = aiCfg.bc_show_brand !== false;
     const prOn = aiCfg.bc_show_price !== false;
     const brHint = (aiCfg.bc_brand_text || '').trim() ? `Brand: ${aiCfg.bc_brand_text.trim().slice(0, 12)}` : 'Brand Header';
-    const prHint = (aiCfg.bc_price_text || '').trim() ? `Sub: ${aiCfg.bc_price_text.trim().slice(0, 12)}` : 'Price / Note';
+    const prVal = (aiCfg.bc_price_text || '').trim() || '$19.99';
     iconEl.innerHTML =
       `<div class="ai-center-hub">` +
       `<div class="ai-center-head"><span>🏷️ BARCODE STUDIO · PRO</span></div>` +
       `<div class="ai-pill-list">` +
       `<button class="ai-pill-btn on" data-ai-toggle="bc_format"><span>Fmt: ${fmtLabel}</span><span class="ai-pill-val">⇄</span></button>` +
       `<button class="ai-pill-btn ${brOn ? 'on' : ''}" data-ai-toggle="bc_show_brand"><span>${brHint}</span><span class="ai-pill-val">${brOn ? 'ON' : 'OFF'}</span></button>` +
-      `<button class="ai-pill-btn ${prOn ? 'on' : ''}" data-ai-toggle="bc_show_price"><span>${prHint}</span><span class="ai-pill-val">${prOn ? 'ON' : 'OFF'}</span></button>` +
-      `<button class="ai-pill-btn on" data-ai-toggle="bc_open_settings"><span>⚙️ Custom Brand/SKU</span><span class="ai-pill-val">→</span></button>` +
+      `<div class="ai-pill-row-price" style="display:flex;align-items:center;justify-content:space-between;gap:5px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);border-radius:18px;padding:3px 8px;margin-top:2px;">` +
+      `<span style="font-size:10px;font-weight:600;opacity:0.85;color:#e2e8f0;white-space:nowrap;">Price:</span>` +
+      `<input id="bc-hub-price-input" type="text" value="${escapeHtml(prVal)}" placeholder="$19.99" style="flex:1;min-width:0;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.18);border-radius:6px;color:#fff;font-size:10px;padding:2px 6px;outline:none;text-align:center;font-weight:bold;" />` +
+      `<button class="ai-pill-btn ${prOn ? 'on' : ''}" data-ai-toggle="bc_show_price" style="border:none;background:transparent;padding:0 2px;margin:0;cursor:pointer;"><span class="ai-pill-val" style="font-size:9px;padding:2px 5px;border-radius:10px;background:${prOn ? '#10b981' : 'rgba(255,255,255,0.15)'};color:#fff;font-weight:bold;">${prOn ? 'ON' : 'OFF'}</span></button>` +
+      `</div>` +
       `</div>` +
       `</div>`;
+    const priceInput = iconEl.querySelector('#bc-hub-price-input');
+    if (priceInput) {
+      ['mousedown', 'click', 'keydown', 'keyup'].forEach(ev => {
+        priceInput.addEventListener(ev, (e) => e.stopPropagation());
+      });
+      priceInput.addEventListener('input', (e) => {
+        aiCfg.bc_price_text = e.target.value;
+        invoke('set_design_config', { bcPriceText: aiCfg.bc_price_text }).catch(() => { });
+      });
+      priceInput.addEventListener('change', (e) => {
+        aiCfg.bc_price_text = e.target.value;
+        invoke('set_design_config', { bcPriceText: aiCfg.bc_price_text }).catch(() => { });
+      });
+    }
     return;
   }
   if (ring2Mode === 'design_studio') {
@@ -1316,6 +1434,17 @@ function renderAiRing2Center() {
       `</div>`;
     return;
   }
+  if (ring2Mode === 'ai_dub_clone_picker' || ring2Mode === 'ai_review_clone_picker') {
+    const totalClones = (userClonedVoices || []).length;
+    iconEl.innerHTML =
+      `<div class="ai-center-hub">` +
+      `<div class="ai-center-head"><span>🧬 SELECT CLONED VOICE</span></div>` +
+      `<div class="ai-pill-list">` +
+      `<div style="font-size:10px;color:#94a3b8;padding:2px 6px;text-align:center;">${totalClones} Clone${totalClones === 1 ? '' : 's'} Available · Pick One</div>` +
+      `</div>` +
+      `</div>`;
+    return;
+  }
   if (ring2Mode === 'ai_review_voice') {
     const info = getReviewSlotInfo(pendingRevTarget || 'rev_pin_1');
     const lgName = (info.lang_name || 'Review').toUpperCase();
@@ -1333,13 +1462,22 @@ function renderAiRing2Center() {
     const lgName = (langLabels[pendingDubTarget] || 'Target').toUpperCase();
     const ctxMap = { auto: '🤖 Auto Kinship', family: '👨‍👩‍👧 Family', review: '🎬 Review/Vlog', formal: '💼 Formal' };
     const vcMap = { auto: '🚻 Auto M/F', male: '♂ Male Voice', female: '♀ Female Voice' };
+    let selectedVoiceLabel = 'Auto M/F';
+    if (pendingDubVoice && pendingDubVoice.startsWith('clone_')) {
+      const cv = (userClonedVoices || []).find(v => v.id === pendingDubVoice);
+      selectedVoiceLabel = cv ? `🧬 ${cv.name}` : '🧬 Cloned';
+    } else if (pendingDubVoice && pendingDubVoice !== 'auto') {
+      selectedVoiceLabel = fmtName({ id: `dub_vc_${pendingDubVoice}` }) || pendingDubVoice;
+    } else {
+      selectedVoiceLabel = vcMap[aiCfg.dub_voice || 'auto'] || 'Auto M/F';
+    }
     const pos = aiCfg.cap_pos === 'middle' ? 'Middle' : 'Bottom';
     iconEl.innerHTML =
       `<div class="ai-center-hub">` +
       `<div class="ai-center-head"><span>🎙️ DUB → ${lgName}</span></div>` +
       `<div class="ai-pill-list">` +
       `<button class="ai-pill-btn on" data-ai-toggle="dub_context"><span>${ctxMap[aiCfg.dub_context || 'auto'] || 'Auto Kinship'}</span><span class="ai-pill-val">⇄</span></button>` +
-      `<button class="ai-pill-btn on" data-ai-toggle="dub_voice"><span>${vcMap[aiCfg.dub_voice || 'auto'] || 'Auto M/F'}</span><span class="ai-pill-val">⇄</span></button>` +
+      `<div class="ai-pill-btn on" style="cursor:default;"><span>Voice: ${selectedVoiceLabel}</span></div>` +
       `<button class="ai-pill-btn on" data-ai-toggle="cap_pos"><span>Sub Pos: ${pos}</span><span class="ai-pill-val">⇄</span></button>` +
       `</div>` +
       `</div>`;
@@ -1507,7 +1645,13 @@ function renderAiRing2Center() {
     `</div>`;
 }
 
-function openAiRing2(mode = 'ai_studio') {
+async function openAiRing2(mode = 'ai_studio') {
+  try {
+    userClonedVoices = await invoke('get_cloned_voices');
+    if (!Array.isArray(userClonedVoices)) userClonedVoices = [];
+  } catch (e) {
+    userClonedVoices = [];
+  }
   if (!inAiRing2 && activeGroup) {
     savedAvGroup = activeGroup;
   }
@@ -1515,16 +1659,64 @@ function openAiRing2(mode = 'ai_studio') {
   ring2Mode = mode;
   clearHover();
   hideTooltip();
+  if (mode === 'speak_voice') {
+    const spkVcFormats = [
+      { id: 'spk_vc_auto', pro: true, soon: false, hidden: false },
+      { id: 'spk_vc_namminh', pro: true, soon: false, hidden: false },
+      { id: 'spk_vc_hoaimy', pro: true, soon: false, hidden: false },
+      { id: 'spk_vc_andrew', pro: true, soon: false, hidden: false },
+      { id: 'spk_vc_ava', pro: true, soon: false, hidden: false },
+      { id: 'spk_vc_brian', pro: true, soon: false, hidden: false },
+      { id: 'spk_vc_cloned', pro: true, soon: false, hidden: false },
+      { id: 'ai_back', pro: false, soon: false, hidden: false },
+    ];
+    if (reachable) {
+      spkVcFormats.forEach(f => reachable.add(f.id));
+    }
+    activeGroup = {
+      id: (activeGroup && activeGroup.id) || 'documents',
+      formats: spkVcFormats,
+    };
+    renderAiRing2Center();
+    buildOuter();
+    updateCenterCancel();
+    return;
+  }
+  if (mode === 'speak_clone_picker') {
+    const cloneFormats = (userClonedVoices || []).map(cv => ({
+      id: `spk_clone_item_${cv.id}`,
+      pro: true,
+      soon: false,
+      hidden: false,
+    }));
+    cloneFormats.push({ id: 'spk_clone_add_new', pro: true, soon: false, hidden: false });
+    cloneFormats.push({ id: 'ai_back', pro: false, soon: false, hidden: false });
+    if (reachable) {
+      cloneFormats.forEach(f => reachable.add(f.id));
+    }
+    activeGroup = {
+      id: (activeGroup && activeGroup.id) || 'documents',
+      formats: cloneFormats,
+    };
+    renderAiRing2Center();
+    buildOuter();
+    updateCenterCancel();
+    return;
+  }
   if (mode === 'smart_compress') {
+    const cmpVidFormats = [
+      { id: 'cmp_10mb', pro: false, soon: false, hidden: false },
+      { id: 'cmp_25mb', pro: false, soon: false, hidden: false },
+      { id: 'cmp_50mb', pro: false, soon: false, hidden: false },
+      { id: 'cmp_half', pro: false, soon: false, hidden: false },
+      { id: 'ai_back', pro: false, soon: false, hidden: false },
+    ];
+    if (reachable) {
+      cmpVidFormats.forEach(f => reachable.add(f.id));
+    }
     activeGroup = {
       id: 'av',
-      formats: [
-        { id: 'cmp_10mb', pro: true, soon: false, hidden: false },
-        { id: 'cmp_25mb', pro: true, soon: false, hidden: false },
-        { id: 'cmp_50mb', pro: true, soon: false, hidden: false },
-        { id: 'cmp_half', pro: true, soon: false, hidden: false },
-        { id: 'ai_back', pro: false, soon: false, hidden: false },
-      ],
+      formats: cmpVidFormats,
     };
     renderAiRing2Center();
     buildOuter();
@@ -1533,10 +1725,10 @@ function openAiRing2(mode = 'ai_studio') {
   }
   if (mode === 'smart_compress_img') {
     const cmpImgFormats = [
-      { id: 'cmp_img_200kb', pro: true, soon: false, hidden: false },
-      { id: 'cmp_img_500kb', pro: true, soon: false, hidden: false },
-      { id: 'cmp_img_1mb', pro: true, soon: false, hidden: false },
-      { id: 'cmp_img_auto', pro: true, soon: false, hidden: false },
+      { id: 'cmp_img_200kb', pro: false, soon: false, hidden: false },
+      { id: 'cmp_img_500kb', pro: false, soon: false, hidden: false },
+      { id: 'cmp_img_1mb', pro: false, soon: false, hidden: false },
+      { id: 'cmp_img_auto', pro: false, soon: false, hidden: false },
       { id: 'ai_back', pro: false, soon: false, hidden: false },
     ];
     if (reachable) {
@@ -1777,24 +1969,145 @@ function openAiRing2(mode = 'ai_studio') {
     updateCenterCancel();
     return;
   }
+  if (mode === 'ai_review_clone_picker') {
+    const cloneFormats = (userClonedVoices || []).map(cv => ({
+      id: `rev_clone_item_${cv.id}`,
+      pro: true,
+      soon: false,
+      hidden: false,
+    }));
+    cloneFormats.push({ id: 'rev_clone_add_new', pro: true, soon: false, hidden: false });
+    cloneFormats.push({ id: 'ai_back', pro: false, soon: false, hidden: false });
+    if (reachable) {
+      cloneFormats.forEach(f => reachable.add(f.id));
+    }
+    activeGroup = {
+      id: 'av',
+      formats: cloneFormats,
+    };
+    renderAiRing2Center();
+    buildOuter();
+    updateCenterCancel();
+    return;
+  }
   if (mode === 'ai_dub_voice') {
-    const dubVcFormats = [
-      { id: 'dub_vc_auto', pro: true, soon: false, hidden: false },
-      { id: 'dub_vc_active', pro: true, soon: false, hidden: false },
-      { id: 'dub_vc_namminh', pro: true, soon: false, hidden: false },
-      { id: 'dub_vc_hoaimy', pro: true, soon: false, hidden: false },
-      { id: 'dub_vc_male', pro: true, soon: false, hidden: false },
-      { id: 'dub_vc_female', pro: true, soon: false, hidden: false },
-      { id: 'dub_vc_andrew', pro: true, soon: false, hidden: false },
-      { id: 'dub_vc_cloned', pro: true, soon: false, hidden: false },
-      { id: 'ai_back', pro: false, soon: false, hidden: false },
-    ];
+    let dubVcFormats = [];
+    if (pendingDubTarget === 'dub_en') {
+      dubVcFormats = [
+        { id: 'dub_vc_auto', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_active', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_andrew', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_ava', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_brian', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_emma', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_male', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_female', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_cloned', pro: true, soon: false, hidden: false },
+        { id: 'ai_back', pro: false, soon: false, hidden: false },
+      ];
+    } else if (pendingDubTarget === 'dub_vi') {
+      dubVcFormats = [
+        { id: 'dub_vc_auto', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_active', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_namminh', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_hoaimy', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_male', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_female', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_cloned', pro: true, soon: false, hidden: false },
+        { id: 'ai_back', pro: false, soon: false, hidden: false },
+      ];
+    } else if (pendingDubTarget === 'dub_ja') {
+      dubVcFormats = [
+        { id: 'dub_vc_auto', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_active', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_keita', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_nanami', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_male', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_female', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_cloned', pro: true, soon: false, hidden: false },
+        { id: 'ai_back', pro: false, soon: false, hidden: false },
+      ];
+    } else if (pendingDubTarget === 'dub_zh') {
+      dubVcFormats = [
+        { id: 'dub_vc_auto', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_active', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_yunxi', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_xiaoxiao', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_male', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_female', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_cloned', pro: true, soon: false, hidden: false },
+        { id: 'ai_back', pro: false, soon: false, hidden: false },
+      ];
+    } else if (pendingDubTarget === 'dub_ko') {
+      dubVcFormats = [
+        { id: 'dub_vc_auto', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_active', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_injoon', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_sunhi', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_male', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_female', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_cloned', pro: true, soon: false, hidden: false },
+        { id: 'ai_back', pro: false, soon: false, hidden: false },
+      ];
+    } else if (pendingDubTarget === 'dub_es') {
+      dubVcFormats = [
+        { id: 'dub_vc_auto', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_active', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_alvaro', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_elvira', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_male', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_female', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_cloned', pro: true, soon: false, hidden: false },
+        { id: 'ai_back', pro: false, soon: false, hidden: false },
+      ];
+    } else if (pendingDubTarget === 'dub_fr') {
+      dubVcFormats = [
+        { id: 'dub_vc_auto', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_active', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_henri', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_denise', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_male', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_female', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_cloned', pro: true, soon: false, hidden: false },
+        { id: 'ai_back', pro: false, soon: false, hidden: false },
+      ];
+    } else {
+      dubVcFormats = [
+        { id: 'dub_vc_auto', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_active', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_male', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_female', pro: true, soon: false, hidden: false },
+        { id: 'dub_vc_cloned', pro: true, soon: false, hidden: false },
+        { id: 'ai_back', pro: false, soon: false, hidden: false },
+      ];
+    }
     if (reachable) {
       dubVcFormats.forEach(f => reachable.add(f.id));
     }
     activeGroup = {
       id: 'av',
       formats: dubVcFormats,
+    };
+    renderAiRing2Center();
+    buildOuter();
+    updateCenterCancel();
+    return;
+  }
+  if (mode === 'ai_dub_clone_picker') {
+    const cloneFormats = (userClonedVoices || []).map(cv => ({
+      id: `dub_clone_item_${cv.id}`,
+      pro: true,
+      soon: false,
+      hidden: false,
+    }));
+    cloneFormats.push({ id: 'dub_clone_add_new', pro: true, soon: false, hidden: false });
+    cloneFormats.push({ id: 'ai_back', pro: false, soon: false, hidden: false });
+    if (reachable) {
+      cloneFormats.forEach(f => reachable.add(f.id));
+    }
+    activeGroup = {
+      id: 'av',
+      formats: cloneFormats,
     };
     renderAiRing2Center();
     buildOuter();
@@ -1912,18 +2225,6 @@ function closeAiRing2() {
   updateCenterCancel();
   return;
 }
-function _unusedCloseAiRing2() {
-  inAiRing2 = false;
-  clearHover();
-  hideTooltip();
-  activeGroup = savedAvGroup || model.find(g => g.id === 'av') || model[0];
-  $('center-file-icon').innerHTML = renderCenterVisual('av', fileExt.toUpperCase(), currentThumbUrl, files.length);
-  $('center-name').classList.remove('hidden');
-  $('center-meta').classList.remove('hidden');
-  $('center-drop-hint').classList.remove('hidden');
-  buildOuter();
-  updateCenterCancel();
-}
 
 async function refreshContext() {
   const nameEl = $('center-name'), metaEl = $('center-meta'), browseBtn = $('browse-btn');
@@ -1998,6 +2299,13 @@ async function refreshContext() {
     if (caiSt) cloudAiWheelState = caiSt;
   } catch (e) { }
 
+  try {
+    userClonedVoices = await invoke('get_cloned_voices');
+    if (!Array.isArray(userClonedVoices)) userClonedVoices = [];
+  } catch (_) {
+    userClonedVoices = [];
+  }
+
   if (!files.length) {
     if (radialLaunchMode === 'cloud') {
       savedAvGroup = model[0] || null;
@@ -2042,9 +2350,6 @@ async function refreshContext() {
       } else {
         nameEl.textContent = `${files.length} files · ${m ? m.name : base(files[0])}`; $('chip-name').textContent = `${files.length} files selected`; metaEl.textContent = `${typeof groupTitle !== 'undefined' ? groupTitle : 'Files'} · ${files.length} files · ${(m && m.ext) || fileExt.toUpperCase()}`;
       }
-    } else if (false) {
-      nameEl.textContent = `${files.length} files · ${m.name}`;
-      $('chip-name').textContent = `${files.length} files selected`;
     } else {
       nameEl.textContent = m.name;
       $('chip-name').textContent = m.name;
@@ -2074,76 +2379,9 @@ async function refreshContext() {
   currentThumbUrl = (typeof m !== 'undefined' && m && m.thumbnail) || currentThumbUrl || null;
   videoDurationSec = (typeof m !== 'undefined' && m && m.duration_sec) || videoDurationSec || 0;
   videoDurationDisplay = (typeof m !== 'undefined' && m && m.duration_display) || videoDurationDisplay || '';
-  try {
-    const cfg = await invoke('get_config');
-    aiCfg = {
-      enabled: cfg.ai_highlight_enabled !== false,
-      aspect: cfg.ai_aspect || '9:16',
-      captions: cfg.ai_captions !== false,
-      clean_fillers: cfg.ai_clean_fillers !== false,
-      clip_count: cfg.ai_clip_count || 'auto',
-      clip_duration: cfg.ai_clip_duration || 'mix',
-      subtitle_enabled: cfg.ai_subtitle_enabled !== false,
-      sub_bilingual: !!cfg.ai_sub_bilingual,
-      burn_captions_enabled: cfg.ai_burn_captions_enabled !== false,
-      cap_style: cfg.ai_cap_style || 'beasty',
-      cap_size: cfg.ai_cap_size || 'medium',
-      cap_pos: cfg.ai_cap_pos || 'bottom',
-      cap_lang: cfg.ai_cap_lang || 'orig',
-      cap_emoji: cfg.ai_cap_emoji !== false,
-      dubbing_enabled: cfg.ai_dubbing_enabled !== false,
-      dub_context: cfg.ai_dub_context || 'auto',
-      dub_voice: cfg.ai_dub_voice || 'auto',
-      dub_burn_sub: cfg.ai_dub_burn_sub !== false,
-      dub_cap_style: cfg.ai_dub_cap_style || 'default',
-      custom_lang_code: cfg.ai_custom_lang_code || 'de',
-      custom_lang_name: cfg.ai_custom_lang_name || 'German',
-      audiogram_enabled: cfg.audiogram_enabled !== false,
-      ag_template: cfg.ag_template || 'daily_cafe',
-      ag_aspect: cfg.ag_aspect || '1:1',
-      ag_captions: cfg.ag_captions !== false,
-      cloud_enabled: cfg.cloud_enabled !== false,
-      cloud_trigger_key: cfg.cloud_trigger_key || 'alt+g',
-      cloud_folder_mode: cfg.cloud_folder_mode || 'month',
-      cloud_custom_folder: cfg.cloud_custom_folder || 'Projects',
-      cloud_auto_copy_link: cfg.cloud_auto_copy_link !== false,
-      design_enabled: cfg.design_enabled !== false,
-      design_trigger_key: cfg.design_trigger_key || 'ctrl+shift+d',
-      design_pos_mode: cfg.design_pos_mode || 'auto_center',
-      design_shadow_mode: cfg.design_shadow_mode || 'studio_3d',
-      design_aspect_ratio: cfg.design_aspect_ratio || '1:1',
-      bc_format: cfg.bc_format || 'code128',
-      bc_layout: cfg.bc_layout || 'with_photo',
-      bc_brand_text: cfg.bc_brand_text || '',
-      bc_price_text: cfg.bc_price_text || '',
-      bc_custom_code: cfg.bc_custom_code || '',
-      bc_sheet_grid: cfg.bc_sheet_grid || '24',
-      bc_show_brand: cfg.bc_show_brand !== false,
-      bc_show_price: cfg.bc_show_price !== false,
-      design_templates: Array.isArray(cfg.design_templates) ? cfg.design_templates : [],
-      review_enabled: cfg.ai_review_enabled !== false,
-      review_genre: cfg.ai_review_genre || 'auto',
-      review_length: cfg.ai_review_length || 'auto_scale',
-      review_aspect: cfg.ai_review_aspect || '16:9',
-      review_captions: cfg.ai_review_captions !== false,
-      review_cap_style: cfg.ai_review_cap_style || 'beasty',
-      review_cap_size: cfg.ai_review_cap_size || 'medium',
-      review_cap_pos: cfg.ai_review_cap_pos || 'bottom',
-      review_speed: cfg.ai_review_speed || '+5%',
-      review_bgm_vol: cfg.ai_review_bgm_vol || '0.07',
-      review_pins: Array.isArray(cfg.ai_review_pins) ? cfg.ai_review_pins : [],
-      review_custom_lang_code: cfg.ai_review_custom_lang_code || 'es',
-      review_custom_lang_name: cfg.ai_review_custom_lang_name || 'Spanish',
-      review_custom_voice: cfg.ai_review_custom_voice || 'es-ES-AlvaroNeural',
-      review_logo_enabled: cfg.ai_review_logo_enabled !== false,
-      review_logo_pos: cfg.ai_review_logo_pos || 'top_right',
-    };
-    const caiSt = await invoke('cloud_ai_get_state');
-    if (caiSt) cloudAiWheelState = caiSt;
-  } catch (e) { }
 
   if (gid === 'av' && activeGroup) {
-    const clonedFormats = activeGroup.formats.filter(f => !['ai_studio', 'ai_review', 'ai_subtitles', 'ai_burn_captions', 'ai_dubbing', 'ai_audiogram', 'merge_video'].includes(f.id));
+    const clonedFormats = activeGroup.formats.filter(f => !['ai_studio', 'ai_review', 'ai_subtitles', 'ai_burn_captions', 'ai_dubbing', 'ai_audiogram', 'auto_montage', 'merge_video'].includes(f.id));
     const audioExts = ['mp3', 'wav', 'flac', 'ogg', 'oga', 'm4a', 'aac'];
     const isVideoFile = ['mp4', 'mkv', 'webm', 'mov', 'avi', 'm4v'].includes(fileExt);
     const isAudioFile = audioExts.includes(fileExt);
@@ -2155,6 +2393,9 @@ async function refreshContext() {
     }
     if (isVideoFile && aiCfg.burn_captions_enabled !== false) {
       clonedFormats.unshift({ id: 'ai_burn_captions', pro: true, soon: false, hidden: false });
+    }
+    if (isVideoFile) {
+      clonedFormats.unshift({ id: 'auto_montage', pro: true, soon: false, hidden: false });
     }
     if (isAudioFile && aiCfg.audiogram_enabled !== false) {
       clonedFormats.unshift({ id: 'ai_audiogram', pro: true, soon: false, hidden: false });
@@ -2176,15 +2417,6 @@ async function refreshContext() {
   } else if (gid === 'subtitles' && activeGroup) {
     savedAvGroup = activeGroup;
   }
-  if (false) {
-    let isLongVideoDummy = false;
-    const isLongVideo = ['mp4', 'mkv', 'webm', 'mov', 'avi', 'm4v'].includes(fileExt) && videoDurationSec >= 120;
-    if (isLongVideo && aiCfg.enabled) {
-      clonedFormats.unshift({ id: 'ai_studio', pro: true, soon: false, hidden: false });
-    }
-    activeGroup = { id: activeGroup.id, formats: clonedFormats };
-    savedAvGroup = activeGroup;
-  }
   iconEl.innerHTML = renderCenterVisual(gid, (m && m.ext) || fileExt, m && m.thumbnail, files.length);
   const groupTitle = t('group_' + gid);
   if (files.length > 1) {
@@ -2198,8 +2430,6 @@ async function refreshContext() {
     } else {
       nameEl.textContent = `${files.length} files · ${m ? m.name : base(files[0])}`; $('chip-name').textContent = `${files.length} files selected`; metaEl.textContent = `${typeof groupTitle !== 'undefined' ? groupTitle : 'Files'} · ${files.length} files · ${(m && m.ext) || fileExt.toUpperCase()}`;
     }
-  } else if (false) {
-    metaEl.textContent = `${groupTitle} · ${files.length} files · ${(m && m.ext) || fileExt.toUpperCase()}`;
   } else if (m) {
     const durTag = videoDurationDisplay ? ` · ${videoDurationDisplay}` : '';
     metaEl.textContent = `${m.ext || '?'}${durTag} · ${m.size_display}`;
@@ -2239,8 +2469,36 @@ async function commit() {
   const label = fmtName(fmt);
 
   if (fmt.id === 'ai_back') {
+    if (ring2Mode === 'ai_dub_clone_picker') {
+      openAiRing2('ai_dub_voice');
+      return;
+    }
     if (ring2Mode === 'ai_dub_style') {
+      if (pendingDubVoice && pendingDubVoice.startsWith('clone_') && userClonedVoices && userClonedVoices.length > 1) {
+        openAiRing2('ai_dub_clone_picker');
+      } else {
+        openAiRing2('ai_dub_voice');
+      }
+      return;
+    }
+    if (ring2Mode === 'ai_dub_voice') {
       openAiRing2('ai_dubbing');
+      return;
+    }
+    if (ring2Mode === 'speak_clone_picker') {
+      openAiRing2('speak_voice');
+      return;
+    }
+    if (ring2Mode === 'speak_voice') {
+      closeAiRing2();
+      return;
+    }
+    if (ring2Mode === 'ai_review_clone_picker') {
+      openAiRing2('ai_review_voice');
+      return;
+    }
+    if (ring2Mode === 'ai_review_voice') {
+      openAiRing2('ai_review');
       return;
     }
     if (ring2Mode === 'design_templates' || ((ring2Mode === 'ai_upscale' || ring2Mode === 'barcode_studio') && radialLaunchMode === 'design')) {
@@ -2290,13 +2548,17 @@ async function commit() {
     toast(t('same_format', { format: label }), 2200);
     return;
   }
-  const isDesignBypass = (ring2Mode === 'design_studio' || ring2Mode === 'design_templates' || ring2Mode === 'ai_upscale' || ring2Mode === 'barcode_studio' || ring2Mode === 'smart_compress_img') || fmt.id.startsWith('tpl_') || fmt.id.startsWith('design_') || fmt.id.startsWith('upscale_') || fmt.id.startsWith('bc_') || fmt.id.startsWith('cmp_img_');
-  if (reachable && !reachable.has(fmt.id) && fmt.id !== 'cloud_phone_drop' && fmt.id !== 'cloud_pc_to_phone' && !isDesignBypass) {
+  const isDesignBypass = (ring2Mode === 'design_studio' || ring2Mode === 'design_templates' || ring2Mode === 'ai_upscale' || ring2Mode === 'barcode_studio' || ring2Mode === 'smart_compress' || ring2Mode === 'smart_compress_img' || ring2Mode === 'ai_dub_clone_picker' || ring2Mode === 'ai_review_voice' || ring2Mode === 'ai_review_clone_picker' || ring2Mode === 'speak_voice' || ring2Mode === 'speak_clone_picker') || fmt.id.startsWith('tpl_') || fmt.id.startsWith('design_') || fmt.id.startsWith('upscale_') || fmt.id.startsWith('bc_') || fmt.id.startsWith('cmp_') || fmt.id.startsWith('dub_clone_') || fmt.id.startsWith('rev_vc_') || fmt.id.startsWith('rev_clone_') || fmt.id.startsWith('spk_vc_') || fmt.id.startsWith('spk_clone_');
+  if (reachable && !reachable.has(fmt.id) && fmt.id !== 'cloud_phone_drop' && fmt.id !== 'cloud_pc_to_phone' && fmt.id !== 'auto_montage' && !isDesignBypass) {
     toast(t('unsupported_file'), 2400);
     return;
   }
   if (fmt.id === 'merge' && files.length < 2) {
     toast(t('need_two'), 2400);
+    return;
+  }
+  if (fmt.id === 'doc_to_mp3') {
+    openAiRing2('speak_voice');
     return;
   }
   if (fmt.id === 'smart_compress') {
@@ -2350,8 +2612,74 @@ async function commit() {
     return;
   }
   if (fmt.id.startsWith('dub_vc_')) {
+    if (fmt.id === 'dub_vc_cloned') {
+      if (!userClonedVoices || userClonedVoices.length === 0) {
+        toast('No cloned voices created yet! Opening Voice Studio...', 3000);
+        invoke('open_settings_view', { view: 'voicestudio' }).catch(() => {});
+        scheduleHide(400);
+        return;
+      }
+      if (userClonedVoices.length === 1) {
+        pendingDubVoice = userClonedVoices[0].id;
+        openAiRing2('ai_dub_style');
+        return;
+      }
+      openAiRing2('ai_dub_clone_picker');
+      return;
+    }
     pendingDubVoice = fmt.id.replace('dub_vc_', '');
     openAiRing2('ai_dub_style');
+    return;
+  }
+  if (fmt.id.startsWith('dub_clone_item_')) {
+    pendingDubVoice = fmt.id.replace('dub_clone_item_', '');
+    openAiRing2('ai_dub_style');
+    return;
+  }
+  if (fmt.id === 'dub_clone_add_new') {
+    toast('Opening Voice Studio to clone a new voice...', 3000);
+    invoke('open_settings_view', { view: 'voicestudio' }).catch(() => {});
+    scheduleHide(400);
+    return;
+  }
+  if (fmt.id.startsWith('spk_vc_')) {
+    if (fmt.id === 'spk_vc_cloned') {
+      if (!userClonedVoices || userClonedVoices.length === 0) {
+        toast('No cloned voices created yet! Opening Voice Studio...', 3000);
+        invoke('open_settings_view', { view: 'voicestudio' }).catch(() => {});
+        scheduleHide(400);
+        return;
+      }
+      if (userClonedVoices.length === 1) {
+        fmt.id = `spk_clone_item_${userClonedVoices[0].id}`;
+      } else {
+        openAiRing2('speak_clone_picker');
+        return;
+      }
+    }
+  }
+  if (fmt.id === 'spk_clone_add_new') {
+    toast('Opening Voice Studio to clone a new voice...', 3000);
+    invoke('open_settings_view', { view: 'voicestudio' }).catch(() => {});
+    scheduleHide(400);
+    return;
+  }
+  if (fmt.id === 'rev_vc_cloned') {
+    if (!userClonedVoices || userClonedVoices.length === 0) {
+      toast('No cloned voices created yet! Opening Voice Studio...', 3000);
+      invoke('open_settings_view', { view: 'voicestudio' }).catch(() => {});
+      scheduleHide(400);
+      return;
+    }
+    if (userClonedVoices.length > 1) {
+      openAiRing2('ai_review_clone_picker');
+      return;
+    }
+  }
+  if (fmt.id === 'rev_clone_add_new') {
+    toast('Opening Voice Studio to clone a new voice...', 3000);
+    invoke('open_settings_view', { view: 'voicestudio' }).catch(() => {});
+    scheduleHide(400);
     return;
   }
   if (fmt.id === 'ai_audiogram') {
@@ -2365,26 +2693,6 @@ async function commit() {
   }
   if (fmt.id === 'merge_video' && files.length < 2) {
     toast(t('need_two'), 2400);
-    return;
-  }
-  if (false) {
-    openAiRing2();
-    return;
-  }
-  if (fmt.id === 'ai_back') {
-    if (ring2Mode === 'ai_dub_style') {
-      openAiRing2('ai_dub_voice');
-      return;
-    }
-    if (ring2Mode === 'ai_dub_voice') {
-      openAiRing2('ai_dubbing');
-      return;
-    }
-    if (ring2Mode === 'ai_review_voice') {
-      openAiRing2('ai_review');
-      return;
-    }
-    closeAiRing2();
     return;
   }
 
@@ -2417,7 +2725,14 @@ async function commit() {
   let targetId = fmt.id;
   if (targetId.startsWith('rev_vc_')) {
     const vcKey = targetId.replace('rev_vc_', '');
-    targetId = (vcKey === 'auto') ? (pendingRevTarget || 'rev_pin_1') : `${pendingRevTarget || 'rev_pin_1'}:${vcKey}`;
+    if (vcKey === 'cloned' && userClonedVoices && userClonedVoices.length === 1) {
+      targetId = `${pendingRevTarget || 'rev_pin_1'}:${userClonedVoices[0].id}`;
+    } else {
+      targetId = (vcKey === 'auto') ? (pendingRevTarget || 'rev_pin_1') : `${pendingRevTarget || 'rev_pin_1'}:${vcKey}`;
+    }
+  } else if (targetId.startsWith('rev_clone_item_')) {
+    const cloneId = targetId.replace('rev_clone_item_', '');
+    targetId = `${pendingRevTarget || 'rev_pin_1'}:${cloneId}`;
   } else if (targetId.startsWith('dub_style_')) {
     const styleKey = targetId.replace('dub_style_', '');
     aiCfg.dub_burn_sub = (styleKey !== 'none');
@@ -2428,6 +2743,12 @@ async function commit() {
     }).catch(() => {});
     const vcKey = pendingDubVoice || 'auto';
     targetId = `${pendingDubTarget || 'dub_vi'}:${styleKey}:${vcKey}`;
+  } else if (targetId.startsWith('spk_vc_')) {
+    const vcKey = targetId.replace('spk_vc_', '');
+    targetId = `doc_to_mp3:${vcKey}`;
+  } else if (targetId.startsWith('spk_clone_item_')) {
+    const cloneId = targetId.replace('spk_clone_item_', '');
+    targetId = `doc_to_mp3:${cloneId}`;
   }
   busy = false;
   clearTimeout(hideTimer);
@@ -2445,9 +2766,17 @@ async function commit() {
     await invoke('convert_any_cmd', { inputs: selectedInputs, target: targetId, quality: 90, password: password || null });
     try { smartTarget = await invoke('smart_pick', { input_ext: fileExt }); } catch (e) { }
   } catch (e) {
-    const errStr = String(e || '');
+    console.error('convert_any_cmd error:', e);
+    const errStr = String(e || 'Conversion failed');
     if (errStr.includes('Pizza Converter Pro')) {
       invoke('show_settings');
+    } else if (window.__TAURI__ && window.__TAURI__.event && typeof window.__TAURI__.event.emit === 'function') {
+      window.__TAURI__.event.emit('convert-progress', {
+        target: targetId,
+        state: 'error',
+        percent: 0,
+        error: errStr,
+      }).catch(() => {});
     }
   }
 }
@@ -2580,8 +2909,15 @@ async function enterEditMode() {
     if (caiSt) cloudAiWheelState = caiSt;
   } catch (e) { }
 
+  try {
+    userClonedVoices = await invoke('get_cloned_voices');
+    if (!Array.isArray(userClonedVoices)) userClonedVoices = [];
+  } catch (_) {
+    userClonedVoices = [];
+  }
+
   if (gid === 'av' && activeGroup) {
-    const clonedFormats = activeGroup.formats.filter(f => !['ai_studio', 'ai_review', 'ai_subtitles', 'ai_burn_captions', 'ai_dubbing', 'ai_audiogram', 'merge_video'].includes(f.id));
+    const clonedFormats = activeGroup.formats.filter(f => !['ai_studio', 'ai_review', 'ai_subtitles', 'ai_burn_captions', 'ai_dubbing', 'ai_audiogram', 'auto_montage', 'merge_video'].includes(f.id));
     const audioExts = ['mp3', 'wav', 'flac', 'ogg', 'oga', 'm4a', 'aac'];
     const isVideoFile = ['mp4', 'mkv', 'webm', 'mov', 'avi', 'm4v'].includes(fileExt);
     const isAudioFile = audioExts.includes(fileExt);
@@ -2593,6 +2929,9 @@ async function enterEditMode() {
     }
     if (isVideoFile && aiCfg.burn_captions_enabled !== false) {
       clonedFormats.unshift({ id: 'ai_burn_captions', pro: true, soon: false, hidden: false });
+    }
+    if (isVideoFile) {
+      clonedFormats.unshift({ id: 'auto_montage', pro: true, soon: false, hidden: false });
     }
     if (isAudioFile && aiCfg.audiogram_enabled !== false) {
       clonedFormats.unshift({ id: 'ai_audiogram', pro: true, soon: false, hidden: false });
@@ -2612,15 +2951,6 @@ async function enterEditMode() {
     activeGroup = { id: activeGroup.id, formats: clonedFormats };
     savedAvGroup = activeGroup;
   } else if (gid === 'subtitles' && activeGroup) {
-    savedAvGroup = activeGroup;
-  }
-  if (false) {
-    let isLongVideoDummy = false;
-    const isLongVideo = ['mp4', 'mkv', 'webm', 'mov', 'avi', 'm4v'].includes(fileExt) && videoDurationSec >= 120;
-    if (isLongVideo && aiCfg.enabled) {
-      clonedFormats.unshift({ id: 'ai_studio', pro: true, soon: false, hidden: false });
-    }
-    activeGroup = { id: activeGroup.id, formats: clonedFormats };
     savedAvGroup = activeGroup;
   }
   $('editbar').classList.remove('hidden');
@@ -2727,8 +3057,15 @@ async function exitEditMode(save) {
     if (caiSt) cloudAiWheelState = caiSt;
   } catch (e) { }
 
+  try {
+    userClonedVoices = await invoke('get_cloned_voices');
+    if (!Array.isArray(userClonedVoices)) userClonedVoices = [];
+  } catch (_) {
+    userClonedVoices = [];
+  }
+
   if (gid === 'av' && activeGroup) {
-    const clonedFormats = activeGroup.formats.filter(f => !['ai_studio', 'ai_review', 'ai_subtitles', 'ai_burn_captions', 'ai_dubbing', 'ai_audiogram', 'merge_video'].includes(f.id));
+    const clonedFormats = activeGroup.formats.filter(f => !['ai_studio', 'ai_review', 'ai_subtitles', 'ai_burn_captions', 'ai_dubbing', 'ai_audiogram', 'auto_montage', 'merge_video'].includes(f.id));
     const audioExts = ['mp3', 'wav', 'flac', 'ogg', 'oga', 'm4a', 'aac'];
     const isVideoFile = ['mp4', 'mkv', 'webm', 'mov', 'avi', 'm4v'].includes(fileExt);
     const isAudioFile = audioExts.includes(fileExt);
@@ -2740,6 +3077,9 @@ async function exitEditMode(save) {
     }
     if (isVideoFile && aiCfg.burn_captions_enabled !== false) {
       clonedFormats.unshift({ id: 'ai_burn_captions', pro: true, soon: false, hidden: false });
+    }
+    if (isVideoFile) {
+      clonedFormats.unshift({ id: 'auto_montage', pro: true, soon: false, hidden: false });
     }
     if (isAudioFile && aiCfg.audiogram_enabled !== false) {
       clonedFormats.unshift({ id: 'ai_audiogram', pro: true, soon: false, hidden: false });
@@ -2759,15 +3099,6 @@ async function exitEditMode(save) {
     activeGroup = { id: activeGroup.id, formats: clonedFormats };
     savedAvGroup = activeGroup;
   } else if (gid === 'subtitles' && activeGroup) {
-    savedAvGroup = activeGroup;
-  }
-  if (false) {
-    let isLongVideoDummy = false;
-    const isLongVideo = ['mp4', 'mkv', 'webm', 'mov', 'avi', 'm4v'].includes(fileExt) && videoDurationSec >= 120;
-    if (isLongVideo && aiCfg.enabled) {
-      clonedFormats.unshift({ id: 'ai_studio', pro: true, soon: false, hidden: false });
-    }
-    activeGroup = { id: activeGroup.id, formats: clonedFormats };
     savedAvGroup = activeGroup;
   }
   applyStaticCopy();
@@ -2882,7 +3213,6 @@ stage.addEventListener('click', e => {
     return;
   }
   if ((inAiRing2 || e.target.closest('.merge-order-btn')) && h && h.ring === 'center') {
-    return;
     return;
   }
   // Click outside slices cancels and dismisses the radial menu

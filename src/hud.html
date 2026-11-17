@@ -161,6 +161,15 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.card-sub.err-sub {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.32;
+  color: #fda4af;
+  word-break: break-word;
+}
 .bar-track {
   width: 100%;
   height: 3px;
@@ -291,11 +300,37 @@ const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
 const stackEl = document.getElementById('hud-stack');
-const tasks = new Map();          // taskId -> { id, target, state, pct, title, sub, outPath, timer, hovered, qrOpen }
+const tasks = new Map();          // taskId -> { id, target, state, pct, title, sub, rawSub, outPath, timer, hovered, qrOpen }
 const dismissedTasks = new Set(); // taskIds dismissed while running
+
+function formatHudErrorReason(raw) {
+  const full = String(raw || 'Operation failed').trim();
+  if (!full) return 'Operation failed';
+  const lines = full
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(Boolean);
+  if (lines.length <= 1) return full;
+  // Filter out Python Traceback header and stack frame location lines so the real error reason shows cleanly
+  const meaningful = lines.filter(l =>
+    !l.startsWith('Traceback (most recent call last)') &&
+    !/^File\s+"[^"]+",\s+line\s+\d+/i.test(l) &&
+    !/^\^+$/.test(l)
+  );
+  if (meaningful.length === 0) return lines[lines.length - 1];
+  const last = meaningful[meaningful.length - 1];
+  if (meaningful.length >= 2 && last.length < 48) {
+    const prev = meaningful[meaningful.length - 2];
+    if (prev && prev !== last && !prev.endsWith(':')) {
+      return `${prev} — ${last}`;
+    }
+  }
+  return last;
+}
 
 function formatTargetLabel(raw) {
   if (!raw) return 'FILE';
+  if (raw === 'video_dl') return 'VIDEO DOWNLOAD';
   const cloudMap = {
     cloud_gdrive: 'GOOGLE DRIVE',
     cloud_dropbox: 'DROPBOX',
@@ -440,7 +475,7 @@ function upsertCardDOM(t) {
         <div class="qr-box">…</div>
         <div class="qr-meta">
           <div class="qr-head">📲 Scan with iPhone / Android</div>
-          <div class="qr-sub">🌐 Public HTTPS — works on 4G/5G & any Wi-Fi</div>
+          <div class="qr-sub">📶 Local Wi-Fi Direct — connect phone &amp; PC to same Wi-Fi</div>
           <div class="qr-url"></div>
         </div>
       </div>
@@ -505,7 +540,13 @@ function upsertCardDOM(t) {
         cur.title = `⏹ Stopped · ${tgtLabel}`;
         cur.sub = 'Task cancelled by user';
         upsertCardDOM(cur);
-        try { await invoke('cancel_task_cmd', { target: cur.target, taskId: t.id }); } catch (_) {}
+        try {
+          if (t.id && String(t.id).startsWith('dl_')) {
+            await invoke('video_dl_cancel', { taskId: t.id, task_id: t.id });
+          } else {
+            await invoke('cancel_task_cmd', { taskId: t.id, task_id: t.id, target: cur.target });
+          }
+        } catch (_) {}
         scheduleAutoRemove(t.id, 1200);
         return;
       }
@@ -545,6 +586,7 @@ function upsertCardDOM(t) {
       if (!cur || !cur.outPath) return;
       const drawer = card.querySelector('.qr-drawer');
       const qrBox = card.querySelector('.qr-box');
+      const qrSubEl = card.querySelector('.qr-sub');
       const qrUrlEl = card.querySelector('.qr-url');
       if (!drawer.classList.contains('hidden')) {
         drawer.classList.add('hidden');
@@ -558,12 +600,19 @@ function upsertCardDOM(t) {
       drawer.classList.remove('hidden');
       syncHudWindowBounds();
       qrBox.innerHTML = '<div class="ico spinner" style="border-top-color:#0ea5e9"></div>';
-      qrUrlEl.textContent = '⏳ Creating Public HTTPS link for iPhone...';
+      qrUrlEl.textContent = '⏳ Opening direct Wi-Fi transfer link...';
       try {
         const res = await invoke('get_qr_svg_cmd', { pathOrUrl: cur.outPath });
         if (res && res.svg) {
           qrBox.innerHTML = res.svg;
-          qrUrlEl.textContent = res.url || cur.outPath;
+          const finalUrl = res.url || cur.outPath;
+          qrUrlEl.textContent = finalUrl;
+          if (qrSubEl) {
+            const isHttps = String(finalUrl || '').toLowerCase().startsWith('https://');
+            qrSubEl.textContent = isHttps
+              ? '🌐 Public HTTPS — works on 4G/5G & any Wi-Fi'
+              : '📶 Local Wi-Fi Direct — connect phone & PC to same Wi-Fi';
+          }
         }
       } catch (err) {
         qrBox.textContent = '!';
@@ -589,6 +638,8 @@ function upsertCardDOM(t) {
   barFill.classList.toggle('stopped', t.state === 'stopped');
   titleEl.textContent = t.title;
   subEl.textContent = t.sub;
+  subEl.classList.toggle('err-sub', t.state === 'error');
+  subEl.title = t.rawSub || t.sub || '';
 
   if (t.state === 'running') {
     ico.className = 'ico spinner';
@@ -611,13 +662,22 @@ function upsertCardDOM(t) {
       const isUrl = t.outPath.startsWith('http://') || t.outPath.startsWith('https://');
       const bOpen = card.querySelector('.btn-open');
       const bFolder = card.querySelector('.btn-folder');
+      const bQr = card.querySelector('.btn-qr');
       if (bOpen && bFolder) {
         if (isUrl) {
           bOpen.innerHTML = '<span>📋</span> <span>Copy Link</span>';
           bFolder.innerHTML = '<span>↗</span> <span>Open Link</span>';
+          if (bQr) bQr.classList.add('hidden');
         } else {
           bOpen.innerHTML = '<span>↗</span> <span>Open file</span>';
           bFolder.innerHTML = '<span>📁</span> <span>Folder</span>';
+          if (bQr) {
+            if (t.target && String(t.target).startsWith('cloud_')) {
+              bQr.classList.remove('hidden');
+            } else {
+              bQr.classList.add('hidden');
+            }
+          }
         }
       }
       actionsEl.classList.remove('hidden');
@@ -701,6 +761,7 @@ listen('convert-progress', (e) => {
 
   let title = '';
   let sub = '';
+  let rawSub = '';
   const isCloud = String(p.target || '').startsWith('cloud_');
   if (state === 'running') {
     const stepNum = Math.min(done + 1, total);
@@ -708,22 +769,26 @@ listen('convert-progress', (e) => {
       ? `☁️ Uploading → ${tgt}`
       : (total > 1 ? `Converting ${stepNum}/${total} → ${tgt}` : `Converting → ${tgt}`);
     sub = p.current || '';
+    rawSub = sub;
   } else if (state === 'done') {
     title = isCloud
       ? `☁️ Uploaded → ${tgt}`
       : (total > 1 ? `Converted ${done}/${total} → ${tgt}` : `Converted → ${tgt}`);
     sub = p.current || 'Completed successfully';
+    rawSub = sub;
   } else if (state === 'stopped') {
     title = `⏹ Stopped · ${tgt}`;
     sub = p.current || 'Task cancelled by user';
+    rawSub = sub;
   } else {
     title = isCloud ? `Cloud Drop error · ${tgt}` : `Conversion error · ${tgt}`;
-    sub = p.error || 'Failed to convert';
+    rawSub = p.error || p.current || 'Failed to convert';
+    sub = formatHudErrorReason(rawSub);
   }
 
   let t = tasks.get(taskId);
   if (!t) {
-    t = { id: taskId, target: p.target || 'convert', state, pct, title, sub, outPath: p.out_path || null, timer: null, hovered: false };
+    t = { id: taskId, target: p.target || 'convert', state, pct, title, sub, rawSub, outPath: p.out_path || null, timer: null, hovered: false };
     tasks.set(taskId, t);
   } else {
     if (t.timer) { clearTimeout(t.timer); t.timer = null; }
@@ -731,6 +796,7 @@ listen('convert-progress', (e) => {
     if (state !== 'stopped') t.pct = pct;
     t.title = title;
     t.sub = sub;
+    t.rawSub = rawSub;
     if (p.out_path) t.outPath = p.out_path;
   }
 
@@ -748,8 +814,130 @@ listen('convert-progress', (e) => {
   } else if (state === 'stopped') {
     scheduleAutoRemove(taskId, 1500);
   } else if (state === 'error') {
-    scheduleAutoRemove(taskId, 3500);
+    scheduleAutoRemove(taskId, 6000);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Video Downloader Notifications (10s auto-dismiss on completion)
+// ---------------------------------------------------------------------------
+
+listen('video-download-progress', (e) => {
+  const p = e.payload || {};
+  if (!p.task_id) return;
+  const taskId = p.task_id;
+
+  const existingTask = tasks.get(taskId);
+  if (existingTask && existingTask.state === 'stopped') {
+    syncHudWindowBounds();
+    return;
+  }
+
+  if (dismissedTasks.has(taskId)) {
+    syncHudWindowBounds();
+    return;
+  }
+
+  const pct = Math.max(0, Math.min(100, Math.round(p.percent || 0)));
+  const speedStr = p.speed && p.speed !== '0 KiB/s' && p.speed !== '--' ? ` · ${p.speed}` : '';
+  const etaStr = p.eta && p.eta !== '--:--' && p.eta !== '00:00' ? ` (${p.eta})` : '';
+
+  let stageLabel = 'Downloading';
+  if (p.stage === 'extracting_transcript' || p.status === 'extracting_transcript') {
+    stageLabel = 'Extracting Subtitles';
+  } else if (p.stage === 'transcribing' || p.status === 'transcribing') {
+    stageLabel = 'Transcribing AI';
+  } else if (p.stage === 'merging' || p.status === 'merging') {
+    stageLabel = 'Merging Streams';
+  } else if (p.stage === 'extracting_audio' || p.status === 'extracting_audio') {
+    stageLabel = 'Converting Audio';
+  }
+
+  const title = `📥 ${stageLabel}`;
+  const sub = `${p.title || 'Processing video...'}${speedStr}${etaStr}`;
+
+  let t = tasks.get(taskId);
+  if (!t) {
+    t = { id: taskId, target: 'video_dl', state: 'running', pct, title, sub, outPath: null, timer: null, hovered: false };
+    tasks.set(taskId, t);
+  } else {
+    if (t.timer) { clearTimeout(t.timer); t.timer = null; }
+    t.state = 'running';
+    t.pct = pct;
+    t.title = title;
+    t.sub = sub;
+  }
+
+  upsertCardDOM(t);
+});
+
+listen('video-download-complete', (e) => {
+  const payload = e.payload || {};
+  const item = payload.item || {};
+  const taskId = payload.task_id || item.id;
+  if (!taskId) return;
+
+  dismissedTasks.delete(taskId);
+
+  const rawFmt = String(item.format || 'video').toLowerCase();
+  let fmtLabel = 'Video';
+  if (rawFmt === 'srt') fmtLabel = 'SRT Subtitles';
+  else if (rawFmt === 'txt') fmtLabel = 'TXT Transcript';
+  else if (rawFmt === 'mp3') fmtLabel = 'MP3 Audio';
+  else if (rawFmt === '720p') fmtLabel = '720p Video';
+  else if (rawFmt === 'best' || rawFmt === 'mp4') fmtLabel = 'Video (Best)';
+
+  const sizeStr = item.file_size_display && item.file_size_display !== '0 B'
+    ? ` · ${item.file_size_display}`
+    : '';
+  const title = `📥 Download Complete · ${fmtLabel}`;
+  const sub = `${item.title || 'Saved to Downloads'}${sizeStr}`;
+  const outPath = item.file_path || null;
+
+  let t = tasks.get(taskId);
+  if (!t) {
+    t = { id: taskId, target: 'video_dl', state: 'done', pct: 100, title, sub, outPath, timer: null, hovered: false };
+    tasks.set(taskId, t);
+  } else {
+    if (t.timer) { clearTimeout(t.timer); t.timer = null; }
+    t.state = 'done';
+    t.pct = 100;
+    t.title = title;
+    t.sub = sub;
+    t.outPath = outPath;
+  }
+
+  upsertCardDOM(t);
+
+  // Exact 10 seconds auto-dismiss notification as requested by user
+  scheduleAutoRemove(taskId, 10000);
+});
+
+listen('video-download-error', (e) => {
+  const payload = e.payload || {};
+  const taskId = payload.task_id;
+  if (!taskId) return;
+
+  dismissedTasks.delete(taskId);
+
+  const title = `Download failed`;
+  const rawSub = payload.error || 'Failed to download video';
+  const sub = formatHudErrorReason(rawSub);
+
+  let t = tasks.get(taskId);
+  if (!t) {
+    t = { id: taskId, target: 'video_dl', state: 'error', pct: 0, title, sub, rawSub, outPath: null, timer: null, hovered: false };
+    tasks.set(taskId, t);
+  } else {
+    if (t.timer) { clearTimeout(t.timer); t.timer = null; }
+    t.state = 'error';
+    t.title = title;
+    t.sub = sub;
+    t.rawSub = rawSub;
+  }
+
+  upsertCardDOM(t);
+  scheduleAutoRemove(taskId, 6000);
 });
 </script>
 </body>
