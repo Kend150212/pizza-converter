@@ -224,6 +224,9 @@
         - Auto-heals stale `"downloading"` history entries interrupted by prior app exits.
       - **High-Speed Multi-Fragment Downloader Upgrade (Nov 17, 2026)**:
         - Added `--concurrent-fragments 12`, `--http-chunk-size 10M`, `--buffer-size 64K`, `--retries 10`, and `--fragment-retries 10` to `build_ytdlp_args_with_filename()` for all media downloads (`best`, `720p`, `mp3`), eliminating sequential 1-fragment HLS (`m3u8`) and single-stream CDN throttling on 1 Gbps+ connections while preserving `yt-dlp` `--progress-template` telemetry.
+      - **v1.0.7.0 Store Release, Legal/Privacy/Terms BYOK Update & iMac App Sync (Nov 17, 2026)**:
+        - Bumped version to `1.0.7` / `1.0.7.0` (`src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, `package_msix.ps1`, `src/settings.html`, `src/settings.js`) and packaged validated Microsoft Store MSIX (`dist/store_packages/PizzaConverter_1.0.7.0_x64.msix`).
+        - Updated `About`, `Privacy Policy`, `Terms of Service` (`src/settings.html`), and Onboarding (`src/settings.js`) to disclose BYOK Cloud AI providers (OpenAI, Google Gemini, Anthropic Claude, DeepSeek, OpenRouter, Meta AI), Cloud TTS / Instant Voice Cloning (ElevenLabs, OpenAI TTS, Gemini TTS, VieNeu-TTS, Edge TTS), OS Credential Vault storage, Video Downloader (`yt-dlp`), Voice Studio Local REST API, and user BYOK billing/copyright/consent responsibilities.
 
 ## 3. Automatic Multi-Machine Workflow (Lúc ngồi Mac, lúc ngồi PC)
 - **When the user is on PC (`Windows`)**:

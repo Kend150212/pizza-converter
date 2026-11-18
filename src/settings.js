@@ -4339,7 +4339,7 @@ const TOUR_STEPS_DATA = [
     visualHtml: (isVi) => `
       <div style="display:flex; align-items:center; justify-content:space-between; font-size:9.5px; font-weight:800; color:#34d399;">
         <span>● ${isVi ? 'QUẢN LÝ LỊCH SỬ & MỞ NHANH' : 'HISTORY & INSTANT ACCESS'}</span>
-        <span>100% LOCAL & PRIVATE</span>
+        <span>LOCAL-FIRST & PRIVACY-FIRST</span>
       </div>
       <div style="display:flex; flex-direction:column; gap:6px; margin:8px 0;">
         <div style="background:rgba(30,41,59,0.85); border:1px solid rgba(52,211,153,0.4); border-radius:10px; padding:8px 10px; display:flex; align-items:center; justify-content:space-between;">
@@ -4361,7 +4361,7 @@ const TOUR_STEPS_DATA = [
         </div>
       </div>
       <div style="font-size:9.5px; color:#94a3b8; text-align:center; background:rgba(255,255,255,0.04); padding:5px 8px; border-radius:8px;">
-        ${isVi ? '🔒 Xử lý 100% trên máy tính của bạn — Siêu nhanh, an toàn & bảo mật tuyệt đối.' : '🔒 100% Local On-Device Processing — Ultra-fast & privacy-first.'}
+        ${isVi ? '🔒 Xử lý cục bộ làm cốt lõi — Tùy chọn kết nối Cloud AI BYOK bằng key riêng của bạn.' : '🔒 Local-First On-Device Core — Optional BYOK Cloud AI with your own API keys.'}
       </div>`
   }
 ];
