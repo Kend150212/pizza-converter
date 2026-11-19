@@ -9464,6 +9464,7 @@ refreshAutoMontageTab();
   const pillBtn = document.getElementById('btn-global-tasks');
   const pillDot = document.getElementById('global-tasks-dot');
   const pillLbl = document.getElementById('global-tasks-label');
+  const pillText = document.getElementById('global-tasks-text');
   const modal = document.getElementById('global-tasks-modal');
   const listEl = document.getElementById('global-tasks-list');
   const countEl = document.getElementById('global-tasks-modal-count');
@@ -9518,19 +9519,17 @@ refreshAutoMontageTab();
   function updatePill(count) {
     if (!pillBtn || !pillDot || !pillLbl) return;
     if (count > 0) {
-      pillBtn.style.borderColor = 'rgba(45, 212, 191, 0.55)';
-      pillBtn.style.background = 'rgba(20, 184, 166, 0.16)';
-      pillBtn.style.color = '#5eead4';
+      pillLbl.style.background = 'rgba(20, 184, 166, 0.2)';
+      pillLbl.style.color = '#5eead4';
       pillDot.style.background = '#2dd4bf';
       pillDot.style.boxShadow = '0 0 8px #2dd4bf';
-      pillLbl.textContent = `${count} Task${count === 1 ? '' : 's'} Running`;
+      if (pillText) pillText.textContent = `${count} Running`;
     } else {
-      pillBtn.style.borderColor = 'rgba(148, 163, 184, 0.28)';
-      pillBtn.style.background = 'rgba(15, 23, 42, 0.65)';
-      pillBtn.style.color = '#94a3b8';
+      pillLbl.style.background = 'rgba(148, 163, 184, 0.16)';
+      pillLbl.style.color = '#94a3b8';
       pillDot.style.background = '#64748b';
       pillDot.style.boxShadow = 'none';
-      pillLbl.textContent = 'Tasks: Idle';
+      if (pillText) pillText.textContent = 'Idle';
     }
   }
 

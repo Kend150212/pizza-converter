@@ -14,7 +14,7 @@ static TAMPER_DETECTED: AtomicBool = AtomicBool::new(false);
 /// Get current application package version with build profile
 #[tauri::command]
 pub fn get_app_version() -> String {
-    let ver = "1.0.6.0";
+    let ver = "1.0.7.0";
     #[cfg(debug_assertions)]
     {
         format!("v{} (Dev)", ver)

@@ -562,10 +562,6 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
       <span id="app-version-badge" style="font-size: 10px; color: #5eead4; background: rgba(45,212,191,0.14); border: 1px solid rgba(45,212,191,0.35); padding: 1.5px 8px; border-radius: 999px; font-weight: 700; letter-spacing: 0.04em;">v1.0.7.0</span>
     </div>
     <div style="display:flex; align-items:center; gap:10px;">
-      <button type="button" id="btn-global-tasks" title="View all running background tasks" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:700; border:1px solid rgba(148,163,184,0.28); background:rgba(15,23,42,0.65); color:#94a3b8; cursor:pointer; transition:all 0.15s ease;">
-        <span id="global-tasks-dot" style="width:7px; height:7px; border-radius:50%; background:#64748b;"></span>
-        <span id="global-tasks-label">Tasks: Idle</span>
-      </button>
       <button type="button" id="btn-theme-toggle" class="theme-toggle-btn" title="Toggle Light / Dark Mode">
         <span id="theme-toggle-icon">☀️</span>
         <span id="theme-toggle-text">Light</span>
@@ -589,6 +585,14 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
         <button class="nav-item" data-view="history">
           <span class="nav-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg></span>
           <span data-i18n="nav_history">History</span>
+        </button>
+        <button type="button" class="nav-item" id="btn-global-tasks" title="View &amp; manage all running background tasks">
+          <span class="nav-ico"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+          <span>Running Tasks</span>
+          <span id="global-tasks-label" style="margin-left:auto; font-size:9.5px; font-weight:800; padding:1.5px 7px; border-radius:999px; background:rgba(148,163,184,0.16); color:#94a3b8; display:inline-flex; align-items:center; gap:4px;">
+            <span id="global-tasks-dot" style="width:6px; height:6px; border-radius:50%; background:#64748b;"></span>
+            <span id="global-tasks-text">Idle</span>
+          </span>
         </button>
 
         <!-- 2. CREATIVE & AI STUDIOS -->
