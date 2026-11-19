@@ -9457,6 +9457,189 @@ function bindAutoMontageEvents() {
 bindAutoMontageEvents();
 refreshAutoMontageTab();
 
+// ---------------------------------------------------------------------------
+// Global Running Tasks Monitor (Titlebar Pill + Modal + Active Download Sync)
+// ---------------------------------------------------------------------------
+(function initGlobalTasksMonitor() {
+  const pillBtn = document.getElementById('btn-global-tasks');
+  const pillDot = document.getElementById('global-tasks-dot');
+  const pillLbl = document.getElementById('global-tasks-label');
+  const modal = document.getElementById('global-tasks-modal');
+  const listEl = document.getElementById('global-tasks-list');
+  const countEl = document.getElementById('global-tasks-modal-count');
+  const btnClose = document.getElementById('btn-global-tasks-close');
+  const btnRefresh = document.getElementById('btn-global-tasks-refresh');
+
+  const liveConvertTasks = new Map();
+  let lastSnapshot = [];
+
+  async function fetchAndRenderTasks() {
+    try {
+      const backendTasks = await invoke('get_running_tasks_cmd');
+      const items = Array.isArray(backendTasks) ? backendTasks : [];
+
+      // Merge richer live labels from convert-progress events
+      const merged = items.map(t => {
+        if (t.kind === 'convert') {
+          const rich = liveConvertTasks.get(t.task_id) || liveConvertTasks.get(t.target);
+          if (rich) {
+            return {
+              ...t,
+              title: rich.title || t.title,
+              percent: rich.percent ?? t.percent,
+              stage: rich.current || t.stage,
+            };
+          }
+        } else if (t.kind === 'video_dl') {
+          if (typeof updateActiveDlCard === 'function') {
+            updateActiveDlCard({
+              task_id: t.task_id,
+              url: t.url || '',
+              status: 'downloading',
+              percent: t.percent || 0,
+              speed: t.speed || '0 KiB/s',
+              eta: t.eta || '--:--',
+              title: t.title || 'Downloading',
+              stage: t.stage || 'downloading',
+            });
+          }
+        }
+        return t;
+      });
+
+      lastSnapshot = merged;
+      updatePill(merged.length);
+      if (modal && !modal.classList.contains('hidden')) {
+        renderModalList(merged);
+      }
+    } catch (_) {}
+  }
+
+  function updatePill(count) {
+    if (!pillBtn || !pillDot || !pillLbl) return;
+    if (count > 0) {
+      pillBtn.style.borderColor = 'rgba(45, 212, 191, 0.55)';
+      pillBtn.style.background = 'rgba(20, 184, 166, 0.16)';
+      pillBtn.style.color = '#5eead4';
+      pillDot.style.background = '#2dd4bf';
+      pillDot.style.boxShadow = '0 0 8px #2dd4bf';
+      pillLbl.textContent = `${count} Task${count === 1 ? '' : 's'} Running`;
+    } else {
+      pillBtn.style.borderColor = 'rgba(148, 163, 184, 0.28)';
+      pillBtn.style.background = 'rgba(15, 23, 42, 0.65)';
+      pillBtn.style.color = '#94a3b8';
+      pillDot.style.background = '#64748b';
+      pillDot.style.boxShadow = 'none';
+      pillLbl.textContent = 'Tasks: Idle';
+    }
+  }
+
+  function renderModalList(items) {
+    if (!listEl) return;
+    if (countEl) countEl.textContent = `${items.length} active`;
+    if (!items || items.length === 0) {
+      listEl.innerHTML = `<div style="text-align:center; padding:28px 12px; color:#94a3b8; font-size:12.5px;">No tasks are currently running.</div>`;
+      return;
+    }
+
+    listEl.innerHTML = '';
+    items.forEach(item => {
+      const card = document.createElement('div');
+      card.style.cssText = 'padding:10px 12px; border-radius:10px; background:rgba(30,41,59,0.72); border:1px solid rgba(148,163,184,0.2); display:flex; flex-direction:column; gap:6px;';
+      const pct = Math.max(0, Math.min(100, Math.round(item.percent || 0)));
+      const kindBadge = item.kind === 'video_dl' ? 'VIDEO DL' : 'PROCESS';
+      const metaParts = [item.stage || 'running'];
+      if (item.speed) metaParts.push(item.speed);
+      if (item.eta && item.eta !== '--:--') metaParts.push(`ETA ${item.eta}`);
+      if (pct > 0) metaParts.push(`${pct}%`);
+
+      card.innerHTML = `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+          <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">
+            <span style="font-size:9.5px; font-weight:800; padding:2px 6px; border-radius:5px; background:rgba(56,189,248,0.15); color:#38bdf8; flex-shrink:0;">${kindBadge}</span>
+            <span style="font-size:12px; font-weight:700; color:#f1f5f9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${item.title || ''}">${item.title || item.target || 'Background Task'}</span>
+          </div>
+          <button type="button" class="btn-ghost-sm btn-stop-global-task" style="color:#fda4af; border-color:rgba(244,63,94,0.45); flex-shrink:0;">Stop</button>
+        </div>
+        <div style="width:100%; height:4px; border-radius:999px; background:rgba(255,255,255,0.1); overflow:hidden;">
+          <div style="height:100%; width:${pct}%; background:linear-gradient(90deg, #38bdf8, #2dd4bf); transition:width 0.2s ease;"></div>
+        </div>
+        <div style="font-size:10.5px; color:#94a3b8;">${metaParts.join(' · ')}</div>
+      `;
+
+      const stopBtn = card.querySelector('.btn-stop-global-task');
+      if (stopBtn) {
+        stopBtn.addEventListener('click', async () => {
+          stopBtn.disabled = true;
+          stopBtn.textContent = 'Stopping...';
+          try {
+            if (item.kind === 'video_dl') {
+              await invoke('video_dl_cancel', { taskId: item.task_id });
+            } else {
+              await invoke('cancel_task_cmd', { target: item.target || null, taskId: item.task_id || null });
+            }
+          } catch (_) {}
+          setTimeout(fetchAndRenderTasks, 300);
+        });
+      }
+      listEl.appendChild(card);
+    });
+  }
+
+  if (pillBtn && modal) {
+    pillBtn.addEventListener('click', () => {
+      modal.classList.remove('hidden');
+      fetchAndRenderTasks();
+    });
+  }
+  if (btnClose && modal) {
+    btnClose.addEventListener('click', () => modal.classList.add('hidden'));
+  }
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.classList.add('hidden');
+    });
+  }
+  if (btnRefresh) {
+    btnRefresh.addEventListener('click', fetchAndRenderTasks);
+  }
+
+  if (window.__TAURI__?.event?.listen) {
+    window.__TAURI__.event.listen('convert-progress', (e) => {
+      const p = e?.payload;
+      if (!p) return;
+      const key = p.task_id || p.target || 'convert';
+      if (p.state === 'done' || p.state === 'error' || p.state === 'stopped') {
+        liveConvertTasks.delete(key);
+        if (p.target) liveConvertTasks.delete(p.target);
+        setTimeout(fetchAndRenderTasks, 150);
+      } else {
+        liveConvertTasks.set(key, {
+          title: p.target ? `Running: ${p.target}` : 'Converting',
+          percent: p.percent || 0,
+          current: p.current || 'processing',
+        });
+        fetchAndRenderTasks();
+      }
+    }).catch(() => {});
+
+    window.__TAURI__.event.listen('video-download-progress', () => {
+      if (modal && !modal.classList.contains('hidden')) {
+        fetchAndRenderTasks();
+      } else {
+        updatePill(Math.max(1, lastSnapshot.length));
+      }
+    }).catch(() => {});
+
+    window.__TAURI__.event.listen('video-download-complete', () => setTimeout(fetchAndRenderTasks, 200)).catch(() => {});
+    window.__TAURI__.event.listen('video-download-error', () => setTimeout(fetchAndRenderTasks, 200)).catch(() => {});
+  }
+
+  // Poll gently every 2.5s so any background task started from hotkey/tray stays visible
+  fetchAndRenderTasks();
+  setInterval(fetchAndRenderTasks, 2500);
+})();
+
 
 
 

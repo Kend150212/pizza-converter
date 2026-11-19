@@ -231,6 +231,9 @@
         - Backed up `v1.0.7.0-stable` (`backups/v1.0.7.0-stable/` + git tag `v1.0.7.0-stable`).
         - Added `src-tauri/src/script_director_worker.py` + `scan_script_director_folder_cmd` & `run_script_director_cmd` in `src-tauri/src/ai_studio.rs` & `lib.rs` + Smart Cut Studio card in `src/settings.html` & `src/settings.js`.
         - Automatically scans a chosen project folder (footage + `script.txt`/`script.md` + optional BGM), caches OpenCV sharpness/shake/shot-size & AI scene tags in `.pizza_footage_index.json`, splits script into beats, synthesizes per-beat voiceover via `tts_provider.py` (including custom cloned voices), matches footage with Shot Variety rules, and exports an editable CapCut Desktop Draft (`draft_content.json` + `draft_meta_info.json` with video, voice, BGM, and keyword-highlighted rich-text tracks).
+      - **Video Downloader Anti-Stall (`aria2c` 16x + Socket Timeout) & Unified Running Tasks Monitor (Nov 19, 2026)**:
+        - Added `find_aria2c()`, `--force-ipv4`, `--socket-timeout 15`, `--throttled-rate 100K`, and automatic `https:aria2c` / `http:aria2c` 16-connection routing (`-x 16 -s 16 -k 1M --disable-ipv6=true`) with live `aria2c` progress parsing in `src-tauri/src/video_downloader.rs`.
+        - Added `ActiveDownloadSnapshot` + `get_running_tasks_cmd()` (`src-tauri/src/convert_cmd.rs`, `lib.rs`) and a live **Running Tasks Pill & Modal** in the Settings titlebar (`src/settings.html`, `src/settings.js`) showing all active downloads and AI/conversion jobs with 1-click Stop/Cancel.
 
 ## 3. Automatic Multi-Machine Workflow (Lúc ngồi Mac, lúc ngồi PC)
 - **When the user is on PC (`Windows`)**:

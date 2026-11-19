@@ -128,6 +128,48 @@ pub fn unregister_child_pid(pid: u32) {
     }
 }
 
+/// Return a unified live snapshot of all currently running background tasks
+/// (Video Downloads + AI Studio / Conversion / Montage / Script Director jobs).
+#[tauri::command]
+pub async fn get_running_tasks_cmd() -> Result<Vec<serde_json::Value>, String> {
+    let mut out: Vec<serde_json::Value> = Vec::new();
+
+    for dl in crate::video_downloader::list_active_downloads() {
+        out.push(serde_json::json!({
+            "kind": "video_dl",
+            "task_id": dl.task_id,
+            "title": dl.title,
+            "target": dl.format,
+            "percent": dl.percent,
+            "speed": dl.speed,
+            "eta": dl.eta,
+            "stage": dl.stage,
+            "url": dl.url,
+            "started_at": dl.started_at,
+        }));
+    }
+
+    if let Ok(list) = ACTIVE_TASKS.lock() {
+        for item in list.iter() {
+            let tgt = if item.target.is_empty() { "convert".to_string() } else { item.target.clone() };
+            let tid = item.task_id.clone().unwrap_or_else(|| format!("pid_{}", item.pid));
+            out.push(serde_json::json!({
+                "kind": "convert",
+                "task_id": tid,
+                "pid": item.pid,
+                "title": format!("Running: {tgt}"),
+                "target": tgt,
+                "percent": 0,
+                "speed": "",
+                "eta": "",
+                "stage": "processing",
+            }));
+        }
+    }
+
+    Ok(out)
+}
+
 pub fn kill_all_active_children() {
     CANCEL_REQUESTED.store(true, Ordering::SeqCst);
     let pids: Vec<u32> = ACTIVE_TASKS

@@ -236,6 +236,7 @@ pub fn run() {
             convert_cmd::convert_any_cmd,
             convert_cmd::generate_custom_barcode_cmd,
             convert_cmd::cancel_task_cmd,
+            convert_cmd::get_running_tasks_cmd,
             convert_cmd::file_meta,
             convert_cmd::pick_file,
             convert_cmd::pick_dir,

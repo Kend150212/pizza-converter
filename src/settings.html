@@ -562,6 +562,10 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
       <span id="app-version-badge" style="font-size: 10px; color: #5eead4; background: rgba(45,212,191,0.14); border: 1px solid rgba(45,212,191,0.35); padding: 1.5px 8px; border-radius: 999px; font-weight: 700; letter-spacing: 0.04em;">v1.0.7.0</span>
     </div>
     <div style="display:flex; align-items:center; gap:10px;">
+      <button type="button" id="btn-global-tasks" title="View all running background tasks" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:700; border:1px solid rgba(148,163,184,0.28); background:rgba(15,23,42,0.65); color:#94a3b8; cursor:pointer; transition:all 0.15s ease;">
+        <span id="global-tasks-dot" style="width:7px; height:7px; border-radius:50%; background:#64748b;"></span>
+        <span id="global-tasks-label">Tasks: Idle</span>
+      </button>
       <button type="button" id="btn-theme-toggle" class="theme-toggle-btn" title="Toggle Light / Dark Mode">
         <span id="theme-toggle-icon">☀️</span>
         <span id="theme-toggle-text">Light</span>
@@ -4588,6 +4592,27 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
   <button id="debug-test-click">Test: Programmatic Toggle Click</button>
   <div id="settings-floating-toast" class="hidden"></div>
 </div>
+
+<!-- GLOBAL RUNNING TASKS MODAL -->
+<div id="global-tasks-modal" class="hidden" style="position:fixed; inset:0; z-index:9999; background:rgba(5,8,16,0.72); backdrop-filter:blur(6px); display:flex; align-items:center; justify-content:center; padding:20px;">
+  <div style="width:100%; max-width:560px; max-height:76vh; display:flex; flex-direction:column; border-radius:14px; background:#0f172a; border:1px solid rgba(45,212,191,0.35); box-shadow:0 20px 60px rgba(0,0,0,0.65); overflow:hidden;">
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid rgba(148,163,184,0.16);">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:15px;">⚡</span>
+        <span style="font-size:14px; font-weight:800; color:#f8fafc;">Running Tasks</span>
+        <span id="global-tasks-modal-count" style="font-size:11px; font-weight:700; padding:1px 8px; border-radius:999px; background:rgba(45,212,191,0.14); color:#5eead4;">0 active</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button type="button" id="btn-global-tasks-refresh" class="btn-ghost-sm">Refresh</button>
+        <button type="button" id="btn-global-tasks-close" class="btn-ghost-sm" style="color:#cbd5e1;">✕</button>
+      </div>
+    </div>
+    <div id="global-tasks-list" style="padding:14px 18px; overflow-y:auto; display:flex; flex-direction:column; gap:10px;">
+      <div style="text-align:center; padding:28px 12px; color:#94a3b8; font-size:12.5px;">No tasks are currently running.</div>
+    </div>
+  </div>
+</div>
+
 <script src="i18n.js"></script>
 <script src="tauri-bridge.js"></script>
 <script src="voices_catalog.js"></script>

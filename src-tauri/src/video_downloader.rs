@@ -82,12 +82,47 @@ pub struct VideoDownloadProgressEvent {
 // Task Tracking & Cancellation Registry
 // ---------------------------------------------------------------------------
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActiveDownloadSnapshot {
+    pub task_id: String,
+    pub url: String,
+    pub title: String,
+    pub format: String,
+    pub percent: f64,
+    pub speed: String,
+    pub eta: String,
+    pub stage: String,
+    pub started_at: String,
+}
+
 static ACTIVE_TASKS: LazyLock<Mutex<HashMap<String, u32>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+static ACTIVE_DOWNLOAD_SNAPSHOTS: LazyLock<Mutex<HashMap<String, ActiveDownloadSnapshot>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 static CANCELLED_TASKS: LazyLock<Mutex<HashSet<String>>> =
     LazyLock::new(|| Mutex::new(HashSet::new()));
 pub static HISTORY_MUTEX: LazyLock<Mutex<()>> =
     LazyLock::new(|| Mutex::new(()));
+
+pub fn upsert_active_download_snapshot(snap: ActiveDownloadSnapshot) {
+    if let Ok(mut map) = ACTIVE_DOWNLOAD_SNAPSHOTS.lock() {
+        map.insert(snap.task_id.clone(), snap);
+    }
+}
+
+pub fn remove_active_download_snapshot(task_id: &str) {
+    if let Ok(mut map) = ACTIVE_DOWNLOAD_SNAPSHOTS.lock() {
+        map.remove(task_id);
+    }
+}
+
+pub fn list_active_downloads() -> Vec<ActiveDownloadSnapshot> {
+    if let Ok(map) = ACTIVE_DOWNLOAD_SNAPSHOTS.lock() {
+        map.values().cloned().collect()
+    } else {
+        Vec::new()
+    }
+}
 
 pub fn is_task_cancelled(task_id: &str) -> bool {
     if let Ok(cancelled) = CANCELLED_TASKS.lock() {
@@ -107,6 +142,7 @@ pub fn unregister_task_pid(task_id: &str) {
     if let Ok(mut tasks) = ACTIVE_TASKS.lock() {
         tasks.remove(task_id);
     }
+    remove_active_download_snapshot(task_id);
 }
 
 pub fn unregister_cancelled_task(task_id: &str) {
@@ -345,6 +381,89 @@ pub fn find_ffmpeg() -> Option<PathBuf> {
         }
     }
 
+    None
+}
+
+/// Locate `aria2c` for multi-connection HTTP/DASH acceleration (bypasses CDN per-stream throttling).
+pub fn find_aria2c() -> Option<PathBuf> {
+    if let Ok(p) = std::env::var("PIE_ARIA2C") {
+        let pb = PathBuf::from(&p);
+        if pb.is_file() {
+            return Some(pb);
+        }
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            for name in ["aria2c", "aria2c.exe"] {
+                let p = dir.join(name);
+                if p.is_file() {
+                    return Some(p);
+                }
+            }
+        }
+    }
+    #[cfg(windows)]
+    {
+        if let Ok(local) = std::env::var("LOCALAPPDATA") {
+            let base = PathBuf::from(&local);
+            let winget_link = base.join(r"Microsoft\WinGet\Links\aria2c.exe");
+            if winget_link.is_file() {
+                return Some(winget_link);
+            }
+            let winget_pkgs = base.join(r"Microsoft\WinGet\Packages");
+            if winget_pkgs.is_dir() {
+                if let Ok(entries) = std::fs::read_dir(&winget_pkgs) {
+                    for entry in entries.flatten() {
+                        let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
+                        if !name.contains("aria2") {
+                            continue;
+                        }
+                        let direct = entry.path().join("aria2c.exe");
+                        if direct.is_file() {
+                            return Some(direct);
+                        }
+                        if let Ok(subs) = std::fs::read_dir(entry.path()) {
+                            for sub in subs.flatten() {
+                                let cand = sub.path().join("aria2c.exe");
+                                if cand.is_file() {
+                                    return Some(cand);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if let Some(user_home) = dirs::home_dir() {
+            let scoop = user_home.join(r"scoop\shims\aria2c.exe");
+            if scoop.is_file() {
+                return Some(scoop);
+            }
+        }
+        let choco = PathBuf::from(r"C:\ProgramData\chocolatey\bin\aria2c.exe");
+        if choco.is_file() {
+            return Some(choco);
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        for p in ["/opt/homebrew/bin/aria2c", "/usr/local/bin/aria2c"] {
+            let pb = PathBuf::from(p);
+            if pb.is_file() {
+                return Some(pb);
+            }
+        }
+    }
+    if let Some(paths) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&paths) {
+            for name in ["aria2c", "aria2c.exe"] {
+                let cand = dir.join(name);
+                if cand.is_file() {
+                    return Some(cand);
+                }
+            }
+        }
+    }
     None
 }
 
@@ -1090,6 +1209,28 @@ pub fn build_ytdlp_args_with_filename(
     ffmpeg_location: Option<&Path>,
     custom_filename: Option<&str>,
 ) -> Vec<String> {
+    build_ytdlp_args_full(
+        url,
+        quality,
+        target_dir,
+        channel_limit,
+        embed_subtitles,
+        ffmpeg_location,
+        custom_filename,
+        None,
+    )
+}
+
+pub fn build_ytdlp_args_full(
+    url: &str,
+    quality: &str,
+    target_dir: &str,
+    channel_limit: Option<u32>,
+    embed_subtitles: bool,
+    ffmpeg_location: Option<&Path>,
+    custom_filename: Option<&str>,
+    aria2c_location: Option<&Path>,
+) -> Vec<String> {
     let mut args: Vec<String> = vec![
         "--no-warnings".to_string(),
         "--newline".to_string(),
@@ -1124,15 +1265,18 @@ pub fn build_ytdlp_args_with_filename(
 
     let is_sub_only = matches!(quality, "srt" | "subtitles" | "txt" | "transcript");
     if !is_sub_only {
-        // Maximize throughput on 1 Gbps+ connections:
-        // - `-N 12` downloads 12 HLS/m3u8 or DASH fragments concurrently (default is 1).
-        // - `--http-chunk-size 10M` bypasses per-stream CDN bandwidth throttling on direct HTTPS.
-        // - `--buffer-size 64K` avoids tiny 1 KB initial socket reads.
+        // Prevent silent socket stalls & per-stream CDN throttling:
+        // - `--socket-timeout 15` & `--throttled-rate 100K` auto-abort stalled/throttled sockets.
+        // - `--force-ipv4` avoids IPv6 blackholes on googlevideo.com / aria2c.
+        // - `-N 12` parallelizes HLS/m3u8 fragments.
         args.extend([
+            "--force-ipv4".to_string(),
+            "--socket-timeout".to_string(),
+            "15".to_string(),
+            "--throttled-rate".to_string(),
+            "100K".to_string(),
             "--concurrent-fragments".to_string(),
             "12".to_string(),
-            "--http-chunk-size".to_string(),
-            "10M".to_string(),
             "--buffer-size".to_string(),
             "64K".to_string(),
             "--retries".to_string(),
@@ -1140,6 +1284,24 @@ pub fn build_ytdlp_args_with_filename(
             "--fragment-retries".to_string(),
             "10".to_string(),
         ]);
+
+        if aria2c_location.is_some() {
+            // Route direct HTTPS/HTTP DASH streams through aria2c (16 parallel connections)
+            // while keeping m3u8/HLS on yt-dlp native `-N 12`.
+            args.extend([
+                "--downloader".to_string(),
+                "https:aria2c".to_string(),
+                "--downloader".to_string(),
+                "http:aria2c".to_string(),
+                "--downloader-args".to_string(),
+                "aria2c:-x 16 -s 16 -k 1M --disable-ipv6=true --max-tries=10 --retry-wait=3 --connect-timeout=15 --timeout=20 --summary-interval=1".to_string(),
+            ]);
+        } else {
+            args.extend([
+                "--http-chunk-size".to_string(),
+                "10M".to_string(),
+            ]);
+        }
     }
 
     // Quality presets
@@ -1658,6 +1820,7 @@ pub async fn video_dl_start(
     })?;
 
     let ffmpeg_bin = find_ffmpeg();
+    let aria2c_bin = find_aria2c();
     let quality = request.quality.unwrap_or_else(|| "best".to_string());
     let embed_subtitles = request.embed_subtitles.unwrap_or(false);
     let channel_limit = request.channel_limit;
@@ -1691,7 +1854,7 @@ pub async fn video_dl_start(
         .join(short_stage_id);
     let _ = std::fs::create_dir_all(&stage_dir);
 
-    let cli_args = build_ytdlp_args_with_filename(
+    let cli_args = build_ytdlp_args_full(
         &url,
         &quality,
         &stage_dir.to_string_lossy(),
@@ -1699,6 +1862,7 @@ pub async fn video_dl_start(
         embed_subtitles,
         ffmpeg_bin.as_deref(),
         custom_filename.as_deref(),
+        aria2c_bin.as_deref(),
     );
 
     let app_clone = app.clone();
@@ -1707,6 +1871,7 @@ pub async fn video_dl_start(
     let quality_clone = quality.clone();
     let target_dir_buf = target_dir.clone();
     let stage_dir_buf = stage_dir.clone();
+    let aria2c_dir_opt = aria2c_bin.as_ref().and_then(|p| p.parent().map(PathBuf::from));
 
     std::thread::spawn(move || {
         struct StageDirGuard(PathBuf);
@@ -1736,6 +1901,14 @@ pub async fn video_dl_start(
         };
 
         let mut cmd = create_command(&ytdlp_bin);
+        if let Some(ref aria_dir) = aria2c_dir_opt {
+            let cur_path = std::env::var_os("PATH").unwrap_or_default();
+            let mut joined = std::env::split_paths(&cur_path).collect::<Vec<_>>();
+            joined.insert(0, aria_dir.clone());
+            if let Ok(new_path) = std::env::join_paths(joined) {
+                cmd.env("PATH", new_path);
+            }
+        }
         cmd.args(&cli_args);
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
@@ -1822,11 +1995,50 @@ pub async fn video_dl_start(
             return;
         }
 
-        // Pre-create initial downloading entry in history
+        // Pre-create initial downloading entry in history & live task snapshot
+        let started_at_iso = current_iso_timestamp();
         let initial_title = format!("Downloading {}", classify_platform(&url_clone));
         let thumb_url = extract_thumbnail_url(&url_clone);
         let mut final_file_path = String::new();
         let mut final_title = initial_title.clone();
+
+        upsert_active_download_snapshot(ActiveDownloadSnapshot {
+            task_id: task_id_clone.clone(),
+            url: url_clone.clone(),
+            title: final_title.clone(),
+            format: quality_clone.clone(),
+            percent: 0.0,
+            speed: "0 KiB/s".to_string(),
+            eta: "--:--".to_string(),
+            stage: "initializing".to_string(),
+            started_at: started_at_iso.clone(),
+        });
+
+        let emit_dl_progress = |pct: f64, speed: &str, eta: &str, dl_bytes: u64, tot_bytes: u64, title: &str, stage: &str, status_s: &str| {
+            upsert_active_download_snapshot(ActiveDownloadSnapshot {
+                task_id: task_id_clone.clone(),
+                url: url_clone.clone(),
+                title: title.to_string(),
+                format: quality_clone.clone(),
+                percent: pct,
+                speed: speed.to_string(),
+                eta: eta.to_string(),
+                stage: stage.to_string(),
+                started_at: started_at_iso.clone(),
+            });
+            let _ = app_clone.emit("video-download-progress", VideoDownloadProgressEvent {
+                task_id: task_id_clone.clone(),
+                url: url_clone.clone(),
+                status: status_s.to_string(),
+                percent: pct,
+                speed: speed.to_string(),
+                eta: eta.to_string(),
+                downloaded_bytes: dl_bytes,
+                total_bytes: tot_bytes,
+                title: title.to_string(),
+                stage: stage.to_string(),
+            });
+        };
 
         if let Some(hist_path) = history_file_path(&app_clone) {
             let initial_item = DownloadHistoryItem {
@@ -1896,74 +2108,50 @@ pub async fn video_dl_start(
                         let percent: f64 = percent_raw.parse().unwrap_or(0.0);
                         let speed = parts[4].trim().to_string();
                         let eta = parts[5].trim().to_string();
-
-                        let _ = app_clone.emit("video-download-progress", VideoDownloadProgressEvent {
-                            task_id: task_id_clone.clone(),
-                            url: url_clone.clone(),
-                            status: "downloading".to_string(),
-                            percent,
-                            speed,
-                            eta,
-                            downloaded_bytes: downloaded,
-                            total_bytes: total,
-                            title: final_title.clone(),
-                            stage: "downloading".to_string(),
-                        });
+                        emit_dl_progress(percent, &speed, &eta, downloaded, total, &final_title, "downloading", "downloading");
                     }
+                } else if trimmed.starts_with("[#") && trimmed.contains("%)") && trimmed.contains("DL:") {
+                    // Parse aria2c live progress line: `[#b2bf9c 147MiB/154MiB(95%) CN:13 DL:7.2MiB ETA:1s]`
+                    let pct = trimmed
+                        .split("%)")
+                        .next()
+                        .and_then(|left| left.rsplit('(').next())
+                        .and_then(|n| n.trim().parse::<f64>().ok())
+                        .unwrap_or(0.0);
+                    let dl_speed = trimmed
+                        .split("DL:")
+                        .nth(1)
+                        .and_then(|s| s.split_whitespace().next())
+                        .map(|s| format!("{s}/s"))
+                        .unwrap_or_else(|| "0 KiB/s".to_string());
+                    let eta = trimmed
+                        .split("ETA:")
+                        .nth(1)
+                        .and_then(|s| s.split(|c: char| c.is_whitespace() || c == ']').next())
+                        .unwrap_or("--:--")
+                        .to_string();
+                    emit_dl_progress(pct, &dl_speed, &eta, 0, 0, &final_title, "downloading (16x)", "downloading");
                 } else if trimmed.starts_with("[download] Destination:") {
                     let dest = trimmed.trim_start_matches("[download] Destination:").trim();
                     final_file_path = dest.to_string();
                     if let Some(name) = Path::new(dest).file_stem() {
                         final_title = name.to_string_lossy().to_string();
                     }
-                    let _ = app_clone.emit("video-download-progress", VideoDownloadProgressEvent {
-                        task_id: task_id_clone.clone(),
-                        url: url_clone.clone(),
-                        status: "downloading".to_string(),
-                        percent: 0.0,
-                        speed: "0 KiB/s".to_string(),
-                        eta: "--:--".to_string(),
-                        downloaded_bytes: 0,
-                        total_bytes: 0,
-                        title: final_title.clone(),
-                        stage: "preparing".to_string(),
-                    });
+                    emit_dl_progress(0.0, "0 KiB/s", "--:--", 0, 0, &final_title, "preparing", "downloading");
                 } else if trimmed.starts_with("[info] Writing video subtitles to:") {
                     let dest = trimmed.trim_start_matches("[info] Writing video subtitles to:").trim();
                     final_file_path = dest.to_string();
                     if let Some(name) = Path::new(dest).file_stem() {
                         final_title = name.to_string_lossy().to_string();
                     }
-                    let _ = app_clone.emit("video-download-progress", VideoDownloadProgressEvent {
-                        task_id: task_id_clone.clone(),
-                        url: url_clone.clone(),
-                        status: "downloading".to_string(),
-                        percent: 85.0,
-                        speed: "0 KiB/s".to_string(),
-                        eta: "00:01".to_string(),
-                        downloaded_bytes: 0,
-                        total_bytes: 0,
-                        title: final_title.clone(),
-                        stage: "extracting_transcript".to_string(),
-                    });
+                    emit_dl_progress(85.0, "0 KiB/s", "00:01", 0, 0, &final_title, "extracting_transcript", "downloading");
                 } else if trimmed.starts_with("[ExtractAudio] Destination:") {
                     let dest = trimmed.trim_start_matches("[ExtractAudio] Destination:").trim();
                     final_file_path = dest.to_string();
                     if let Some(name) = Path::new(dest).file_stem() {
                         final_title = name.to_string_lossy().to_string();
                     }
-                    let _ = app_clone.emit("video-download-progress", VideoDownloadProgressEvent {
-                        task_id: task_id_clone.clone(),
-                        url: url_clone.clone(),
-                        status: "extracting_audio".to_string(),
-                        percent: 95.0,
-                        speed: "0 KiB/s".to_string(),
-                        eta: "00:01".to_string(),
-                        downloaded_bytes: 0,
-                        total_bytes: 0,
-                        title: final_title.clone(),
-                        stage: "extracting_audio".to_string(),
-                    });
+                    emit_dl_progress(95.0, "0 KiB/s", "00:01", 0, 0, &final_title, "extracting_audio", "extracting_audio");
                 } else if trimmed.contains("Merging formats into") {
                     let clean = trimmed.replace('\"', "");
                     if let Some(idx) = clean.find("Merging formats into ") {
@@ -1973,35 +2161,22 @@ pub async fn video_dl_start(
                             final_title = name.to_string_lossy().to_string();
                         }
                     }
-                    let _ = app_clone.emit("video-download-progress", VideoDownloadProgressEvent {
-                        task_id: task_id_clone.clone(),
-                        url: url_clone.clone(),
-                        status: "merging".to_string(),
-                        percent: 98.0,
-                        speed: "0 KiB/s".to_string(),
-                        eta: "00:01".to_string(),
-                        downloaded_bytes: 0,
-                        total_bytes: 0,
-                        title: final_title.clone(),
-                        stage: "merging".to_string(),
-                    });
+                    emit_dl_progress(98.0, "0 KiB/s", "00:01", 0, 0, &final_title, "merging", "merging");
                 } else if trimmed.starts_with("[download]") && trimmed.contains('%') {
                     // Fallback regex/simple token parsing for standard [download] lines
                     let tokens: Vec<&str> = trimmed.split_whitespace().collect();
                     if tokens.len() >= 2 {
                         if let Ok(p) = tokens[1].trim_end_matches('%').parse::<f64>() {
-                            let _ = app_clone.emit("video-download-progress", VideoDownloadProgressEvent {
-                                task_id: task_id_clone.clone(),
-                                url: url_clone.clone(),
-                                status: "downloading".to_string(),
-                                percent: p,
-                                speed: tokens.get(6).unwrap_or(&"0 KiB/s").to_string(),
-                                eta: tokens.get(8).unwrap_or(&"--:--").to_string(),
-                                downloaded_bytes: 0,
-                                total_bytes: 0,
-                                title: final_title.clone(),
-                                stage: "downloading".to_string(),
-                            });
+                            emit_dl_progress(
+                                p,
+                                tokens.get(6).unwrap_or(&"0 KiB/s"),
+                                tokens.get(8).unwrap_or(&"--:--"),
+                                0,
+                                0,
+                                &final_title,
+                                "downloading",
+                                "downloading",
+                            );
                         }
                     }
                 }
