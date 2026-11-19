@@ -2800,7 +2800,7 @@ try:
     segs_gen, _info = model.transcribe(
         tmp_wav, language=None, beam_size=2, word_timestamps=True,
         vad_filter=True,
-        vad_parameters=dict(min_silence_duration_ms=250),
+        vad_parameters=dict(min_silence_duration_ms=250, speech_pad_ms=80),
         condition_on_previous_text=False, no_speech_threshold=0.6,
     )
     segs = []
@@ -2815,10 +2815,15 @@ try:
         txt = (s.text or "").strip()
         if not has_speakable_text(txt):
             continue
-        det_gender, f0_hz, f0_valid = detect_segment_gender(samples, sr, float(s.start), float(s.end))
+        words_list = list(getattr(s, "words", None) or [])
+        seg_start = float(words_list[0].start) if words_list else float(s.start)
+        seg_end = float(words_list[-1].end) if words_list else float(s.end)
+        seg_start = max(0.0, max(float(s.start), seg_start))
+        seg_end = max(seg_start + 0.12, seg_end)
+        det_gender, f0_hz, f0_valid = detect_segment_gender(samples, sr, seg_start, seg_end)
         segs.append({
-            "start": float(s.start),
-            "end": float(s.end),
+            "start": seg_start,
+            "end": seg_end,
             "text": txt,
             "gender": det_gender,
             "f0": f0_hz,

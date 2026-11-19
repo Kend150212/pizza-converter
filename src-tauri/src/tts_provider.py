@@ -1978,10 +1978,8 @@ def render_studio_dubbing_mix(
         prev_orig_end = float(segs[idx - 1].get("end", 0.0)) if idx > 0 else 0.0
         next_orig_start = float(segs[idx + 1].get("start", total_samples / float(sr))) if idx + 1 < total_cues else (total_samples / float(sr) + 1.5)
 
-        leading_gap = max(0.0, orig_start - max(prev_orig_end, cursor_sample / float(sr)))
-        # Reset cumulative drift when there is a real scene/sentence pause >= 0.38s
-        borrow_lead = min(0.16, leading_gap * 0.50) if leading_gap > 0.08 else 0.0
-        ideal_start_sec = max(cursor_sample / float(sr), orig_start - borrow_lead)
+        # Never start dubbing BEFORE the speaker actually begins speaking (orig_start)
+        ideal_start_sec = max(cursor_sample / float(sr), orig_start)
         start_pos = int(round(ideal_start_sec * sr))
 
         trailing_gap = max(0.0, next_orig_start - orig_end)

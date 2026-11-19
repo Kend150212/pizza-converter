@@ -586,7 +586,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
           <span class="nav-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg></span>
           <span data-i18n="nav_history">History</span>
         </button>
-        <button type="button" class="nav-item" id="btn-global-tasks" title="View &amp; manage all running background tasks">
+        <button type="button" class="nav-item" data-view="runningtasks" id="btn-global-tasks" title="View &amp; manage all running background tasks">
           <span class="nav-ico"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
           <span>Running Tasks</span>
           <span id="global-tasks-label" style="margin-left:auto; font-size:9.5px; font-weight:800; padding:1.5px 7px; border-radius:999px; background:rgba(148,163,184,0.16); color:#94a3b8; display:inline-flex; align-items:center; gap:4px;">
@@ -3692,6 +3692,28 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
         <div class="fineprint" data-i18n="history_fineprint"></div>
       </section>
 
+      <section id="view-runningtasks" class="view hidden">
+        <div class="section-label">RUNNING TASKS &amp; BACKGROUND QUEUE</div>
+        <div class="card" style="padding:14px 16px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-size:18px;">⚡</span>
+            <div>
+              <div class="row-title" style="display:flex; align-items:center; gap:8px;">
+                <span>Active &amp; Paused Tasks</span>
+                <span id="global-tasks-modal-count" style="font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; background:rgba(45,212,191,0.14); color:#5eead4;">0 active</span>
+              </div>
+              <div class="row-sub">Tasks are saved automatically and resume if the app closes unexpectedly. Use Stop to pause and keep partial progress, or Cancel to abort.</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button type="button" id="btn-global-tasks-refresh" class="btn-ghost-sm">Refresh</button>
+          </div>
+        </div>
+        <div id="global-tasks-list" style="display:flex; flex-direction:column; gap:10px;">
+          <div class="card" style="text-align:center; padding:36px 16px; color:#94a3b8; font-size:13px;">No tasks are currently running.</div>
+        </div>
+      </section>
+
       <section id="view-contact" class="view hidden">
         <div class="section-label" data-i18n="sec_contact">SUPPORT &amp; FEEDBACK</div>
         <div class="card" style="padding: 10px 14px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
@@ -4595,26 +4617,6 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
   <div id="debug-log"></div>
   <button id="debug-test-click">Test: Programmatic Toggle Click</button>
   <div id="settings-floating-toast" class="hidden"></div>
-</div>
-
-<!-- GLOBAL RUNNING TASKS MODAL -->
-<div id="global-tasks-modal" class="hidden" style="position:fixed; inset:0; z-index:9999; background:rgba(5,8,16,0.72); backdrop-filter:blur(6px); display:flex; align-items:center; justify-content:center; padding:20px;">
-  <div style="width:100%; max-width:560px; max-height:76vh; display:flex; flex-direction:column; border-radius:14px; background:#0f172a; border:1px solid rgba(45,212,191,0.35); box-shadow:0 20px 60px rgba(0,0,0,0.65); overflow:hidden;">
-    <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid rgba(148,163,184,0.16);">
-      <div style="display:flex; align-items:center; gap:8px;">
-        <span style="font-size:15px;">⚡</span>
-        <span style="font-size:14px; font-weight:800; color:#f8fafc;">Running Tasks</span>
-        <span id="global-tasks-modal-count" style="font-size:11px; font-weight:700; padding:1px 8px; border-radius:999px; background:rgba(45,212,191,0.14); color:#5eead4;">0 active</span>
-      </div>
-      <div style="display:flex; align-items:center; gap:8px;">
-        <button type="button" id="btn-global-tasks-refresh" class="btn-ghost-sm">Refresh</button>
-        <button type="button" id="btn-global-tasks-close" class="btn-ghost-sm" style="color:#cbd5e1;">✕</button>
-      </div>
-    </div>
-    <div id="global-tasks-list" style="padding:14px 18px; overflow-y:auto; display:flex; flex-direction:column; gap:10px;">
-      <div style="text-align:center; padding:28px 12px; color:#94a3b8; font-size:12.5px;">No tasks are currently running.</div>
-    </div>
-  </div>
 </div>
 
 <script src="i18n.js"></script>

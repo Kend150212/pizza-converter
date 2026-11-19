@@ -146,6 +146,7 @@ document.querySelectorAll('.nav-item').forEach(btn => {
       videodownloader: t('videodl_title') || 'Video Downloader Pro',
       pro: t('pro_title'),
       history: t('nav_history'),
+      runningtasks: 'Running Tasks',
       contact: t('nav_contact') || 'Support & Feedback',
       about: t('nav_about'),
       privacy: t('nav_privacy'),
@@ -9465,10 +9466,9 @@ refreshAutoMontageTab();
   const pillDot = document.getElementById('global-tasks-dot');
   const pillLbl = document.getElementById('global-tasks-label');
   const pillText = document.getElementById('global-tasks-text');
-  const modal = document.getElementById('global-tasks-modal');
+  const viewEl = document.getElementById('view-runningtasks');
   const listEl = document.getElementById('global-tasks-list');
   const countEl = document.getElementById('global-tasks-modal-count');
-  const btnClose = document.getElementById('btn-global-tasks-close');
   const btnRefresh = document.getElementById('btn-global-tasks-refresh');
 
   const liveConvertTasks = new Map();
@@ -9510,7 +9510,7 @@ refreshAutoMontageTab();
 
       lastSnapshot = merged;
       updatePill(merged);
-      if (modal && !modal.classList.contains('hidden')) {
+      if (viewEl && !viewEl.classList.contains('hidden')) {
         renderModalList(merged);
       }
     } catch (_) {}
@@ -9565,7 +9565,7 @@ refreshAutoMontageTab();
       }
     }
     if (!items || items.length === 0) {
-      listEl.innerHTML = `<div style="text-align:center; padding:28px 12px; color:#94a3b8; font-size:12.5px;">No tasks are currently running.</div>`;
+      listEl.innerHTML = `<div class="card" style="text-align:center; padding:36px 16px; color:#94a3b8; font-size:13px;">No tasks are currently running.</div>`;
       return;
     }
 
@@ -9659,18 +9659,9 @@ refreshAutoMontageTab();
     });
   }
 
-  if (pillBtn && modal) {
+  if (pillBtn) {
     pillBtn.addEventListener('click', () => {
-      modal.classList.remove('hidden');
       fetchAndRenderTasks();
-    });
-  }
-  if (btnClose && modal) {
-    btnClose.addEventListener('click', () => modal.classList.add('hidden'));
-  }
-  if (modal) {
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.classList.add('hidden');
     });
   }
   if (btnRefresh) {
@@ -9697,7 +9688,7 @@ refreshAutoMontageTab();
     }).catch(() => {});
 
     window.__TAURI__.event.listen('video-download-progress', () => {
-      if (modal && !modal.classList.contains('hidden')) {
+      if (viewEl && !viewEl.classList.contains('hidden')) {
         fetchAndRenderTasks();
       } else {
         updatePill(Math.max(1, lastSnapshot.length));
