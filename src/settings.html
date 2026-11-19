@@ -2091,6 +2091,93 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
                 </button>
               </div>
             </div>
+
+            <!-- CARD 6: SCRIPT + FOOTAGE -> VOICE + HIGHLIGHT SUB -> CAPCUT DRAFT -->
+            <div class="card" id="card-script-capcut-director" style="border-color: rgba(45, 212, 191, 0.32); background: linear-gradient(180deg, rgba(15, 23, 42, 0.65), rgba(15, 23, 42, 0.85));">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
+                <div>
+                  <div class="card-title" style="margin-bottom:2px; display:flex; align-items:center; gap:8px;">
+                    <span>🎬 Script + Footage → CapCut Draft</span>
+                    <span class="cai-status-pill ok" style="font-size:10px;">BETA</span>
+                  </div>
+                  <div class="row-sub">Pick a project folder, synthesize voiceover from your script, auto-pick sharp camera angles &amp; export an editable CapCut Draft with highlighted subtitles.</div>
+                </div>
+              </div>
+
+              <div class="row">
+                <div>
+                  <div class="row-title">Project Folder</div>
+                  <div class="row-sub" id="sd-folder-summary">No folder selected — auto-detects footage, script.txt/.md, and BGM.</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px; flex:1; max-width:340px; justify-content:flex-end;">
+                  <input type="text" id="inp-sd-folder-path" placeholder="Select project folder..." readonly style="flex:1; font-size:11px;">
+                  <button class="btn btn-outline" id="btn-sd-pick-folder">Browse Folder...</button>
+                </div>
+              </div>
+
+              <div style="margin: 10px 0;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:5px;">
+                  <span class="row-title" style="font-size:12px;">Narration Script</span>
+                  <span id="sd-script-source-badge" style="font-size:10.5px; color:#94a3b8;">Auto-loaded from script.txt / script.md or paste below</span>
+                </div>
+                <textarea id="txt-sd-script" rows="4" placeholder="Paste your voiceover script here (or put script.txt / script.md inside the selected folder)..." style="width:100%; resize:vertical; font-size:12px; line-height:1.45; padding:9px 11px; border-radius:8px; border:1px solid rgba(148,163,184,0.22); background:rgba(9,13,22,0.7); color:#f1f5f9;"></textarea>
+              </div>
+
+              <div class="row">
+                <div>
+                  <div class="row-title">Voiceover Voice &amp; Language</div>
+                  <div class="row-sub">Supports Neural TTS and your custom cloned voices.</div>
+                </div>
+                <div style="display:flex; gap:6px; align-items:center;">
+                  <select id="sel-sd-lang" style="font-size:11.5px;">
+                    <option value="en">English (en)</option>
+                    <option value="vi">Vietnamese (vi)</option>
+                    <option value="ja">Japanese (ja)</option>
+                    <option value="zh">Chinese (zh)</option>
+                    <option value="ko">Korean (ko)</option>
+                    <option value="es">Spanish (es)</option>
+                    <option value="fr">French (fr)</option>
+                  </select>
+                  <select id="sel-sd-voice" style="font-size:11.5px; max-width:190px;">
+                    <option value="auto">Auto (Best Neural)</option>
+                    <option value="andrew">Andrew (US Male)</option>
+                    <option value="ava">Ava (US Female)</option>
+                    <option value="brian">Brian (US Male)</option>
+                    <option value="namminh">Nam Minh (VN Male)</option>
+                    <option value="hoaimy">Hoai My (VN Female)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="row">
+                <div>
+                  <div class="row-title">Highlight Color &amp; Export Target</div>
+                  <div class="row-sub">Keywords are emphasized in CapCut rich-text layers.</div>
+                </div>
+                <div style="display:flex; gap:6px; align-items:center;">
+                  <select id="sel-sd-highlight" style="font-size:11.5px;">
+                    <option value="#FACC15">Amber Gold (#FACC15)</option>
+                    <option value="#38BDF8">Cyan Sky (#38BDF8)</option>
+                    <option value="#4ADE80">Mint Green (#4ADE80)</option>
+                    <option value="#FB7185">Coral Pink (#FB7185)</option>
+                  </select>
+                  <select id="sel-sd-target" style="font-size:11.5px;">
+                    <option value="capcut">CapCut Drafts Folder</option>
+                    <option value="project">Inside Project Folder</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style="margin-top:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <button class="btn btn-primary" id="btn-sd-generate-draft" style="flex:1; min-width:220px; padding:11px 16px; font-size:12.5px; font-weight:700; background:linear-gradient(135deg, #14b8a6, #0ea5e9); border:none;">
+                  ✨ Generate CapCut Draft Project
+                </button>
+                <button class="btn btn-outline hidden" id="btn-sd-open-draft" style="padding:11px 14px; font-size:12px;">
+                  📁 Open Draft Folder
+                </button>
+              </div>
+              <div id="sd-result-banner" class="hidden" style="margin-top:10px; padding:9px 12px; border-radius:8px; background:rgba(20,184,166,0.12); border:1px solid rgba(45,212,191,0.35); font-size:11.5px; color:#99f6e4;"></div>
+            </div>
           </div>
 
           <!-- RIGHT COLUMN: STICKY LIVE PREVIEW & HISTORY -->

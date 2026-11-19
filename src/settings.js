@@ -9331,6 +9331,126 @@ function bindAutoMontageEvents() {
       }
     }).catch(() => {});
   }
+
+  // Script + Footage -> Voice + Highlight Sub -> CapCut Draft Director
+  const btnSdPick = document.getElementById('btn-sd-pick-folder');
+  const inpSdFolder = document.getElementById('inp-sd-folder-path');
+  const lblSdSummary = document.getElementById('sd-folder-summary');
+  const txtSdScript = document.getElementById('txt-sd-script');
+  const lblSdScriptSrc = document.getElementById('sd-script-source-badge');
+  const selSdVoice = document.getElementById('sel-sd-voice');
+  const selSdLang = document.getElementById('sel-sd-lang');
+  const selSdHighlight = document.getElementById('sel-sd-highlight');
+  const selSdTarget = document.getElementById('sel-sd-target');
+  const btnSdGen = document.getElementById('btn-sd-generate-draft');
+  const btnSdOpen = document.getElementById('btn-sd-open-draft');
+  const sdResultBanner = document.getElementById('sd-result-banner');
+  let lastSdDraftDir = '';
+
+  const populateSdClonedVoices = async () => {
+    if (!selSdVoice) return;
+    try {
+      const clones = await invoke('get_cloned_voices');
+      selSdVoice.querySelectorAll('option[data-clone="1"]').forEach(o => o.remove());
+      if (Array.isArray(clones)) {
+        clones.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.id;
+          opt.dataset.clone = '1';
+          opt.textContent = `🧬 ${c.name} (Cloned)`;
+          selSdVoice.appendChild(opt);
+        });
+      }
+    } catch (_) {}
+  };
+  populateSdClonedVoices();
+
+  if (btnSdPick) {
+    btnSdPick.addEventListener('click', async () => {
+      try {
+        const picked = await invoke('pick_folder');
+        if (!picked) return;
+        if (inpSdFolder) inpSdFolder.value = picked;
+        if (lblSdSummary) lblSdSummary.textContent = 'Scanning folder...';
+        const scan = await invoke('scan_script_director_folder_cmd', { folder: picked });
+        const vCount = Array.isArray(scan?.videos) ? scan.videos.length : 0;
+        const hasBgm = Boolean(scan?.bgm_path);
+        const hasCache = Boolean(scan?.has_cache);
+        if (lblSdSummary) {
+          lblSdSummary.textContent = `${vCount} footage clip(s) · ${hasBgm ? 'BGM found' : 'No BGM'} · ${hasCache ? 'Cached index ready' : 'Will index on run'}`;
+        }
+        if (scan?.script_text && txtSdScript) {
+          txtSdScript.value = scan.script_text;
+          if (lblSdScriptSrc) {
+            const sName = (scan.script_path || 'script').replace(/\\/g, '/').split('/').pop();
+            lblSdScriptSrc.textContent = `Loaded: ${sName}`;
+          }
+        } else if (lblSdScriptSrc) {
+          lblSdScriptSrc.textContent = 'No script file found — paste script below';
+        }
+      } catch (err) {
+        if (lblSdSummary) lblSdSummary.textContent = `Scan error: ${err}`;
+      }
+    });
+  }
+
+  if (btnSdGen) {
+    btnSdGen.addEventListener('click', async () => {
+      const folder = inpSdFolder ? inpSdFolder.value.trim() : '';
+      const scriptText = txtSdScript ? txtSdScript.value.trim() : '';
+      if (!folder) {
+        alert('Please select a project folder first.');
+        return;
+      }
+      if (!scriptText) {
+        alert('Please enter a narration script or add script.txt / script.md in the folder.');
+        if (txtSdScript) txtSdScript.focus();
+        return;
+      }
+      btnSdGen.disabled = true;
+      btnSdGen.textContent = '⏳ Analyzing Footage, Synthesizing Voice & Exporting Draft...';
+      if (sdResultBanner) sdResultBanner.classList.add('hidden');
+      if (btnSdOpen) btnSdOpen.classList.add('hidden');
+      try {
+        const res = await invoke('run_script_director_cmd', {
+          folder,
+          scriptText,
+          aspect: montageState.aspect || '9:16',
+          voice: selSdVoice ? selSdVoice.value : 'auto',
+          lang: selSdLang ? selSdLang.value : 'en',
+          exportTarget: selSdTarget ? selSdTarget.value : 'capcut',
+          highlightColor: selSdHighlight ? selSdHighlight.value : '#FACC15',
+        });
+        lastSdDraftDir = res?.draft_dir || '';
+        if (sdResultBanner) {
+          sdResultBanner.textContent = `✓ CapCut Draft "${res?.project_name || 'Draft'}" created (${res?.beats_count || 0} beats, ${res?.duration_sec || 0}s across ${res?.footage_count || 0} footage clips). Open CapCut Desktop to edit!`;
+          sdResultBanner.classList.remove('hidden');
+        }
+        if (btnSdOpen && lastSdDraftDir) {
+          btnSdOpen.classList.remove('hidden');
+        }
+      } catch (err) {
+        if (sdResultBanner) {
+          sdResultBanner.textContent = `✕ Error: ${err}`;
+          sdResultBanner.classList.remove('hidden');
+        }
+      } finally {
+        btnSdGen.disabled = false;
+        btnSdGen.textContent = '✨ Generate CapCut Draft Project';
+      }
+    });
+  }
+
+  if (btnSdOpen) {
+    btnSdOpen.addEventListener('click', async () => {
+      if (!lastSdDraftDir) return;
+      try {
+        await invoke('open_file', { path: lastSdDraftDir });
+      } catch {
+        await invoke('show_in_folder', { path: lastSdDraftDir }).catch(() => {});
+      }
+    });
+  }
 }
 
 // Bind Auto Montage listeners on load

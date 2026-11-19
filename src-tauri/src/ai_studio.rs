@@ -985,6 +985,127 @@ pub fn run_auto_montage_task(
     }
 }
 
+#[tauri::command]
+pub async fn scan_script_director_folder_cmd(folder: String) -> Result<serde_json::Value, String> {
+    let folder_trimmed = folder.trim().to_string();
+    if folder_trimmed.is_empty() {
+        return Err("Folder path cannot be empty".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let py = convertx_engine::office::find_python()
+            .ok_or_else(|| "Python runtime not found".to_string())?;
+        let mod_dir = crate::voice_studio::ensure_tts_provider_module_dir()?;
+        let script_guard = TempFileGuard::new("pizza_sd_scan", "py");
+        std::fs::write(script_guard.path(), include_str!("script_director_worker.py"))
+            .map_err(|e| e.to_string())?;
+        let job_guard = TempFileGuard::new("pizza_sd_scan_job", "json");
+        let job_payload = serde_json::json!({
+            "mode": "scan",
+            "folder": folder_trimmed,
+        });
+        std::fs::write(job_guard.path(), job_payload.to_string()).map_err(|e| e.to_string())?;
+
+        let sep = if cfg!(windows) { ";" } else { ":" };
+        let py_path = match std::env::var("PYTHONPATH") {
+            Ok(cur) if !cur.trim().is_empty() => format!("{}{sep}{cur}", mod_dir.display()),
+            _ => mod_dir.display().to_string(),
+        };
+        let mut cmd = std::process::Command::new(py);
+        cmd.env("PYTHONPATH", py_path)
+            .env("PYTHONUTF8", "1")
+            .env("PYTHONIOENCODING", "utf-8")
+            .arg("-u")
+            .arg(script_guard.path())
+            .arg(job_guard.path())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000 | 0x00004000);
+        }
+        let out = cmd.output().map_err(|e| format!("Failed to run folder scanner: {e}"))?;
+        if !out.status.success() {
+            let err = String::from_utf8_lossy(&out.stderr);
+            return Err(format!("Folder scan failed: {}", err.trim()));
+        }
+        let stdout_str = String::from_utf8_lossy(&out.stdout);
+        let last_line = stdout_str.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("{}");
+        serde_json::from_str::<serde_json::Value>(last_line)
+            .map_err(|e| format!("Failed to parse folder scan result: {e}"))
+    })
+    .await
+    .map_err(|e| format!("Scan task failed: {e}"))?
+}
+
+#[tauri::command]
+pub async fn run_script_director_cmd(
+    app: tauri::AppHandle,
+    folder: String,
+    script_text: String,
+    aspect: String,
+    voice: String,
+    lang: String,
+    export_target: String,
+    highlight_color: String,
+) -> Result<serde_json::Value, String> {
+    let folder_trimmed = folder.trim().to_string();
+    if folder_trimmed.is_empty() {
+        return Err("Please select a project folder first.".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let ffmpeg_bin = convertx_engine::av::find_ffmpeg()
+            .ok_or_else(|| "FFmpeg not found".to_string())?;
+        let folder_label = Path::new(&folder_trimmed)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("Project")
+            .to_string();
+
+        let job_guard = TempFileGuard::new("pizza_sd_job", "json");
+        let res_guard = TempFileGuard::new("pizza_sd_res", "json");
+        let job_payload = serde_json::json!({
+            "mode": "generate",
+            "folder": folder_trimmed,
+            "script_text": script_text,
+            "aspect": aspect,
+            "voice": voice,
+            "lang": lang,
+            "export_target": export_target,
+            "highlight_color": highlight_color,
+            "ffmpeg_bin": ffmpeg_bin.to_string_lossy().into_owned(),
+            "result_path": res_guard.path().to_string_lossy().into_owned(),
+        });
+        std::fs::write(job_guard.path(), serde_json::to_string_pretty(&job_payload).unwrap_or_default())
+            .map_err(|e| format!("Failed to write Script Director job: {e}"))?;
+
+        let job_s = job_guard.path().to_string_lossy().into_owned();
+        let script = include_str!("script_director_worker.py");
+        run_python_streaming_with_ai(
+            &app,
+            "script_director",
+            &folder_label,
+            Some("auto_montage"),
+            script,
+            &[&job_s],
+        )
+        .map_err(|e| {
+            if e == "STOPPED_BY_USER" {
+                e
+            } else {
+                format!("Script Director error: {e}")
+            }
+        })?;
+
+        let res_raw = std::fs::read_to_string(res_guard.path())
+            .map_err(|_| "Script Director did not produce a CapCut Draft result.".to_string())?;
+        serde_json::from_str::<serde_json::Value>(&res_raw)
+            .map_err(|e| format!("Invalid Script Director result: {e}"))
+    })
+    .await
+    .map_err(|e| format!("Script Director task failed: {e}"))?
+}
+
 /// Generate AI Subtitles from Video/Audio (`to_srt`, `to_vtt`, `to_ass`, `to_transcript`)
 /// OR Convert / Translate existing Subtitle files (`.srt`, `.vtt`, `.ass` -> `srt`, `vtt`, `ass`, `txt`, `sub_en`, `sub_vi`, `sub_zh`, `sub_ja`, `sub_ko`, `sub_es`, `sub_fr`).
 pub fn run_ai_subtitle_task(

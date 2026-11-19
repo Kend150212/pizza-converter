@@ -329,6 +329,8 @@ pub fn run() {
             convert_cmd::pick_files,
             convert_cmd::run_auto_montage_cmd,
             convert_cmd::get_image_data_url_cmd,
+            ai_studio::scan_script_director_folder_cmd,
+            ai_studio::run_script_director_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Pizza Converter");

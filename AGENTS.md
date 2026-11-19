@@ -227,6 +227,10 @@
       - **v1.0.7.0 Store Release, Legal/Privacy/Terms BYOK Update & iMac App Sync (Nov 17, 2026)**:
         - Bumped version to `1.0.7` / `1.0.7.0` (`src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, `package_msix.ps1`, `src/settings.html`, `src/settings.js`) and packaged validated Microsoft Store MSIX (`dist/store_packages/PizzaConverter_1.0.7.0_x64.msix`).
         - Updated `About`, `Privacy Policy`, `Terms of Service` (`src/settings.html`), and Onboarding (`src/settings.js`) to disclose BYOK Cloud AI providers (OpenAI, Google Gemini, Anthropic Claude, DeepSeek, OpenRouter, Meta AI), Cloud TTS / Instant Voice Cloning (ElevenLabs, OpenAI TTS, Gemini TTS, VieNeu-TTS, Edge TTS), OS Credential Vault storage, Video Downloader (`yt-dlp`), Voice Studio Local REST API, and user BYOK billing/copyright/consent responsibilities.
+      - **AI Script + Footage → Voiceover + Highlight Sub → CapCut Draft Director (Nov 19, 2026)**:
+        - Backed up `v1.0.7.0-stable` (`backups/v1.0.7.0-stable/` + git tag `v1.0.7.0-stable`).
+        - Added `src-tauri/src/script_director_worker.py` + `scan_script_director_folder_cmd` & `run_script_director_cmd` in `src-tauri/src/ai_studio.rs` & `lib.rs` + Smart Cut Studio card in `src/settings.html` & `src/settings.js`.
+        - Automatically scans a chosen project folder (footage + `script.txt`/`script.md` + optional BGM), caches OpenCV sharpness/shake/shot-size & AI scene tags in `.pizza_footage_index.json`, splits script into beats, synthesizes per-beat voiceover via `tts_provider.py` (including custom cloned voices), matches footage with Shot Variety rules, and exports an editable CapCut Desktop Draft (`draft_content.json` + `draft_meta_info.json` with video, voice, BGM, and keyword-highlighted rich-text tracks).
 
 ## 3. Automatic Multi-Machine Workflow (Lúc ngồi Mac, lúc ngồi PC)
 - **When the user is on PC (`Windows`)**:
