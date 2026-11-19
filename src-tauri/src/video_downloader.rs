@@ -101,6 +101,8 @@ static ACTIVE_DOWNLOAD_SNAPSHOTS: LazyLock<Mutex<HashMap<String, ActiveDownloadS
     LazyLock::new(|| Mutex::new(HashMap::new()));
 static CANCELLED_TASKS: LazyLock<Mutex<HashSet<String>>> =
     LazyLock::new(|| Mutex::new(HashSet::new()));
+static PAUSED_TASKS: LazyLock<Mutex<HashSet<String>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
 pub static HISTORY_MUTEX: LazyLock<Mutex<()>> =
     LazyLock::new(|| Mutex::new(()));
 
@@ -127,6 +129,36 @@ pub fn list_active_downloads() -> Vec<ActiveDownloadSnapshot> {
 pub fn is_task_cancelled(task_id: &str) -> bool {
     if let Ok(cancelled) = CANCELLED_TASKS.lock() {
         cancelled.contains(task_id)
+    } else {
+        false
+    }
+}
+
+pub fn is_task_paused(task_id: &str) -> bool {
+    if let Ok(paused) = PAUSED_TASKS.lock() {
+        paused.contains(task_id)
+    } else {
+        false
+    }
+}
+
+pub fn unregister_paused_task(task_id: &str) {
+    if let Ok(mut paused) = PAUSED_TASKS.lock() {
+        paused.remove(task_id);
+    }
+}
+
+pub fn video_dl_pause(app: &AppHandle, task_id: &str) -> bool {
+    if let Ok(mut paused) = PAUSED_TASKS.lock() {
+        paused.insert(task_id.to_string());
+    }
+    crate::task_queue::set_task_status(app, task_id, "paused");
+
+    let pid = ACTIVE_TASKS.lock().ok().and_then(|tasks| tasks.get(task_id).copied());
+    if let Some(p) = pid {
+        kill_process_tree(p);
+        unregister_task_pid(task_id);
+        true
     } else {
         false
     }
@@ -1806,6 +1838,31 @@ pub async fn video_dl_start(
     app: AppHandle,
     request: VideoDownloadRequest,
 ) -> Result<String, String> {
+    spawn_video_download_task(app, request, None, None).await
+}
+
+pub async fn resume_video_download(
+    app: AppHandle,
+    task: crate::task_queue::PersistedTask,
+) -> Result<(), String> {
+    let req = VideoDownloadRequest {
+        url: task.url,
+        quality: Some(task.target),
+        target_dir: task.target_dir,
+        channel_limit: task.channel_limit,
+        embed_subtitles: Some(task.embed_subtitles),
+        custom_filename: task.custom_filename,
+    };
+    spawn_video_download_task(app, req, Some(task.task_id), task.stage_id).await?;
+    Ok(())
+}
+
+async fn spawn_video_download_task(
+    app: AppHandle,
+    request: VideoDownloadRequest,
+    existing_task_id: Option<String>,
+    existing_stage_id: Option<String>,
+) -> Result<String, String> {
     let raw_url = request.url.trim().to_string();
     if raw_url.is_empty() {
         return Err("Download URL cannot be empty".to_string());
@@ -1821,7 +1878,7 @@ pub async fn video_dl_start(
 
     let ffmpeg_bin = find_ffmpeg();
     let aria2c_bin = find_aria2c();
-    let quality = request.quality.unwrap_or_else(|| "best".to_string());
+    let quality = request.quality.clone().unwrap_or_else(|| "best".to_string());
     let embed_subtitles = request.embed_subtitles.unwrap_or(false);
     let channel_limit = request.channel_limit;
     let custom_filename = request.custom_filename.clone();
@@ -1844,15 +1901,37 @@ pub async fn video_dl_start(
     let _ = std::fs::create_dir_all(&target_dir);
 
     let now_ms = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis();
-    let task_id = format!("dl_{now_ms}");
+    let task_id = existing_task_id.unwrap_or_else(|| format!("dl_{now_ms}"));
+    unregister_cancelled_task(&task_id);
+    unregister_paused_task(&task_id);
 
     // Short isolated per-task staging folder (`pz_dl/<short_id>`) so Windows MAX_PATH budget
-    // stays maximal while still isolating auxiliary subtitle pruning / temp `.part` files.
-    let short_stage_id = format!("{:x}", now_ms);
+    // stays maximal and `.part` / `.aria2` partial files can be resumed across Stop/Resume or crashes.
+    let short_stage_id = existing_stage_id.unwrap_or_else(|| format!("{:x}", now_ms));
     let stage_dir = std::env::temp_dir()
         .join("pz_dl")
-        .join(short_stage_id);
+        .join(&short_stage_id);
     let _ = std::fs::create_dir_all(&stage_dir);
+
+    crate::task_queue::upsert_task(&app, crate::task_queue::PersistedTask {
+        task_id: task_id.clone(),
+        kind: "video_dl".to_string(),
+        status: "running".to_string(),
+        title: custom_filename.clone().unwrap_or_else(|| format!("Downloading {}", classify_platform(&url))),
+        target: quality.clone(),
+        url: url.clone(),
+        target_dir: Some(target_dir.to_string_lossy().to_string()),
+        channel_limit,
+        embed_subtitles,
+        custom_filename: custom_filename.clone(),
+        stage_id: Some(short_stage_id.clone()),
+        inputs: Vec::new(),
+        percent: 0.0,
+        speed: "0 KiB/s".to_string(),
+        eta: "--:--".to_string(),
+        stage: "downloading".to_string(),
+        updated_at: current_iso_timestamp(),
+    });
 
     let cli_args = build_ytdlp_args_full(
         &url,
@@ -1874,13 +1953,22 @@ pub async fn video_dl_start(
     let aria2c_dir_opt = aria2c_bin.as_ref().and_then(|p| p.parent().map(PathBuf::from));
 
     std::thread::spawn(move || {
-        struct StageDirGuard(PathBuf);
+        struct StageDirGuard {
+            dir: PathBuf,
+            task_id: String,
+        }
         impl Drop for StageDirGuard {
             fn drop(&mut self) {
-                let _ = std::fs::remove_dir_all(&self.0);
+                // Keep partial `.part` / `.aria2` files when paused so Resume continues at exact byte offset!
+                if !is_task_paused(&self.task_id) {
+                    let _ = std::fs::remove_dir_all(&self.dir);
+                }
             }
         }
-        let _stage_guard = StageDirGuard(stage_dir_buf.clone());
+        let _stage_guard = StageDirGuard {
+            dir: stage_dir_buf.clone(),
+            task_id: task_id_clone.clone(),
+        };
 
         let move_staged_to_target = |staged_file: &Path| -> Result<PathBuf, String> {
             let rel = staged_file
@@ -1914,7 +2002,16 @@ pub async fn video_dl_start(
         cmd.stderr(std::process::Stdio::piped());
 
         // Pre-spawn cancellation check
+        if is_task_paused(&task_id_clone) {
+            crate::task_queue::set_task_status(&app_clone, &task_id_clone, "paused");
+            let _ = app_clone.emit("video-download-paused", serde_json::json!({
+                "task_id": task_id_clone
+            }));
+            return;
+        }
+
         if is_task_cancelled(&task_id_clone) {
+            crate::task_queue::remove_task(&app_clone, &task_id_clone);
             let initial_title = format!("Downloading {}", classify_platform(&url_clone));
             let thumb_url = extract_thumbnail_url(&url_clone);
             if let Some(hist_path) = history_file_path(&app_clone) {
@@ -1960,7 +2057,16 @@ pub async fn video_dl_start(
         register_task_pid(&task_id_clone, pid);
 
         // Immediate post-spawn cancellation check
+        if is_task_paused(&task_id_clone) {
+            crate::task_queue::set_task_status(&app_clone, &task_id_clone, "paused");
+            let _ = app_clone.emit("video-download-paused", serde_json::json!({
+                "task_id": task_id_clone
+            }));
+            return;
+        }
+
         if is_task_cancelled(&task_id_clone) {
+            crate::task_queue::remove_task(&app_clone, &task_id_clone);
             kill_process_tree(pid);
             let _ = child.kill();
             let _ = child.wait();
@@ -2014,6 +2120,7 @@ pub async fn video_dl_start(
             started_at: started_at_iso.clone(),
         });
 
+        let last_persisted_pct = std::cell::Cell::new(-5.0_f64);
         let emit_dl_progress = |pct: f64, speed: &str, eta: &str, dl_bytes: u64, tot_bytes: u64, title: &str, stage: &str, status_s: &str| {
             upsert_active_download_snapshot(ActiveDownloadSnapshot {
                 task_id: task_id_clone.clone(),
@@ -2026,6 +2133,10 @@ pub async fn video_dl_start(
                 stage: stage.to_string(),
                 started_at: started_at_iso.clone(),
             });
+            if (pct - last_persisted_pct.get()).abs() >= 2.0 || pct >= 98.0 {
+                last_persisted_pct.set(pct);
+                crate::task_queue::update_task_progress(&app_clone, &task_id_clone, title, pct, speed, eta, stage);
+            }
             let _ = app_clone.emit("video-download-progress", VideoDownloadProgressEvent {
                 task_id: task_id_clone.clone(),
                 url: url_clone.clone(),
@@ -2083,7 +2194,7 @@ pub async fn video_dl_start(
             let mut reader = BufReader::new(out_pipe);
             let mut raw_buf = Vec::with_capacity(512);
             while let Some(line) = read_lossy_line(&mut reader, &mut raw_buf) {
-                if is_task_cancelled(&task_id_clone) {
+                if is_task_cancelled(&task_id_clone) || is_task_paused(&task_id_clone) {
                     kill_process_tree(pid);
                     let _ = child.kill();
                     break;
@@ -2190,7 +2301,16 @@ pub async fn video_dl_start(
             stderr_output = stdout_error_lines;
         }
 
+        if is_task_paused(&task_id_clone) {
+            crate::task_queue::set_task_status(&app_clone, &task_id_clone, "paused");
+            let _ = app_clone.emit("video-download-paused", serde_json::json!({
+                "task_id": task_id_clone
+            }));
+            return;
+        }
+
         if is_task_cancelled(&task_id_clone) {
+            crate::task_queue::remove_task(&app_clone, &task_id_clone);
             if let Some(hist_path) = history_file_path(&app_clone) {
                 let cancelled_item = DownloadHistoryItem {
                     id: task_id_clone.clone(),
@@ -2554,7 +2674,9 @@ pub async fn video_dl_start(
                 "task_id": task_id_clone,
                 "item": completed_item
             }));
+            crate::task_queue::remove_task(&app_clone, &task_id_clone);
         } else {
+            crate::task_queue::remove_task(&app_clone, &task_id_clone);
             let (err_cat, err_msg) = classify_yt_dlp_error(&stderr_output, exit_code);
             let failed_item = DownloadHistoryItem {
                 id: task_id_clone.clone(),

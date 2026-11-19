@@ -9492,7 +9492,7 @@ refreshAutoMontageTab();
             };
           }
         } else if (t.kind === 'video_dl') {
-          if (typeof updateActiveDlCard === 'function') {
+          if (typeof updateActiveDlCard === 'function' && t.status !== 'paused') {
             updateActiveDlCard({
               task_id: t.task_id,
               url: t.url || '',
@@ -9509,21 +9509,39 @@ refreshAutoMontageTab();
       });
 
       lastSnapshot = merged;
-      updatePill(merged.length);
+      updatePill(merged);
       if (modal && !modal.classList.contains('hidden')) {
         renderModalList(merged);
       }
     } catch (_) {}
   }
 
-  function updatePill(count) {
+  function updatePill(itemsOrCount) {
     if (!pillBtn || !pillDot || !pillLbl) return;
-    if (count > 0) {
+    const list = Array.isArray(itemsOrCount) ? itemsOrCount : [];
+    const runningCount = Array.isArray(itemsOrCount)
+      ? list.filter(t => t.status !== 'paused').length
+      : Number(itemsOrCount || 0);
+    const pausedCount = Array.isArray(itemsOrCount)
+      ? list.filter(t => t.status === 'paused').length
+      : 0;
+
+    if (runningCount > 0) {
       pillLbl.style.background = 'rgba(20, 184, 166, 0.2)';
       pillLbl.style.color = '#5eead4';
       pillDot.style.background = '#2dd4bf';
       pillDot.style.boxShadow = '0 0 8px #2dd4bf';
-      if (pillText) pillText.textContent = `${count} Running`;
+      if (pillText) {
+        pillText.textContent = pausedCount > 0
+          ? `${runningCount} Running · ${pausedCount} Paused`
+          : `${runningCount} Running`;
+      }
+    } else if (pausedCount > 0) {
+      pillLbl.style.background = 'rgba(245, 158, 11, 0.18)';
+      pillLbl.style.color = '#fbbf24';
+      pillDot.style.background = '#f59e0b';
+      pillDot.style.boxShadow = '0 0 8px rgba(245,158,11,0.5)';
+      if (pillText) pillText.textContent = `${pausedCount} Paused`;
     } else {
       pillLbl.style.background = 'rgba(148, 163, 184, 0.16)';
       pillLbl.style.color = '#94a3b8';
@@ -9535,7 +9553,17 @@ refreshAutoMontageTab();
 
   function renderModalList(items) {
     if (!listEl) return;
-    if (countEl) countEl.textContent = `${items.length} active`;
+    const runningCount = (items || []).filter(t => t.status !== 'paused').length;
+    const pausedCount = (items || []).filter(t => t.status === 'paused').length;
+    if (countEl) {
+      if (runningCount > 0 && pausedCount > 0) {
+        countEl.textContent = `${runningCount} running · ${pausedCount} paused`;
+      } else if (pausedCount > 0) {
+        countEl.textContent = `${pausedCount} paused`;
+      } else {
+        countEl.textContent = `${runningCount} active`;
+      }
+    }
     if (!items || items.length === 0) {
       listEl.innerHTML = `<div style="text-align:center; padding:28px 12px; color:#94a3b8; font-size:12.5px;">No tasks are currently running.</div>`;
       return;
@@ -9544,24 +9572,41 @@ refreshAutoMontageTab();
     listEl.innerHTML = '';
     items.forEach(item => {
       const card = document.createElement('div');
+      const isPaused = item.status === 'paused';
       card.style.cssText = 'padding:10px 12px; border-radius:10px; background:rgba(30,41,59,0.72); border:1px solid rgba(148,163,184,0.2); display:flex; flex-direction:column; gap:6px;';
       const pct = Math.max(0, Math.min(100, Math.round(item.percent || 0)));
       const kindBadge = item.kind === 'video_dl' ? 'VIDEO DL' : 'PROCESS';
-      const metaParts = [item.stage || 'running'];
-      if (item.speed) metaParts.push(item.speed);
-      if (item.eta && item.eta !== '--:--') metaParts.push(`ETA ${item.eta}`);
+      const statusBadge = isPaused
+        ? `<span style="font-size:9.5px; font-weight:800; padding:2px 6px; border-radius:5px; background:rgba(245,158,11,0.18); color:#fbbf24; flex-shrink:0;">PAUSED</span>`
+        : '';
+      const metaParts = [isPaused ? 'paused' : (item.stage || 'running')];
+      if (!isPaused && item.speed) metaParts.push(item.speed);
+      if (!isPaused && item.eta && item.eta !== '--:--') metaParts.push(`ETA ${item.eta}`);
       if (pct > 0) metaParts.push(`${pct}%`);
+
+      const actionButtons = isPaused
+        ? `<button type="button" class="btn-ghost-sm btn-resume-global-task" style="color:#5eead4; border-color:rgba(20,184,166,0.45); flex-shrink:0;">Resume</button>
+           <button type="button" class="btn-ghost-sm btn-cancel-global-task" style="color:#fda4af; border-color:rgba(244,63,94,0.45); flex-shrink:0;">Cancel</button>`
+        : `<button type="button" class="btn-ghost-sm btn-stop-global-task" style="color:#fbbf24; border-color:rgba(245,158,11,0.45); flex-shrink:0;">Stop</button>
+           <button type="button" class="btn-ghost-sm btn-cancel-global-task" style="color:#fda4af; border-color:rgba(244,63,94,0.45); flex-shrink:0;">Cancel</button>`;
+
+      const barColor = isPaused
+        ? 'linear-gradient(90deg, #f59e0b, #fbbf24)'
+        : 'linear-gradient(90deg, #38bdf8, #2dd4bf)';
 
       card.innerHTML = `
         <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
           <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">
             <span style="font-size:9.5px; font-weight:800; padding:2px 6px; border-radius:5px; background:rgba(56,189,248,0.15); color:#38bdf8; flex-shrink:0;">${kindBadge}</span>
+            ${statusBadge}
             <span style="font-size:12px; font-weight:700; color:#f1f5f9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${item.title || ''}">${item.title || item.target || 'Background Task'}</span>
           </div>
-          <button type="button" class="btn-ghost-sm btn-stop-global-task" style="color:#fda4af; border-color:rgba(244,63,94,0.45); flex-shrink:0;">Stop</button>
+          <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+            ${actionButtons}
+          </div>
         </div>
         <div style="width:100%; height:4px; border-radius:999px; background:rgba(255,255,255,0.1); overflow:hidden;">
-          <div style="height:100%; width:${pct}%; background:linear-gradient(90deg, #38bdf8, #2dd4bf); transition:width 0.2s ease;"></div>
+          <div style="height:100%; width:${pct}%; background:${barColor}; transition:width 0.2s ease;"></div>
         </div>
         <div style="font-size:10.5px; color:#94a3b8;">${metaParts.join(' · ')}</div>
       `;
@@ -9572,15 +9617,44 @@ refreshAutoMontageTab();
           stopBtn.disabled = true;
           stopBtn.textContent = 'Stopping...';
           try {
-            if (item.kind === 'video_dl') {
-              await invoke('video_dl_cancel', { taskId: item.task_id });
-            } else {
-              await invoke('cancel_task_cmd', { target: item.target || null, taskId: item.task_id || null });
-            }
+            await invoke('pause_task_cmd', {
+              kind: item.kind || 'convert',
+              taskId: item.task_id,
+              target: item.target || null,
+            });
           } catch (_) {}
           setTimeout(fetchAndRenderTasks, 300);
         });
       }
+
+      const resumeBtn = card.querySelector('.btn-resume-global-task');
+      if (resumeBtn) {
+        resumeBtn.addEventListener('click', async () => {
+          resumeBtn.disabled = true;
+          resumeBtn.textContent = 'Resuming...';
+          try {
+            await invoke('resume_task_cmd', { taskId: item.task_id });
+          } catch (_) {}
+          setTimeout(fetchAndRenderTasks, 350);
+        });
+      }
+
+      const cancelBtn = card.querySelector('.btn-cancel-global-task');
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', async () => {
+          cancelBtn.disabled = true;
+          cancelBtn.textContent = 'Cancelling...';
+          try {
+            await invoke('cancel_task_permanent_cmd', {
+              kind: item.kind || 'convert',
+              taskId: item.task_id,
+              target: item.target || null,
+            });
+          } catch (_) {}
+          setTimeout(fetchAndRenderTasks, 300);
+        });
+      }
+
       listEl.appendChild(card);
     });
   }
@@ -9608,7 +9682,7 @@ refreshAutoMontageTab();
       const p = e?.payload;
       if (!p) return;
       const key = p.task_id || p.target || 'convert';
-      if (p.state === 'done' || p.state === 'error' || p.state === 'stopped') {
+      if (p.state === 'done' || p.state === 'error' || p.state === 'stopped' || p.state === 'paused') {
         liveConvertTasks.delete(key);
         if (p.target) liveConvertTasks.delete(p.target);
         setTimeout(fetchAndRenderTasks, 150);
@@ -9631,6 +9705,7 @@ refreshAutoMontageTab();
     }).catch(() => {});
 
     window.__TAURI__.event.listen('video-download-complete', () => setTimeout(fetchAndRenderTasks, 200)).catch(() => {});
+    window.__TAURI__.event.listen('video-download-paused', () => setTimeout(fetchAndRenderTasks, 200)).catch(() => {});
     window.__TAURI__.event.listen('video-download-error', () => setTimeout(fetchAndRenderTasks, 200)).catch(() => {});
   }
 

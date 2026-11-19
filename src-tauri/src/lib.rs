@@ -12,6 +12,7 @@ pub mod radial_model;
 pub mod selection;
 pub mod tray;
 pub mod security;
+pub mod task_queue;
 pub mod video_downloader;
 pub mod voice_studio;
 pub mod voice_api;
@@ -219,6 +220,13 @@ pub fn run() {
             // Start Voice Studio Local REST API Server if enabled
             voice_api::spawn_server(app.handle().clone());
 
+            // Auto-resume any tasks that were still running before an unexpected shutdown
+            let resume_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(1200));
+                crate::task_queue::auto_resume_interrupted_tasks(&resume_handle);
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -236,6 +244,9 @@ pub fn run() {
             convert_cmd::convert_any_cmd,
             convert_cmd::generate_custom_barcode_cmd,
             convert_cmd::cancel_task_cmd,
+            convert_cmd::pause_task_cmd,
+            convert_cmd::resume_task_cmd,
+            convert_cmd::cancel_task_permanent_cmd,
             convert_cmd::get_running_tasks_cmd,
             convert_cmd::file_meta,
             convert_cmd::pick_file,

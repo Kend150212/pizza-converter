@@ -128,13 +128,15 @@ pub fn unregister_child_pid(pid: u32) {
     }
 }
 
-/// Return a unified live snapshot of all currently running background tasks
+/// Return a unified live snapshot of all currently running or paused background tasks
 /// (Video Downloads + AI Studio / Conversion / Montage / Script Director jobs).
 #[tauri::command]
-pub async fn get_running_tasks_cmd() -> Result<Vec<serde_json::Value>, String> {
+pub async fn get_running_tasks_cmd(app: tauri::AppHandle) -> Result<Vec<serde_json::Value>, String> {
     let mut out: Vec<serde_json::Value> = Vec::new();
+    let mut seen_ids = std::collections::HashSet::<String>::new();
 
     for dl in crate::video_downloader::list_active_downloads() {
+        seen_ids.insert(dl.task_id.clone());
         out.push(serde_json::json!({
             "kind": "video_dl",
             "task_id": dl.task_id,
@@ -144,6 +146,7 @@ pub async fn get_running_tasks_cmd() -> Result<Vec<serde_json::Value>, String> {
             "speed": dl.speed,
             "eta": dl.eta,
             "stage": dl.stage,
+            "status": "running",
             "url": dl.url,
             "started_at": dl.started_at,
         }));
@@ -153,6 +156,7 @@ pub async fn get_running_tasks_cmd() -> Result<Vec<serde_json::Value>, String> {
         for item in list.iter() {
             let tgt = if item.target.is_empty() { "convert".to_string() } else { item.target.clone() };
             let tid = item.task_id.clone().unwrap_or_else(|| format!("pid_{}", item.pid));
+            seen_ids.insert(tid.clone());
             out.push(serde_json::json!({
                 "kind": "convert",
                 "task_id": tid,
@@ -163,11 +167,150 @@ pub async fn get_running_tasks_cmd() -> Result<Vec<serde_json::Value>, String> {
                 "speed": "",
                 "eta": "",
                 "stage": "processing",
+                "status": "running",
+            }));
+        }
+    }
+
+    for persisted in crate::task_queue::list_tasks(&app) {
+        if !seen_ids.contains(&persisted.task_id) {
+            seen_ids.insert(persisted.task_id.clone());
+            out.push(serde_json::json!({
+                "kind": persisted.kind,
+                "task_id": persisted.task_id,
+                "title": persisted.title,
+                "target": persisted.target,
+                "percent": persisted.percent,
+                "speed": persisted.speed,
+                "eta": persisted.eta,
+                "stage": if persisted.status == "paused" { "paused".to_string() } else { persisted.stage },
+                "status": persisted.status,
+                "url": persisted.url,
             }));
         }
     }
 
     Ok(out)
+}
+
+static PAUSED_CONVERT_TASKS: std::sync::LazyLock<Mutex<std::collections::HashSet<String>>> =
+    std::sync::LazyLock::new(|| Mutex::new(std::collections::HashSet::new()));
+
+struct PersistConvertTaskGuard {
+    app: tauri::AppHandle,
+    task_id: String,
+}
+
+impl Drop for PersistConvertTaskGuard {
+    fn drop(&mut self) {
+        let is_paused = PAUSED_CONVERT_TASKS
+            .lock()
+            .map(|mut s| s.remove(&self.task_id))
+            .unwrap_or(false);
+        if !is_paused {
+            crate::task_queue::remove_task(&self.app, &self.task_id);
+        }
+    }
+}
+
+/// Pause (Stop) a running background task while keeping its state & partial files for Resume.
+#[tauri::command]
+pub async fn pause_task_cmd(
+    app: tauri::AppHandle,
+    kind: String,
+    task_id: String,
+    target: Option<String>,
+) -> Result<bool, String> {
+    if kind == "video_dl" {
+        return Ok(crate::video_downloader::video_dl_pause(&app, &task_id));
+    }
+
+    if let Ok(mut set) = PAUSED_CONVERT_TASKS.lock() {
+        set.insert(task_id.clone());
+    }
+    crate::task_queue::set_task_status(&app, &task_id, "paused");
+
+    let mut pids_to_kill = Vec::new();
+    if let Ok(mut list) = ACTIVE_TASKS.lock() {
+        let mut remaining = Vec::new();
+        for item in list.drain(..) {
+            let match_tid = item.task_id.as_deref() == Some(task_id.as_str());
+            let match_tgt = target.as_ref().map_or(false, |tgt| !tgt.is_empty() && item.target == *tgt);
+            if match_tid || match_tgt {
+                pids_to_kill.push(item.pid);
+            } else {
+                remaining.push(item);
+            }
+        }
+        *list = remaining;
+    }
+    for pid in pids_to_kill {
+        kill_pid_tree(pid);
+    }
+
+    let _ = app.emit(
+        "convert-progress",
+        serde_json::json!({
+            "state": "paused",
+            "done": 0,
+            "total": 1,
+            "percent": 0,
+            "current": "⏸ Paused by user",
+            "target": target.unwrap_or_else(|| "convert".to_string()),
+            "task_id": task_id,
+            "error": serde_json::Value::Null,
+            "out_path": serde_json::Value::Null,
+        }),
+    );
+    Ok(true)
+}
+
+/// Resume a previously paused or interrupted background task.
+#[tauri::command]
+pub async fn resume_task_cmd(
+    app: tauri::AppHandle,
+    task_id: String,
+) -> Result<(), String> {
+    let task = crate::task_queue::get_task(&app, &task_id)
+        .ok_or_else(|| "Paused task no longer exists in queue.".to_string())?;
+    if task.kind == "convert" {
+        if let Ok(mut set) = PAUSED_CONVERT_TASKS.lock() {
+            set.remove(&task_id);
+        }
+        crate::task_queue::remove_task(&app, &task_id);
+    }
+    crate::task_queue::resume_persisted_task(&app, task).await
+}
+
+/// Permanently cancel a running or paused task and clean up any partial staging files.
+#[tauri::command]
+pub async fn cancel_task_permanent_cmd(
+    app: tauri::AppHandle,
+    kind: String,
+    task_id: String,
+    target: Option<String>,
+) -> Result<(), String> {
+    if kind == "video_dl" {
+        let persisted = crate::task_queue::get_task(&app, &task_id);
+        let _ = crate::video_downloader::video_dl_cancel(task_id.clone()).await;
+        crate::video_downloader::unregister_paused_task(&task_id);
+        crate::task_queue::remove_task(&app, &task_id);
+        if let Some(t) = persisted {
+            if let Some(sid) = t.stage_id {
+                let stage_dir = std::env::temp_dir().join("pz_dl").join(sid);
+                if stage_dir.exists() {
+                    let _ = std::fs::remove_dir_all(&stage_dir);
+                }
+            }
+        }
+        return Ok(());
+    }
+
+    if let Ok(mut set) = PAUSED_CONVERT_TASKS.lock() {
+        set.remove(&task_id);
+    }
+    crate::task_queue::remove_task(&app, &task_id);
+    cancel_task_cmd(app, target, Some(task_id))
 }
 
 pub fn kill_all_active_children() {
@@ -608,6 +751,45 @@ pub fn convert_any_cmd(
         inputs.iter().map(std::path::PathBuf::from).collect();
     let total = in_paths.len();
     let first = &in_paths[0];
+
+    let _persist_guard = {
+        let first_name = first
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("file")
+            .to_string();
+        let label = if total > 1 {
+            format!("{} ({} files)", target, total)
+        } else {
+            format!("{} — {}", target, first_name)
+        };
+        crate::task_queue::upsert_task(
+            &app,
+            crate::task_queue::PersistedTask {
+                task_id: task_id.clone(),
+                kind: "convert".to_string(),
+                status: "running".to_string(),
+                title: label,
+                target: target.clone(),
+                url: String::new(),
+                target_dir: None,
+                channel_limit: None,
+                embed_subtitles: false,
+                custom_filename: None,
+                stage_id: None,
+                inputs: inputs.clone(),
+                percent: 0.0,
+                speed: String::new(),
+                eta: String::new(),
+                stage: "processing".to_string(),
+                updated_at: task_millis.to_string(),
+            },
+        );
+        PersistConvertTaskGuard {
+            app: app.clone(),
+            task_id: task_id.clone(),
+        }
+    };
 
     // Special case: When 2+ images are selected and the user picks "pdf" (or "merge_img_pdf"),
     // combine all N selected images in exact order into 1 single multi-page PDF!

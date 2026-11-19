@@ -234,6 +234,10 @@
       - **Video Downloader Anti-Stall (`aria2c` 16x + Socket Timeout) & Unified Running Tasks Monitor (Nov 19, 2026)**:
         - Added `find_aria2c()`, `--force-ipv4`, `--socket-timeout 15`, `--throttled-rate 100K`, and automatic `https:aria2c` / `http:aria2c` 16-connection routing (`-x 16 -s 16 -k 1M --disable-ipv6=true`) with live `aria2c` progress parsing in `src-tauri/src/video_downloader.rs`.
         - Added `ActiveDownloadSnapshot` + `get_running_tasks_cmd()` (`src-tauri/src/convert_cmd.rs`, `lib.rs`) and a live **Running Tasks Pill & Modal** in the Settings titlebar (`src/settings.html`, `src/settings.js`) showing all active downloads and AI/conversion jobs with 1-click Stop/Cancel.
+      - **Persistent Task Queue, Crash Auto-Resume & Stop / Cancel / Resume Controls (Nov 19, 2026)**:
+        - Added `src-tauri/src/task_queue.rs` (`PersistedTask`, `running_tasks_state.json` in `app_data_dir()`): persists active `video_dl` and `convert` tasks, preserves `pz_dl/<stage_id>` `.part`/`.aria2` partial files when paused or interrupted, and automatically resumes `"running"` tasks on app startup (`auto_resume_interrupted_tasks` in `lib.rs`).
+        - Added `video_dl_pause()` (`src-tauri/src/video_downloader.rs`), `pause_task_cmd`, `resume_task_cmd`, and `cancel_task_permanent_cmd` (`src-tauri/src/convert_cmd.rs`, `lib.rs`).
+        - Updated Running Tasks modal (`src/settings.js`) with **Stop** (Pause, keeping `.part`/`.aria2` files), **Resume** (for paused tasks), and **Cancel** (permanent abort + cleanup) buttons, plus live `Running` / `Paused` pill status.
 
 ## 3. Automatic Multi-Machine Workflow (Lúc ngồi Mac, lúc ngồi PC)
 - **When the user is on PC (`Windows`)**:
