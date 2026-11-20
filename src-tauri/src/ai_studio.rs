@@ -430,6 +430,15 @@ pub fn run_python_streaming_with_ai(
                             format!("{file_label} · {msg}")
                         };
                         if !crate::convert_cmd::is_task_cancelled(Some(&task_id), Some(target_id)) {
+                            crate::task_queue::update_task_progress(
+                                &app,
+                                &task_id,
+                                "",
+                                pct as f64,
+                                "",
+                                "",
+                                &current_label,
+                            );
                             let _ = app.emit(
                                 "convert-progress",
                                 serde_json::json!({
@@ -2889,8 +2898,8 @@ try:
         enc_flags = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p"]
         enc_label = "LIBX264"
         for ename, eflags in [
-            ("NVENC", ["-c:v", "h264_nvenc", "-preset", "p4", "-cq", "21", "-pix_fmt", "yuv420p"]),
-            ("AMF", ["-c:v", "h264_amf", "-quality", "balanced", "-rc", "cqp", "-qp_i", "21", "-qp_p", "21", "-pix_fmt", "yuv420p"]),
+            ("NVENC", ["-c:v", "h264_nvenc", "-preset", "p2", "-cq", "21", "-pix_fmt", "yuv420p"]),
+            ("AMF", ["-c:v", "h264_amf", "-quality", "speed", "-rc", "cqp", "-qp_i", "21", "-qp_p", "21", "-pix_fmt", "yuv420p"]),
             ("QSV", ["-c:v", "h264_qsv", "-global_quality", "21", "-pix_fmt", "yuv420p"]),
             ("VIDEOTOOLBOX", ["-c:v", "h264_videotoolbox", "-b:v", "6M", "-pix_fmt", "yuv420p"]),
         ]:
@@ -3099,7 +3108,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 cmd = [
                     ffmpeg_bin, "-y", "-hide_banner", "-loglevel", "error",
                     "-progress", "pipe:1", "-nostats",
-                    "-threads", str(SAFE_CPU),
+                    "-threads", str(SAFE_CPU), "-filter_threads", "4",
                     "-i", in_path, "-i", mixed_wav,
                     "-vf", vf_arg,
                     "-map", "0:v:0", "-map", "1:a:0",

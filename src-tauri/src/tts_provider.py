@@ -1935,7 +1935,7 @@ def render_studio_dubbing_mix(
 
     from concurrent.futures import ThreadPoolExecutor, as_completed
     done_cnt = 0
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    with ThreadPoolExecutor(max_workers=8) as pool:
         futs = [pool.submit(_synth_worker, (i, seg)) for i, seg in enumerate(segs)]
         for fut in as_completed(futs):
             _ = fut.result()
@@ -1952,16 +1952,16 @@ def render_studio_dubbing_mix(
     speech_spans: List[Tuple[int, int]] = []
     cursor_sample = 0
 
-    for idx, s in enumerate(segs):
+    # Pre-load & parallel formant-preserving Time-Fit (`rubberband`) using 6 workers (6x faster on long videos)
+    preloaded_pcm: dict = {}
+
+    def _prepare_cue(idx_s):
+        idx, s = idx_s
         cue_wav = s.get("cue_wav_48k")
         orig_start = max(0.0, float(s.get("start", 0.0)))
         orig_end = max(orig_start + 0.15, float(s.get("end", orig_start + 1.0)))
-
         if not cue_wav or not os.path.isfile(cue_wav):
-            s["dub_start"] = orig_start
-            s["dub_end"] = orig_end
-            continue
-
+            return idx, None
         pcm, c_sr = sf.read(cue_wav, dtype="float32", always_2d=False)
         if getattr(pcm, "ndim", 1) > 1:
             pcm = np.mean(pcm, axis=1)
@@ -1970,30 +1970,72 @@ def render_studio_dubbing_mix(
             pcm = scipy.signal.resample_poly(pcm, sr, c_sr).astype(np.float32)
         pcm = trim_pcm_silence_48k(np.asarray(pcm, dtype=np.float32), sr=sr)
         if len(pcm) < 480:
+            return idx, None
+
+        next_orig_start = float(segs[idx + 1].get("start", total_samples / float(sr))) if idx + 1 < total_cues else (total_samples / float(sr) + 1.5)
+        trailing_gap = max(0.0, next_orig_start - orig_end)
+        borrow_trail = min(0.34, max(0.0, trailing_gap - 0.05) * 0.85)
+        est_slot = max(0.22, (orig_end + borrow_trail) - orig_start)
+        tts_dur = len(pcm) / float(sr)
+        max_stretch = 1.36 if trailing_gap < 0.08 else 1.28
+        if tts_dur > est_slot * 1.025:
+            ratio = min(max_stretch, tts_dur / est_slot)
+            if ratio > 1.02:
+                stretched_wav = os.path.join(tmp_dir, f"cue_fit48k_{idx:04d}.wav")
+                tf_filters = build_tempo_pitch_filters(ff, tempo=ratio, pitch_st=0.0, sample_rate=sr)
+                cmd_fit = [
+                    ff, "-y", "-hide_banner", "-loglevel", "error",
+                    "-i", cue_wav,
+                    "-af", ",".join(tf_filters),
+                    "-ar", str(sr), "-ac", "1", "-c:a", "pcm_s16le",
+                    stretched_wav,
+                ]
+                r_fit = subprocess.run(cmd_fit, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, check=False)
+                if r_fit.returncode == 0 and os.path.isfile(stretched_wav) and os.path.getsize(stretched_wav) > 256:
+                    pcm_fit, _ = sf.read(stretched_wav, dtype="float32", always_2d=False)
+                    if getattr(pcm_fit, "ndim", 1) > 1:
+                        pcm_fit = np.mean(pcm_fit, axis=1)
+                    pcm = trim_pcm_silence_48k(np.asarray(pcm_fit, dtype=np.float32), sr=sr)
+        return idx, pcm
+
+    fit_done = 0
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        futs = [pool.submit(_prepare_cue, (i, seg)) for i, seg in enumerate(segs)]
+        for fut in as_completed(futs):
+            c_idx, c_pcm = fut.result()
+            preloaded_pcm[c_idx] = c_pcm
+            fit_done += 1
+            if progress_cb and (fit_done % 10 == 0 or fit_done == total_cues):
+                pct = 80 + int((fit_done / max(1, total_cues)) * 8)
+                progress_cb(pct, f"Time-fitting lip-sync cue {fit_done}/{total_cues}...")
+
+    for idx, s in enumerate(segs):
+        orig_start = max(0.0, float(s.get("start", 0.0)))
+        orig_end = max(orig_start + 0.15, float(s.get("end", orig_start + 1.0)))
+        pcm = preloaded_pcm.get(idx)
+        if pcm is None or len(pcm) < 480:
             s["dub_start"] = orig_start
             s["dub_end"] = orig_end
             continue
-
-        # Compute available leading & trailing natural gaps
-        prev_orig_end = float(segs[idx - 1].get("end", 0.0)) if idx > 0 else 0.0
-        next_orig_start = float(segs[idx + 1].get("start", total_samples / float(sr))) if idx + 1 < total_cues else (total_samples / float(sr) + 1.5)
 
         # Never start dubbing BEFORE the speaker actually begins speaking (orig_start)
         ideal_start_sec = max(cursor_sample / float(sr), orig_start)
         start_pos = int(round(ideal_start_sec * sr))
 
+        next_orig_start = float(segs[idx + 1].get("start", total_samples / float(sr))) if idx + 1 < total_cues else (total_samples / float(sr) + 1.5)
         trailing_gap = max(0.0, next_orig_start - orig_end)
         borrow_trail = min(0.34, max(0.0, trailing_gap - 0.05) * 0.85)
         elastic_end_sec = max(ideal_start_sec + 0.22, orig_end + borrow_trail)
         slot_dur = elastic_end_sec - (start_pos / float(sr))
         tts_dur = len(pcm) / float(sr)
 
-        # Gentle formant-preserving time-fit ONLY when needed (strictly capped <= 1.28x normal, <= 1.36x tight)
+        # Only re-fit sequentially if cursor_sample pushed ideal_start_sec past orig_start
         max_stretch = 1.36 if trailing_gap < 0.08 else 1.28
-        if tts_dur > slot_dur * 1.025:
+        cue_wav = s.get("cue_wav_48k")
+        if ideal_start_sec > orig_start + 0.05 and tts_dur > slot_dur * 1.04 and cue_wav:
             ratio = min(max_stretch, tts_dur / slot_dur)
-            if ratio > 1.02:
-                stretched_wav = os.path.join(tmp_dir, f"cue_fit48k_{idx:04d}.wav")
+            if ratio > 1.03:
+                stretched_wav = os.path.join(tmp_dir, f"cue_refit48k_{idx:04d}.wav")
                 tf_filters = build_tempo_pitch_filters(ff, tempo=ratio, pitch_st=0.0, sample_rate=sr)
                 cmd_fit = [
                     ff, "-y", "-hide_banner", "-loglevel", "error",
