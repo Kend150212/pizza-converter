@@ -1548,7 +1548,11 @@ async function loadAppVersion() {
     const badge = document.getElementById('app-version-badge');
     if (badge) badge.textContent = ver;
     const sideBadge = document.getElementById('sidebar-version-badge-text');
-    if (sideBadge) sideBadge.textContent = `v${ver.replace(/^v/i, '')}`;
+    if (sideBadge) {
+      const shortVer = `v${String(ver).replace(/^v/i, '').split(' ')[0]}`;
+      sideBadge.textContent = shortVer;
+      sideBadge.title = ver;
+    }
     const aboutLine = document.getElementById('about-line');
     if (aboutLine) aboutLine.textContent = t('about_version', { version: ver }) || `Version ${ver}`;
     const descEl = document.getElementById('update-status-desc');
@@ -1648,7 +1652,7 @@ async function checkForAppUpdates(isManual = false) {
       if (descEl) {
         descEl.innerHTML = `<span style="color:#38bdf8;font-weight:600;">Update ready!</span> Installed: v${localVer} → Latest: <b>v${remoteVer}</b>`;
       }
-      if (lblSidebar) lblSidebar.textContent = `Update v${remoteVer} Ready`;
+      if (lblSidebar) lblSidebar.textContent = `v${remoteVer}`;
       if (lblManual) lblManual.textContent = `Update to v${remoteVer}`;
     } else {
       if (banner && !isManual) banner.classList.add('hidden');
@@ -1661,19 +1665,19 @@ async function checkForAppUpdates(isManual = false) {
       if (descEl) {
         descEl.textContent = `Installed: v${localVer} · Distributed via Microsoft Store`;
       }
-      if (lblSidebar) lblSidebar.textContent = isManual ? 'Up to Date ✓' : 'Check for Updates';
+      if (lblSidebar) lblSidebar.textContent = isManual ? 'Latest ✓' : 'Update';
       if (lblManual) lblManual.textContent = isManual ? 'Up to Date ✓' : 'Check for Updates';
     }
   } catch (err) {
     dlog('checkForAppUpdates notice:', err);
     if (isManual) {
-      if (lblSidebar) lblSidebar.textContent = 'Offline (Check Later)';
+      if (lblSidebar) lblSidebar.textContent = 'Offline';
       if (lblManual) lblManual.textContent = 'Offline (Check Later)';
     }
   } finally {
     if (isManual) {
       setTimeout(() => {
-        if (lblSidebar && lblSidebar.textContent.includes('✓')) lblSidebar.textContent = 'Check for Updates';
+        if (lblSidebar && lblSidebar.textContent.includes('✓')) lblSidebar.textContent = 'Update';
         if (lblManual && lblManual.textContent.includes('✓')) lblManual.textContent = 'Check for Updates';
       }, 3000);
     }
@@ -9573,11 +9577,11 @@ refreshAutoMontageTab();
     items.forEach(item => {
       const card = document.createElement('div');
       const isPaused = item.status === 'paused';
-      card.style.cssText = 'padding:10px 12px; border-radius:10px; background:rgba(30,41,59,0.72); border:1px solid rgba(148,163,184,0.2); display:flex; flex-direction:column; gap:6px;';
+      card.className = 'rt-task-card' + (isPaused ? ' is-paused' : '');
       const pct = Math.max(0, Math.min(100, Math.round(item.percent || 0)));
       const kindBadge = item.kind === 'video_dl' ? 'VIDEO DL' : 'PROCESS';
       const statusBadge = isPaused
-        ? `<span style="font-size:9.5px; font-weight:800; padding:2px 6px; border-radius:5px; background:rgba(245,158,11,0.18); color:#fbbf24; flex-shrink:0;">PAUSED</span>`
+        ? `<span class="rt-status-badge is-paused">PAUSED</span>`
         : '';
       const metaParts = [isPaused ? 'paused' : (item.stage || 'running')];
       if (!isPaused && item.speed) metaParts.push(item.speed);
@@ -9585,30 +9589,30 @@ refreshAutoMontageTab();
       if (pct > 0) metaParts.push(`${pct}%`);
 
       const actionButtons = isPaused
-        ? `<button type="button" class="btn-ghost-sm btn-resume-global-task" style="color:#5eead4; border-color:rgba(20,184,166,0.45); flex-shrink:0;">Resume</button>
-           <button type="button" class="btn-ghost-sm btn-cancel-global-task" style="color:#fda4af; border-color:rgba(244,63,94,0.45); flex-shrink:0;">Cancel</button>`
-        : `<button type="button" class="btn-ghost-sm btn-stop-global-task" style="color:#fbbf24; border-color:rgba(245,158,11,0.45); flex-shrink:0;">Stop</button>
-           <button type="button" class="btn-ghost-sm btn-cancel-global-task" style="color:#fda4af; border-color:rgba(244,63,94,0.45); flex-shrink:0;">Cancel</button>`;
+        ? `<button type="button" class="btn-ghost-sm btn-resume-global-task rt-btn-resume">Resume</button>
+           <button type="button" class="btn-ghost-sm btn-cancel-global-task rt-btn-cancel">Cancel</button>`
+        : `<button type="button" class="btn-ghost-sm btn-stop-global-task rt-btn-stop">Stop</button>
+           <button type="button" class="btn-ghost-sm btn-cancel-global-task rt-btn-cancel">Cancel</button>`;
 
       const barColor = isPaused
         ? 'linear-gradient(90deg, #f59e0b, #fbbf24)'
-        : 'linear-gradient(90deg, #38bdf8, #2dd4bf)';
+        : 'linear-gradient(90deg, #0ea5e9, #14b8a6)';
 
       card.innerHTML = `
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-          <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">
-            <span style="font-size:9.5px; font-weight:800; padding:2px 6px; border-radius:5px; background:rgba(56,189,248,0.15); color:#38bdf8; flex-shrink:0;">${kindBadge}</span>
+        <div class="rt-task-head">
+          <div class="rt-task-title-wrap">
+            <span class="rt-kind-badge">${kindBadge}</span>
             ${statusBadge}
-            <span style="font-size:12px; font-weight:700; color:#f1f5f9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${item.title || ''}">${item.title || item.target || 'Background Task'}</span>
+            <span class="rt-task-title" title="${item.title || ''}">${item.title || item.target || 'Background Task'}</span>
           </div>
-          <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+          <div class="rt-task-actions">
             ${actionButtons}
           </div>
         </div>
-        <div style="width:100%; height:4px; border-radius:999px; background:rgba(255,255,255,0.1); overflow:hidden;">
-          <div style="height:100%; width:${pct}%; background:${barColor}; transition:width 0.2s ease;"></div>
+        <div class="rt-progress-track">
+          <div class="rt-progress-fill" style="width:${pct}%; background:${barColor};"></div>
         </div>
-        <div style="font-size:10.5px; color:#94a3b8;">${metaParts.join(' · ')}</div>
+        <div class="rt-task-meta">${metaParts.join(' · ')}</div>
       `;
 
       const stopBtn = card.querySelector('.btn-stop-global-task');

@@ -3149,6 +3149,387 @@ body.light-theme .montage-hist-title {
   color: #0f172a !important;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   RUNNING TASKS FULL-PAGE VIEW (DARK & LIGHT)
+   ══════════════════════════════════════════════════════════════════════════════ */
+.rt-task-card {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(30, 41, 59, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rt-task-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.rt-task-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.rt-kind-badge {
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(56, 189, 248, 0.16);
+  color: #38bdf8;
+  flex-shrink: 0;
+}
+.rt-status-badge.is-paused {
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+  flex-shrink: 0;
+}
+.rt-task-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #f1f5f9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rt-task-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.rt-progress-track {
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.rt-progress-fill {
+  height: 100%;
+  transition: width 0.2s ease;
+}
+.rt-task-meta {
+  font-size: 11px;
+  color: #94a3b8;
+}
+.rt-btn-stop { color: #fbbf24; border-color: rgba(245, 158, 11, 0.45); }
+.rt-btn-resume { color: #5eead4; border-color: rgba(20, 184, 166, 0.45); }
+.rt-btn-cancel { color: #fda4af; border-color: rgba(244, 63, 94, 0.45); }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   UNIVERSAL HIGH-CONTRAST LIGHT MODE OVERHAUL (ELEVENLABS PORCELAIN)
+   ══════════════════════════════════════════════════════════════════════════════ */
+body.light-theme {
+  color: #0f172a !important;
+}
+
+body.light-theme .nav-bottom {
+  border-top-color: #e2e8f0 !important;
+}
+body.light-theme .sidebar-tour-btn {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #0d9488, #0284c7) !important;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.22) !important;
+}
+body.light-theme .sidebar-status-card {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+}
+body.light-theme .sidebar-status-left {
+  color: #0f766e !important;
+}
+body.light-theme .sidebar-action-btn {
+  background: #e0f2fe !important;
+  border-color: #7dd3fc !important;
+  color: #0369a1 !important;
+}
+body.light-theme .sidebar-action-btn:hover {
+  background: #bae6fd !important;
+  color: #0c4a6e !important;
+}
+body.light-theme .sidebar-theme-btn {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
+}
+
+/* Global high-contrast safety net for inline dark-theme text & surfaces inside <main> */
+body.light-theme main [style*="color:#f1f5f9"],
+body.light-theme main [style*="color: #f1f5f9"],
+body.light-theme main [style*="color:#f8fafc"],
+body.light-theme main [style*="color: #f8fafc"],
+body.light-theme main [style*="color:#f0fdf4"],
+body.light-theme main [style*="color: #f0fdf4"],
+body.light-theme main [style*="color:#e2e8f0"],
+body.light-theme main [style*="color: #e2e8f0"] {
+  color: #0f172a !important;
+}
+
+body.light-theme main [style*="color:#cbd5e1"],
+body.light-theme main [style*="color: #cbd5e1"],
+body.light-theme main [style*="color:rgba(226,232,240"],
+body.light-theme main [style*="color: rgba(226, 232, 240"],
+body.light-theme main [style*="color:rgba(235,238,248"],
+body.light-theme main [style*="color: rgba(235, 238, 248"],
+body.light-theme main [style*="color:rgba(255,255,255"],
+body.light-theme main [style*="color: rgba(255, 255, 255"] {
+  color: #334155 !important;
+}
+
+body.light-theme main [style*="color:#94a3b8"],
+body.light-theme main [style*="color: #94a3b8"],
+body.light-theme main [style*="color:#64748b"],
+body.light-theme main [style*="color: #64748b"] {
+  color: #475569 !important;
+}
+
+body.light-theme main [style*="color:#5eead4"],
+body.light-theme main [style*="color: #5eead4"],
+body.light-theme main [style*="color:#2dd4bf"],
+body.light-theme main [style*="color: #2dd4bf"] {
+  color: #0f766e !important;
+}
+
+body.light-theme main [style*="color:#7dd3fc"],
+body.light-theme main [style*="color: #7dd3fc"],
+body.light-theme main [style*="color:#38bdf8"],
+body.light-theme main [style*="color: #38bdf8"] {
+  color: #0369a1 !important;
+}
+
+body.light-theme main [style*="color:#c084fc"],
+body.light-theme main [style*="color: #c084fc"],
+body.light-theme main [style*="color:#d8b4fe"],
+body.light-theme main [style*="color: #d8b4fe"] {
+  color: #6d28d9 !important;
+}
+
+body.light-theme main [style*="color:#fbbf24"],
+body.light-theme main [style*="color: #fbbf24"],
+body.light-theme main [style*="color:#fde68a"],
+body.light-theme main [style*="color: #fde68a"] {
+  color: #92400e !important;
+}
+
+body.light-theme main [style*="background:rgba(15,23,42"],
+body.light-theme main [style*="background: rgba(15, 23, 42"],
+body.light-theme main [style*="background:rgba(30,41,59"],
+body.light-theme main [style*="background: rgba(30, 41, 59"],
+body.light-theme main [style*="background:rgba(255,255,255,0.0"],
+body.light-theme main [style*="background: rgba(255, 255, 255, 0.0"],
+body.light-theme main [style*="background:rgba(255,255,255,.0"],
+body.light-theme main [style*="background:#0f172a"],
+body.light-theme main [style*="background: #0f172a"],
+body.light-theme main [style*="background:#1e293b"],
+body.light-theme main [style*="background: #1e293b"] {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Preserve white text on solid dark/gradient CTA buttons in Light Mode */
+body.light-theme .el-gen-btn,
+body.light-theme .el-gen-btn *,
+body.light-theme #btn-banner-update-now,
+body.light-theme #btn-banner-update-now *,
+body.light-theme #btn-videodl-start,
+body.light-theme #btn-videodl-start *,
+body.light-theme .btn-primary,
+body.light-theme .btn-primary *,
+body.light-theme .vs-dub-btn,
+body.light-theme .vs-dub-btn * {
+  color: #ffffff !important;
+}
+
+/* Inputs, Readonly fields, Selects & Ghost buttons in Light Mode */
+body.light-theme input,
+body.light-theme select,
+body.light-theme textarea,
+body.light-theme input[readonly],
+body.light-theme input[disabled] {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+body.light-theme input[readonly],
+body.light-theme input[disabled] {
+  background: #f1f5f9 !important;
+  color: #1e293b !important;
+}
+body.light-theme input::placeholder,
+body.light-theme textarea::placeholder {
+  color: #64748b !important;
+}
+body.light-theme .btn-ghost-sm,
+body.light-theme .btn-ghost {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+}
+body.light-theme .btn-ghost-sm:hover,
+body.light-theme .btn-ghost:hover {
+  background: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+}
+body.light-theme .fineprint {
+  color: #475569 !important;
+}
+
+/* Running Tasks in Light Mode */
+body.light-theme .rt-task-card {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05) !important;
+}
+body.light-theme .rt-task-title {
+  color: #0f172a !important;
+}
+body.light-theme .rt-task-meta {
+  color: #475569 !important;
+}
+body.light-theme .rt-kind-badge {
+  background: #e0f2fe !important;
+  color: #0369a1 !important;
+}
+body.light-theme .rt-status-badge.is-paused {
+  background: #fef3c7 !important;
+  color: #92400e !important;
+}
+body.light-theme .rt-progress-track {
+  background: #e2e8f0 !important;
+}
+body.light-theme .rt-btn-stop {
+  color: #b45309 !important;
+  border-color: #f59e0b !important;
+  background: #fffbeb !important;
+}
+body.light-theme .rt-btn-resume {
+  color: #0f766e !important;
+  border-color: #14b8a6 !important;
+  background: #f0fdfa !important;
+}
+body.light-theme .rt-btn-cancel {
+  color: #be123c !important;
+  border-color: #fda4af !important;
+  background: #fff1f2 !important;
+}
+
+/* Video Downloader Pro in Light Mode */
+body.light-theme #view-videodownloader .row-title,
+body.light-theme .videodl-env-name,
+body.light-theme .videodl-hist-title,
+body.light-theme .videodl-active-title {
+  color: #0f172a !important;
+}
+body.light-theme #view-videodownloader .row-sub,
+body.light-theme .videodl-env-sub,
+body.light-theme .videodl-hist-meta,
+body.light-theme .videodl-empty {
+  color: #475569 !important;
+}
+body.light-theme .videodl-env-item,
+body.light-theme .videodl-hist-card,
+body.light-theme .videodl-active-card {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+}
+body.light-theme #videodl-channel-warn {
+  background: #fffbeb !important;
+  border-color: #f59e0b !important;
+}
+body.light-theme #videodl-channel-warn * {
+  color: #78350f !important;
+}
+body.light-theme #btn-videodl-start {
+  background: linear-gradient(135deg, #0d9488, #0284c7) !important;
+  color: #ffffff !important;
+}
+
+/* Voice Studio & VoiceLab in Light Mode */
+body.light-theme .el-card-title,
+body.light-theme .el-slider-label,
+body.light-theme .vs-voice-name,
+body.light-theme #vs-voice-list * {
+  color: #0f172a !important;
+}
+body.light-theme .vs-voice-desc,
+body.light-theme .el-slider-scale,
+body.light-theme #vs-voice-list .vs-voice-desc {
+  color: #475569 !important;
+}
+body.light-theme .el-slider-val {
+  color: #0f766e !important;
+}
+body.light-theme .vs-voice-card {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+body.light-theme .vs-voice-card:hover {
+  background: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+body.light-theme .vs-voice-card.active {
+  background: #f0fdfa !important;
+  border-color: #0d9488 !important;
+}
+body.light-theme #vs-clone-count-badge {
+  background: #ede9fe !important;
+  color: #6d28d9 !important;
+  border-color: #c4b5fd !important;
+}
+body.light-theme .el-tab-btn {
+  color: #334155 !important;
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+}
+body.light-theme .el-tab-btn.active {
+  background: #0f172a !important;
+  color: #ffffff !important;
+}
+
+/* Voice Local API in Light Mode */
+body.light-theme #view-voiceapi .row-title,
+body.light-theme #vapi-keys-list,
+body.light-theme #vapi-keys-list * {
+  color: #0f172a !important;
+}
+body.light-theme #view-voiceapi .row-sub {
+  color: #475569 !important;
+}
+body.light-theme #view-voiceapi pre,
+body.light-theme #view-voiceapi code {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+/* History, Legal PDF Docs & AI Studio in Light Mode */
+body.light-theme .hist-item-wrap,
+body.light-theme .hist-date-group {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+body.light-theme .hist-name-link,
+body.light-theme .hist-date-header {
+  color: #0f172a !important;
+}
+body.light-theme .pdf-body,
+body.light-theme .pdf-h2,
+body.light-theme .pdf-h3,
+body.light-theme .pdf-p,
+body.light-theme .pdf-ul li {
+  color: #1e293b !important;
+}
+
+
 
 
 
