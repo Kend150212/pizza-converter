@@ -15,14 +15,7 @@ static TAMPER_DETECTED: AtomicBool = AtomicBool::new(false);
 #[tauri::command]
 pub fn get_app_version() -> String {
     let ver = "1.0.7.0";
-    #[cfg(debug_assertions)]
-    {
-        format!("v{} (Dev)", ver)
-    }
-    #[cfg(not(debug_assertions))]
-    {
-        format!("v{} (Protected Release)", ver)
-    }
+    format!("v{}", ver)
 }
 
 /// Perform active debugger inspection

@@ -53,20 +53,20 @@ html, body { width:100%; height:100%; background:#141828; overflow:hidden;
 .nav-item:hover .pro-crown-ico, .nav-item.active .pro-crown-ico { opacity: 1; transform: scale(1.1); }
 .pro-crown-ico svg { width: 11px; height: 11px; stroke: #fbbf24; fill: rgba(251,191,36,.22); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-/* Nav Bottom Footer */
-.nav-bottom { padding-top: 8px; border-top: 1px solid rgba(255,255,255,.08); display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
-.sidebar-tour-btn { width: 100%; height: 30px; padding: 0 10px; font-size: 11px; font-weight: 700; color: #042f2e; background: linear-gradient(135deg, #2dd4bf, #38bdf8); border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 8px rgba(45,212,191,0.20); transition: all .15s ease; white-space: nowrap; }
-.sidebar-tour-btn:hover { filter: brightness(1.08); transform: translateY(-0.5px); }
-.sidebar-status-card { display: flex; align-items: center; justify-content: space-between; gap: 6px; height: 30px; padding: 0 8px; border-radius: 8px; background: rgba(0,0,0,0.22); border: 1px solid rgba(255,255,255,0.08); font-size: 10.5px; }
-.sidebar-status-left { display: flex; align-items: center; gap: 5px; color: #5eead4; font-weight: 700; letter-spacing: .01em; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sidebar-status-dot { width: 6px; height: 6px; border-radius: 50%; background: #2dd4bf; box-shadow: 0 0 6px #2dd4bf; flex-shrink: 0; }
-.sidebar-action-btn { height: 22px; padding: 0 8px; border-radius: 6px; font-size: 10px; font-weight: 700; background: rgba(56,189,248,.12); border: 1px solid rgba(56,189,248,.28); color: #7dd3fc; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all .15s ease; white-space: nowrap; flex-shrink: 0; }
-.sidebar-action-btn:hover { background: rgba(56,189,248,.25); color: #fff; }
-.sidebar-theme-btn { width: 24px; height: 22px; padding: 0; border-radius: 6px; font-size: 11px; font-weight: 600; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); color: #cbd5e1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s ease; }
+/* Nav Bottom Footer - Apple Clean & Minimal */
+.nav-bottom { padding-top: 8px; border-top: 1px solid rgba(255,255,255,.08); display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
+.sidebar-tour-btn { width: 100%; height: 26px; padding: 0 10px; font-size: 11px; font-weight: 600; color: #f4f6fb; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); border-radius: 7px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all .15s ease; white-space: nowrap; }
+.sidebar-tour-btn:hover { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.2); color: #fff; }
+.sidebar-status-card { display: flex; align-items: center; justify-content: space-between; gap: 6px; height: 26px; padding: 0 8px; border-radius: 7px; background: rgba(0,0,0,0.18); border: 1px solid rgba(255,255,255,0.08); font-size: 10.5px; }
+.sidebar-status-left { display: flex; align-items: center; gap: 5px; color: #94a3b8; font-weight: 600; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 10.5px; }
+.sidebar-status-dot { width: 6px; height: 6px; border-radius: 50%; background: #34c759; flex-shrink: 0; }
+.sidebar-action-btn { height: 20px; padding: 0 7px; border-radius: 5px; font-size: 9.5px; font-weight: 600; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); color: #cbd5e1; cursor: pointer; display: inline-flex; align-items: center; gap: 3.5px; transition: all .15s ease; white-space: nowrap; flex-shrink: 0; }
+.sidebar-action-btn:hover { background: rgba(255,255,255,.14); color: #fff; }
+.sidebar-theme-btn { width: 22px; height: 20px; padding: 0; border-radius: 5px; font-size: 11px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); color: #cbd5e1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s ease; }
 .sidebar-theme-btn:hover { background: rgba(255,255,255,.14); color: #fff; }
-.nav-legal-row { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 2px 0 1px; font-size: 10px; color: rgba(235,238,248,.45); white-space: nowrap; }
+.nav-legal-row { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 1px 0; font-size: 9.5px; color: rgba(235,238,248,.45); white-space: nowrap; }
 .nav-item-legal { background: transparent !important; border: none !important; padding: 0 !important; font-size: 9.5px !important; color: rgba(235,238,248,.45) !important; font-weight: 500 !important; cursor: pointer; transition: color .15s ease; }
-.nav-item-legal:hover, .nav-item-legal.active { color: #5eead4 !important; text-decoration: underline; }
+.nav-item-legal:hover, .nav-item-legal.active { color: #f4f6fb !important; text-decoration: underline; }
 .nav-legal-sep { opacity: .4; font-size: 8px; }
 /* main */
 main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
@@ -273,10 +273,10 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
 .benefit { display:flex; align-items:center; gap:10px; padding:8.5px 0; font-size:12.2px; font-weight:600; }
 .benefit + .benefit { border-top:1px solid rgba(255,255,255,.08); }
 .benefit .tick { color:#2dd4bf; font-weight:800; }
-.cta { width:100%; padding:10px; border-radius:11px; border:none; cursor:pointer; font-size:13px; font-weight:800;
-  background:linear-gradient(135deg,#5eead4,#14b8a6); color:#06281f; margin:4px 0 8px;
-  box-shadow:0 6px 20px rgba(45,212,191,.30); }
-.cta:hover { filter:brightness(1.07); }
+.cta { width:100%; padding:10px 16px; border-radius:8px; border:none; cursor:pointer; font-size:13px; font-weight:600;
+  background:#0071e3; color:#ffffff; margin:4px 0 8px;
+  box-shadow:0 1px 3px rgba(0, 113, 227, 0.25); transition: all .15s ease; }
+.cta:hover { background:#0077ed; }
 .center { text-align:center; }
 .fineprint { font-size:10.8px; color:rgba(235,238,248,.5); text-align:center; margin-top:8px; line-height:1.45; }
 #msg { min-height:18px; text-align:center; font-size:11.5px; color:rgba(235,238,248,.75); margin-top:8px; }
@@ -1814,17 +1814,17 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
         <div class="section-label">AI SMART CUT &amp; STORYTELLING MONTAGE STUDIO · PRO</div>
 
         <!-- HERO HEADER -->
-        <div class="card card-montage-hero" style="background: linear-gradient(155deg, rgba(236, 72, 153, 0.09), rgba(99, 102, 241, 0.08), rgba(15, 23, 42, 0.65)); border-color: rgba(236, 72, 153, 0.35); margin-bottom: 14px;">
+        <div class="card card-montage-hero" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 14px;">
           <div class="row">
             <div>
               <div class="row-title" style="display:flex; align-items:center; gap:8px;">
                 <span>⚡ Smart Cut &amp; Video Montage Studio</span>
-                <span class="pro-badge" style="background: linear-gradient(135deg, #ec4899, #8b5cf6);">AI PRO</span>
+                <span class="pro-badge montage-hero-badge" style="background: rgba(0, 113, 227, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">AI PRO</span>
               </div>
               <div class="row-sub">Stitch multiple raw clips into a seamless master video. Neural AI removes filler words ("um, uh, er, like, you know"), false starts, and dead air while maintaining emotional voice pacing and syllable cushions.</div>
             </div>
-            <button class="btn btn-primary" id="btn-montage-quick-render" style="padding: 10px 20px; font-weight: 700; background: linear-gradient(135deg, #ec4899, #8b5cf6); border: none; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 18px rgba(236, 72, 153, 0.35);">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <button class="btn btn-primary" id="btn-montage-quick-render" style="padding: 9px 18px; font-weight: 600; background: #0071e3; color: #fff; border: none; border-radius: 8px; display: flex; align-items: center; gap: 8px; box-shadow: 0 1px 3px rgba(0, 113, 227, 0.25); cursor: pointer;">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
               <span>Select Videos &amp; Build Montage</span>
             </button>
           </div>
@@ -1835,10 +1835,10 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
           <!-- LEFT COLUMN: SETTINGS PIPELINE -->
           <div class="montage-col-settings">
             <!-- CARD 0: AI DIRECTOR & STORYLINE SEQUENCING -->
-            <div class="card" id="card-montage-director" style="border-color: rgba(168, 85, 247, 0.4); background: linear-gradient(160deg, rgba(168, 85, 247, 0.08), rgba(15, 23, 42, 0.5));">
+            <div class="card" id="card-montage-director" style="border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(15, 23, 42, 0.5);">
               <div class="card-section-title" style="display:flex; align-items:center; justify-content:space-between;">
                 <span>🤖 AI Story Director &amp; Scene Sequencing</span>
-                <span class="pro-badge" style="background: linear-gradient(135deg, #a855f7, #6366f1);">HYBRID BRAIN</span>
+                <span class="pro-badge montage-director-badge" style="background: rgba(255, 255, 255, 0.08); color: #cbd5e1; border: 1px solid rgba(255, 255, 255, 0.12);">HYBRID BRAIN</span>
               </div>
               <div class="row-sub" style="margin-bottom: 12px; color: #cbd5e1;">
                 Intelligently analyzes clip content, transcribed speech, and local scripts to automatically arrange scenes into a logical narrative arc (Hook ➔ Journey ➔ Climax ➔ Resolution ➔ Outro) — zero manual sorting needed!
@@ -1893,7 +1893,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
                 </div>
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
                   <span id="montage-vault-status-pill" class="cai-status-pill">○ Checking Vault…</span>
-                  <button type="button" class="btn-ghost-sm" id="btn-montage-goto-cloudai" style="border-color:rgba(168,85,247,.45); color:#d8b4fe; font-weight:700; cursor:pointer;">Cloud AI (API Keys) →</button>
+                  <button type="button" class="btn-ghost-sm" id="btn-montage-goto-cloudai" style="border-color:rgba(255,255,255,.18); color:#cbd5e1; font-weight:600; cursor:pointer;">Cloud AI (API Keys) →</button>
                 </div>
               </div>
 
@@ -2087,14 +2087,14 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
             </div>
 
             <!-- CARD 5: EXECUTION BUTTONS -->
-            <div class="card" style="text-align: center; padding: 18px 20px; background: linear-gradient(180deg, rgba(30, 41, 59, 0.4), rgba(15, 23, 42, 0.7)); border-color: rgba(99, 102, 241, 0.3);">
+            <div class="card" style="text-align: center; padding: 16px 18px; background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px;">
               <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <button class="btn btn-primary" id="btn-montage-start-batch" style="flex: 1.4; min-width: 200px; padding: 12px 18px; font-size: 13px; font-weight: 700; background: linear-gradient(135deg, #ec4899, #8b5cf6); border: none; box-shadow: 0 4px 20px rgba(236, 72, 153, 0.4); display: flex; align-items: center; justify-content: center; gap: 8px;">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <button class="btn btn-primary" id="btn-montage-start-batch" style="flex: 1.4; min-width: 200px; padding: 11px 18px; font-size: 13px; font-weight: 600; background: #0071e3; color: #fff; border: none; border-radius: 8px; box-shadow: 0 1px 3px rgba(0, 113, 227, 0.25); display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                   <span>Select Videos &amp; Render</span>
                 </button>
-                <button class="btn btn-outline" id="btn-montage-pick-folder" style="flex: 1; min-width: 170px; padding: 12px 16px; font-size: 12.5px; font-weight: 700; border-color: rgba(56, 189, 248, 0.5); color: #38bdf8; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                <button class="btn btn-outline" id="btn-montage-pick-folder" style="flex: 1; min-width: 170px; padding: 11px 16px; font-size: 12.5px; font-weight: 600; border: 1px solid rgba(255, 255, 255, 0.2); color: #f4f6fb; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 8px; cursor: pointer;">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
                   <span>Auto-Direct Folder...</span>
                 </button>
               </div>
@@ -2598,7 +2598,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
                 <line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
               <span id="btn-videodl-start-label" data-i18n="videodl_start_download">Download Video</span>
-              <span class="keycap" style="background:rgba(0,0,0,0.25); color:#042f2e; border-color:rgba(0,0,0,0.3); font-size:10px; margin-left:4px;">Enter ↵</span>
+              <span class="keycap" style="background:rgba(255,255,255,0.2); color:#ffffff; border-color:rgba(255,255,255,0.3); font-size:10px; margin-left:6px;">Enter ↵</span>
             </button>
           </div>
         </div>
@@ -3814,18 +3814,18 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
           <!-- Master Header Banner -->
           <div class="el-header-banner">
             <div style="flex:1;">
-              <div style="font-size:13.5px; font-weight:800; display:flex; align-items:center; gap:8px;">
-                <svg style="width:16px; height:16px; stroke:#fb7185; fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+              <div style="font-size:13.5px; font-weight:700; display:flex; align-items:center; gap:8px;">
+                <svg style="width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
                 <span>AI Voice Studio &amp; Neural VoiceLab</span>
-                <span id="vs-master-badge" class="cai-status-pill pro">STUDIO DSP V2 · OFFLINE READY</span>
+                <span id="vs-master-badge" class="cai-status-pill pro">STUDIO DSP · OFFLINE READY</span>
               </div>
-              <div style="font-size:11px; color:#94a3b8; margin-top:2px;">
+              <div style="font-size:11px; color:#86868b; margin-top:2px;">
                 Studio-grade Text-to-Speech &amp; Instant Zero-Shot Voice Cloning running 100% locally on your machine. Zero fees, zero API charges.
               </div>
             </div>
             <div style="display:flex; align-items:center; gap:12px;">
               <div style="display:flex; align-items:center; gap:6px;">
-                <span style="font-size:10.5px; font-weight:700; color:#fbbf24;">Master Override</span>
+                <span style="font-size:10.5px; font-weight:600; color:#86868b;">Master Override</span>
                 <button class="toggle active" id="tgl-vs-override-global" aria-pressed="true" title="Auto-upgrade all app voices with selected VoiceLab voice"><span class="knob"></span></button>
               </div>
               <div style="width:1px; height:22px; background:rgba(255,255,255,0.12);"></div>
@@ -3842,7 +3842,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
             <button type="button" class="el-tab-btn" id="tab-btn-vs-voicelab" data-vtab="voicelab">
               <svg style="width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               <span>VoiceLab &amp; Cloner Studio</span>
-              <span id="vl-tab-badge" style="font-size:9.5px; background:rgba(244,63,94,0.25); color:#fda4af; padding:1px 6px; border-radius:999px;">0 Clones</span>
+              <span id="vl-tab-badge" style="font-size:9.5px; background:rgba(0,113,227,0.12); color:#0071e3; padding:1px 6px; border-radius:999px;">0 Clones</span>
             </button>
           </div>
 
@@ -3852,19 +3852,19 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
           <!-- Column 1: Voice Library -->
           <div class="el-col" style="height:100%; display:flex; flex-direction:column; min-height:0;">
             <!-- Voice Library Card -->
-            <div class="el-card el-card-voice-lib" style="border-color: rgba(244, 63, 94, 0.3); height:100%; display:flex; flex-direction:column;">
+            <div class="el-card el-card-voice-lib" style="border: 1px solid rgba(255, 255, 255, 0.1); height:100%; display:flex; flex-direction:column;">
               <div class="el-card-header">
-                <span class="el-card-title" style="color:#fb7185;">
-                  <svg style="width:16px; height:16px; stroke:#fb7185; fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                <span class="el-card-title">
+                  <svg style="width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2;" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
                   Voice Library
                 </span>
-                <span style="font-size:10px; color:#5eead4; background:rgba(45,212,191,0.12); padding:2px 8px; border-radius:999px; border:1px solid rgba(45,212,191,0.3);" id="vs-voice-count-badge">330+ Voices</span>
+                <span style="font-size:10px; color:#86868b; background:rgba(255,255,255,0.08); padding:2px 8px; border-radius:999px; border:1px solid rgba(255,255,255,0.12);" id="vs-voice-count-badge">330+ Voices</span>
               </div>
 
               <!-- Filter Toolbar: Language, Gender, Search -->
               <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;">
                 <div style="display:flex; gap:6px;">
-                  <select id="sel-vs-lang-filter" style="flex:1; font-size:11px; font-weight:700; background:rgba(10,14,26,0.9); border:1px solid rgba(244,63,94,0.45); border-radius:6px; padding:5px 7px; color:#ffe4e6; cursor:pointer;">
+                  <select id="sel-vs-lang-filter" style="flex:1; font-size:11px; font-weight:600; background:rgba(10,14,26,0.9); border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:5px 7px; color:#f8fafc; cursor:pointer;">
                     <option value="en" selected>English (US, UK, AU, CA · 30+ Voices)</option>
                     <option value="vi">Vietnamese (Tiếng Việt · 11+ Styles)</option>
                     <option value="all">All Languages (330+ Voices)</option>
@@ -3992,7 +3992,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
                   <span class="el-slider-label">Speed</span>
                   <span id="lbl-vs-speed" class="el-slider-val">1.0x</span>
                 </div>
-                <input type="range" id="rng-vs-speed" min="60" max="160" value="100" style="width:100%; accent-color:#38bdf8;" />
+                <input type="range" id="rng-vs-speed" min="60" max="160" value="100" style="width:100%; accent-color:#0071e3;" />
                 <div class="el-slider-scale">
                   <span>0.6x (Slower)</span>
                   <span>1.0x (Default)</span>
@@ -4004,9 +4004,9 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
               <div class="el-slider-group">
                 <div class="el-slider-head">
                   <span class="el-slider-label">Stability</span>
-                  <span id="lbl-vs-stability" class="el-slider-val" style="color:#a855f7;">85%</span>
+                  <span id="lbl-vs-stability" class="el-slider-val" style="color:#0071e3;">85%</span>
                 </div>
-                <input type="range" id="rng-vs-stability" min="20" max="100" value="85" style="width:100%; accent-color:#a855f7;" />
+                <input type="range" id="rng-vs-stability" min="20" max="100" value="85" style="width:100%; accent-color:#0071e3;" />
                 <div class="el-slider-scale">
                   <span>More variable</span>
                   <span>Balanced</span>
@@ -4018,9 +4018,9 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
               <div class="el-slider-group">
                 <div class="el-slider-head">
                   <span class="el-slider-label">Pitch</span>
-                  <span id="lbl-vs-pitch" class="el-slider-val" style="color:#f43f5e;">0 st (Natural)</span>
+                  <span id="lbl-vs-pitch" class="el-slider-val" style="color:#0071e3;">0 st (Natural)</span>
                 </div>
-                <input type="range" id="rng-vs-pitch" min="-6" max="6" value="0" step="1" style="width:100%; accent-color:#f43f5e;" />
+                <input type="range" id="rng-vs-pitch" min="-6" max="6" value="0" step="1" style="width:100%; accent-color:#0071e3;" />
                 <div class="el-slider-scale">
                   <span>-6st (Deeper)</span>
                   <span>0st</span>
@@ -4030,15 +4030,15 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
             </div>
 
             <!-- Subtitle Dubber (.SRT) Card -->
-            <div class="el-card el-card-dubber" style="border-color: rgba(168, 85, 247, 0.35);">
+            <div class="el-card el-card-dubber" style="border: 1px solid rgba(255, 255, 255, 0.1);">
               <div class="el-card-header">
-                <span class="el-card-title" style="color:#c084fc;">
-                  <svg style="width:15px; height:15px; stroke:#c084fc; fill:none;" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 12h4M14 12h4M6 15.5h8"/></svg>
+                <span class="el-card-title">
+                  <svg style="width:15px; height:15px; stroke:currentColor; fill:none;" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 12h4M14 12h4M6 15.5h8"/></svg>
                   Subtitle Dubber (.SRT)
                 </span>
-                <span style="font-size:9px; padding:1px 5px; border-radius:4px; background:rgba(168,85,247,0.18); color:#d8b4fe; border:1px solid rgba(168,85,247,0.3); font-weight:700;">SYNC</span>
+                <span style="font-size:9px; padding:1px 5px; border-radius:4px; background:rgba(255,255,255,0.08); color:#cbd5e1; border:1px solid rgba(255,255,255,0.12); font-weight:600;">SYNC</span>
               </div>
-              <div style="font-size:10.5px; color:#94a3b8; margin-bottom:8px; line-height:1.4;">
+              <div style="font-size:10.5px; color:#86868b; margin-bottom:8px; line-height:1.4;">
                 Upload .srt / .vtt file to dub audio synced to video timestamps.
               </div>
 
@@ -4047,17 +4047,17 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
                   <span>📄</span><span>Select Subtitle</span>
                 </button>
                 <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
-                  <label style="font-size:10px; color:#cbd5e1; cursor:pointer; font-weight:700;" for="chk-vs-autofit">Auto-Fit</label>
-                  <input type="checkbox" id="chk-vs-autofit" checked style="accent-color:#c084fc; cursor:pointer;" />
+                  <label style="font-size:10px; color:#86868b; cursor:pointer; font-weight:600;" for="chk-vs-autofit">Auto-Fit</label>
+                  <input type="checkbox" id="chk-vs-autofit" checked style="accent-color:#0071e3; cursor:pointer;" />
                 </div>
               </div>
 
               <div id="vs-srt-file-info" style="display:none; margin-bottom:6px; font-size:10px; background:rgba(0,0,0,0.35); padding:5px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); color:#e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-                <span id="vs-srt-filename" style="font-family:monospace; color:#c084fc; max-width:140px; overflow:hidden; text-overflow:ellipsis;">subtitles.srt</span>
-                <span id="vs-srt-cue-count" style="color:#94a3b8; font-weight:700;">0 cues</span>
+                <span id="vs-srt-filename" style="font-family:monospace; color:#cbd5e1; max-width:140px; overflow:hidden; text-overflow:ellipsis;">subtitles.srt</span>
+                <span id="vs-srt-cue-count" style="color:#86868b; font-weight:600;">0 cues</span>
               </div>
 
-              <button class="btn primary" id="btn-vs-dub-srt" style="width:100%; font-size:11px; font-weight:800; padding:7px 12px; background:linear-gradient(135deg, #7c3aed, #9333ea); border-color:#a855f7; display:flex; align-items:center; justify-content:center; gap:5px;">
+              <button class="btn primary" id="btn-vs-dub-srt" style="width:100%; font-size:11px; font-weight:600; padding:8px 12px; background:#0071e3; color:#ffffff; border:none; border-radius:8px; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
                 <span>🎬</span><span>Dub Synchronized Audio</span>
               </button>
               <div id="vs-srt-result-box" style="display:none; margin-top:6px; font-size:10px; color:#4ade80; font-weight:700;"></div>
