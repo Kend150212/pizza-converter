@@ -161,6 +161,9 @@ document.querySelectorAll('.nav-item').forEach(btn => {
     if (viewId === 'design' || viewId === 'templates') refreshDesignStudioView();
     if (viewId === 'pro') refreshProStatusUI();
     if (viewId === 'contact') ensureContactFormLoaded(false);
+    if (viewId === 'runningtasks' && typeof window.refreshRunningTasksView === 'function') {
+      window.refreshRunningTasksView();
+    }
   });
 });
 
@@ -6609,6 +6612,7 @@ window.addEventListener('resize', function () { if (bcEdCtx) renderBcEditor(bcEd
       tglMaster.setAttribute('aria-pressed', willEnable ? 'true' : 'false');
       try {
         await invoke('voice_studio_set_enabled', { enabled: willEnable });
+        await invoke('voice_studio_set_override_global', { overrideGlobal: willEnable });
         if (badgeMaster) {
           badgeMaster.textContent = willEnable ? 'OFFLINE · READY' : 'DISABLED';
           badgeMaster.className = willEnable ? 'cai-status-pill pro' : 'cai-status-pill none';
@@ -9705,6 +9709,7 @@ refreshAutoMontageTab();
   }
 
   // Poll gently every 2.5s so any background task started from hotkey/tray stays visible
+  window.refreshRunningTasksView = fetchAndRenderTasks;
   fetchAndRenderTasks();
   setInterval(fetchAndRenderTasks, 2500);
 })();

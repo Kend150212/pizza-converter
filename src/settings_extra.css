@@ -4305,6 +4305,148 @@ body.light-theme input[type=checkbox] {
   accent-color: #0071e3 !important;
 }
 
+/* =========================================================================
+   APPLE MINIMALIST SWITCH & COMPONENT STYLING (Zero Glow · Pure Apple HIG)
+   ========================================================================= */
+.vapi-doc-tab {
+  padding: 5px 12px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(235, 238, 248, 0.7);
+  transition: all 0.15s ease;
+}
+.vapi-doc-tab:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+.vapi-doc-tab.active {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+/* 9. Light Mode Global Overrides */
+body.light-theme .toggle {
+  background: #e5e5ea !important;
+  border: 1px solid #d1d1d6 !important;
+  box-shadow: none !important;
+}
+body.light-theme .toggle .knob {
+  background: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 1px 1px rgba(0, 0, 0, 0.1) !important;
+}
+body.light-theme .toggle[aria-pressed="true"],
+body.light-theme .toggle.active {
+  background: #34c759 !important;
+  border-color: #34c759 !important;
+  box-shadow: none !important;
+}
+body.light-theme .toggle[aria-pressed="true"] .knob,
+body.light-theme .toggle.active .knob {
+  left: 17px !important;
+}
+
+body.light-theme .path-field {
+  background: #f5f5f7 !important;
+  border: 1px solid #d1d1d6 !important;
+  color: #1d1d1f !important;
+  font-weight: 500 !important;
+}
+
+body.light-theme .hist-cloud-mini-group {
+  background: #f2f2f7 !important;
+  border: 1px solid #d1d1d6 !important;
+}
+body.light-theme .btn-hist-ico {
+  background: #ffffff !important;
+  border: 1px solid #d1d1d6 !important;
+  color: #1d1d1f !important;
+}
+body.light-theme .btn-hist-ico:hover {
+  background: #f5f5f7 !important;
+  border-color: #c7c7cc !important;
+}
+
+body.light-theme .vapi-doc-tab {
+  background: #f2f2f7 !important;
+  border: 1px solid #e5e5ea !important;
+  color: #6e6e73 !important;
+}
+body.light-theme .vapi-doc-tab:hover {
+  background: #e5e5ea !important;
+  color: #1d1d1f !important;
+}
+body.light-theme .vapi-doc-tab.active {
+  background: #ffffff !important;
+  border-color: #d1d1d6 !important;
+  color: #0071e3 !important;
+  font-weight: 700 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06) !important;
+}
+body.light-theme #vapi-code-snippet {
+  background: #f5f5f7 !important;
+  border: 1px solid #d1d1d6 !important;
+  color: #1d1d1f !important;
+}
+body.light-theme #vapi-btn-show-create-key {
+  background: #ffffff !important;
+  border: 1px solid #d1d1d6 !important;
+  color: #0071e3 !important;
+}
+body.light-theme #vapi-btn-show-create-key:hover {
+  background: #f5f5f7 !important;
+  border-color: #c7c7cc !important;
+}
+body.light-theme #vapi-create-key-drawer {
+  background: #ffffff !important;
+  border: 1px solid #e5e5ea !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+}
+body.light-theme #vapi-key-reveal-box {
+  background: #f0fdf4 !important;
+  border: 1px solid #bbf7d0 !important;
+}
+body.light-theme #vapi-key-reveal-box span {
+  color: #166534 !important;
+}
+body.light-theme #vapi-reveal-token-input {
+  background: #ffffff !important;
+  border: 1px solid #86efac !important;
+  color: #15803d !important;
+}
+body.light-theme .vapi-key-card {
+  background: #ffffff !important;
+  border: 1px solid #e5e5ea !important;
+  color: #1d1d1f !important;
+}
+body.light-theme .vapi-key-card:hover {
+  background: #f5f5f7 !important;
+  border-color: #d1d1d6 !important;
+}
+
+body.light-theme #view-runningtasks .card {
+  background: #ffffff !important;
+  border: 1px solid #e5e5ea !important;
+  color: #1d1d1f !important;
+}
+body.light-theme .rt-task-card {
+  background: #ffffff !important;
+  border: 1px solid #e5e5ea !important;
+}
+body.light-theme .rt-task-title {
+  color: #1d1d1f !important;
+  font-weight: 600 !important;
+}
+body.light-theme .rt-task-meta {
+  color: #6e6e73 !important;
+}
+
 
 
 

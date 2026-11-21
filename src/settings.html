@@ -79,14 +79,13 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
 .row + .row { border-top:1px solid rgba(255,255,255,.08); }
 .row-title { font-size:12.3px; font-weight:600; color:#f4f6fb; }
 .row-sub { font-size:11px; color:rgba(235,238,248,.58); margin-top:2px; line-height:1.38; }
-/* compact toggle 40x22 */
-.toggle { width:40px; height:22px; border-radius:999px; border:none; cursor:pointer; position:relative;
-  background:rgba(255,255,255,.16); transition:background .15s ease; flex-shrink:0; }
-.toggle .knob { position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%;
-  background:#fff; transition:left .15s ease; box-shadow:0 2px 5px rgba(0,0,0,.35); }
-.toggle[aria-pressed="true"] { background:linear-gradient(135deg,#5eead4,#14b8a6);
-  box-shadow:0 0 12px rgba(45,212,191,.4); }
-.toggle[aria-pressed="true"] .knob { left:21px; }
+/* Apple Minimalist Switch (38x22) */
+.toggle { width:38px; height:22px; border-radius:999px; border:1px solid rgba(255,255,255,.14); cursor:pointer; position:relative;
+  background:rgba(255,255,255,.18); transition:background-color .18s ease-in-out, border-color .18s ease-in-out; flex-shrink:0; outline:none; box-shadow:none !important; }
+.toggle .knob { position:absolute; top:1px; left:1px; width:18px; height:18px; border-radius:50%;
+  background:#fff; transition:left .18s ease-in-out; box-shadow:0 1px 3px rgba(0,0,0,.28); }
+.toggle[aria-pressed="true"], .toggle.active { background:#34c759 !important; border-color:#34c759 !important; box-shadow:none !important; }
+.toggle[aria-pressed="true"] .knob, .toggle.active .knob { left:17px !important; }
 /* Legal & License styles */
 .legal-card { padding: 14px 16px; font-size: 11.8px; line-height: 1.58; color: rgba(235,238,248,.86); margin-bottom: 10px; }
 .legal-h3 { font-size: 12.5px; font-weight: 700; color: #5eead4; margin: 12px 0 4px; display: flex; align-items: center; gap: 6px; }
@@ -107,8 +106,8 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
   background:rgba(255,255,255,.11); color:#f4f6fb; border:1px solid rgba(255,255,255,.24); }
 .btn-ghost:hover { background:rgba(255,255,255,.20); }
 .output-row { display:flex; gap:8px; padding:3px 0 10px; }
-.path-field { flex:1; padding:7px 11px; border-radius:9px; font-size:11.5px; color:rgba(235,238,248,.85);
-  background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.14);
+.path-field { flex:1; padding:7px 11px; border-radius:8px; font-size:11.5px; color:#f4f6fb;
+  background:rgba(0,0,0,.22); border:1px solid rgba(255,255,255,.14);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 /* segmented control */
 .shortcut-selector-box {
@@ -3823,12 +3822,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
                 Studio-grade Text-to-Speech &amp; Instant Zero-Shot Voice Cloning running 100% locally on your machine. Zero fees, zero API charges.
               </div>
             </div>
-            <div style="display:flex; align-items:center; gap:12px;">
-              <div style="display:flex; align-items:center; gap:6px;">
-                <span style="font-size:10.5px; font-weight:600; color:#86868b;">Master Override</span>
-                <button class="toggle active" id="tgl-vs-override-global" aria-pressed="true" title="Auto-upgrade all app voices with selected VoiceLab voice"><span class="knob"></span></button>
-              </div>
-              <div style="width:1px; height:22px; background:rgba(255,255,255,0.12);"></div>
+            <div style="display:flex; align-items:center; gap:8px;">
               <button class="toggle active" id="tgl-vs-master" aria-pressed="true" title="Toggle AI Voice Studio"><span class="knob"></span></button>
             </div>
           </div>
@@ -4277,10 +4271,10 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
 
           <div style="padding: 10px 0 6px; display:flex; align-items:center; justify-content:space-between; border-top: 1px solid rgba(255,255,255,.08);">
             <div>
-              <div style="font-size: 12px; font-weight: 700; color: #f4f6fb;">Active API Keys</div>
-              <div style="font-size: 10.8px; color: rgba(235,238,248,.58);">Generate secret tokens to securely authorize external scripts, n8n, or AI bots.</div>
+              <div class="row-title">Active API Keys</div>
+              <div class="row-sub">Generate secret tokens to securely authorize external scripts, n8n, or AI bots.</div>
             </div>
-            <button id="vapi-btn-show-create-key" class="sidebar-action-btn" style="padding: 5px 12px; font-size: 11px; background: linear-gradient(135deg, rgba(45,212,191,0.22), rgba(14,165,233,0.22)); border-color: rgba(45,212,191,0.45); color: #5eead4;">
+            <button id="vapi-btn-show-create-key" class="btn-ghost-sm" style="padding: 5px 12px; font-size: 11px; font-weight:600;">
               <span>➕ Generate New Key</span>
             </button>
           </div>
@@ -4290,7 +4284,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
             <div style="font-size: 11.8px; font-weight: 700; color: #7dd3fc; margin-bottom: 6px;">Create a New Secret API Key</div>
             <div style="display:flex; gap:8px; align-items:center;">
               <input id="vapi-new-key-name" class="ag-input" placeholder="e.g. n8n Automation, Python Script, OBS" style="flex:1;" />
-              <button id="vapi-btn-submit-new-key" class="sidebar-action-btn" style="padding: 6px 14px; background: #0ea5e9; color: #fff; font-weight:700;">Generate</button>
+              <button id="vapi-btn-submit-new-key" class="sidebar-action-btn" style="padding: 6px 14px; background: #0071e3; color: #fff; font-weight:700; border:none;">Generate</button>
               <button id="vapi-btn-cancel-new-key" class="sidebar-action-btn" style="padding: 6px 10px; background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.18);">Cancel</button>
             </div>
           </div>
@@ -4303,7 +4297,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
             </div>
             <div style="display:flex; align-items:center; gap:8px; margin-top: 8px;">
               <input id="vapi-reveal-token-input" class="ag-input" readonly style="flex:1; font-family: monospace; color:#38bdf8; background: rgba(0,0,0,0.4);" />
-              <button id="vapi-btn-copy-reveal-token" class="sidebar-action-btn" style="padding: 6px 14px; background: #2dd4bf; color: #042f2e; font-weight:800;">Copy Key</button>
+              <button id="vapi-btn-copy-reveal-token" class="sidebar-action-btn" style="padding: 6px 14px; background: #0071e3; color: #ffffff; font-weight:700; border:none;">Copy Key</button>
             </div>
           </div>
 
@@ -4341,7 +4335,7 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
             </div>
           </div>
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-            <button id="vapi-btn-run-test" class="sidebar-action-btn" style="padding: 7px 16px; font-size: 11.5px; font-weight:800; background: linear-gradient(135deg, #0ea5e9, #2dd4bf); color: #041019;">
+            <button id="vapi-btn-run-test" class="sidebar-action-btn" style="padding: 7px 16px; font-size: 11.5px; font-weight:600; background: #0071e3; color: #ffffff; border:none; border-radius:7px;">
               <span>▶ Send API Request</span>
             </button>
             <div id="vapi-test-status-pill" style="font-size: 11px; color:#94a3b8; font-family: monospace;">Ready</div>
@@ -4358,10 +4352,10 @@ main { flex:1; padding:8px 18px 18px 12px; overflow-y:auto; }
             </div>
           </div>
           <div style="display:flex; gap:6px; margin: 6px 0 10px;" id="vapi-doc-tabs">
-            <button class="cap-chip active" data-tab="curl">cURL</button>
-            <button class="cap-chip" data-tab="python">Python (OpenAI SDK)</button>
-            <button class="cap-chip" data-tab="nodejs">Node.js / JS</button>
-            <button class="cap-chip" data-tab="voices">List Voices (JSON)</button>
+            <button class="vapi-doc-tab active" data-tab="curl">cURL</button>
+            <button class="vapi-doc-tab" data-tab="python">Python (OpenAI SDK)</button>
+            <button class="vapi-doc-tab" data-tab="nodejs">Node.js / JS</button>
+            <button class="vapi-doc-tab" data-tab="voices">List Voices (JSON)</button>
           </div>
           <div style="position:relative;">
             <pre id="vapi-code-snippet" style="background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.12); border-radius: 9px; padding: 12px; font-family: 'Consolas', monospace; font-size: 11.2px; color: #e2e8f0; overflow-x: auto; max-height: 220px; line-height: 1.45;"></pre>
