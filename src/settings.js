@@ -71,6 +71,13 @@ const msg = (s) => { document.getElementById('msg').textContent = s; dlog('MSG:'
     const sbIcon = document.getElementById('sidebar-theme-icon');
     if (sbText) sbText.textContent = isLight ? 'Dark Mode' : 'Light Mode';
     if (sbIcon) sbIcon.textContent = isLight ? '🌙' : '☀️';
+
+    // Broadcast theme change to all windows (Radial wheel, Quick Downloader, etc.)
+    try {
+      if (window.__TAURI__ && window.__TAURI__.event && window.__TAURI__.event.emit) {
+        window.__TAURI__.event.emit('app-theme-changed', theme).catch(() => {});
+      }
+    } catch (_) { }
   }
 
   const savedTheme = localStorage.getItem(THEME_KEY) || 'dark';

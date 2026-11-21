@@ -3243,6 +3243,28 @@ async function prewarmRadial() {
   }
 }
 
+// ---- Theme Manager (Light / Dark Mode Synchronization) ----
+function applyRadialTheme(mode) {
+  const isLight = mode === 'light';
+  if (isLight) {
+    document.body.classList.add('light-theme');
+  } else {
+    document.body.classList.remove('light-theme');
+  }
+}
+
+// Initial theme check on script load
+try {
+  const initTheme = localStorage.getItem('pizza_app_theme') || 'dark';
+  applyRadialTheme(initTheme);
+} catch (_) { }
+
+// Listen for broadcast theme changes from Settings window
+listen('app-theme-changed', (e) => {
+  const theme = (e && e.payload) || 'dark';
+  applyRadialTheme(theme);
+});
+
 listen('radial-show', async e => {
   busy = false;
   inAiRing2 = false;
@@ -3254,6 +3276,10 @@ listen('radial-show', async e => {
   clearHover();
   tooltipEl.classList.add('hidden');
   tipPinned = false;
+  try {
+    const curTheme = localStorage.getItem('pizza_app_theme') || 'dark';
+    applyRadialTheme(curTheme);
+  } catch (_) { }
   try {
     const lang = await currentLang();
     await loadLocale(lang);

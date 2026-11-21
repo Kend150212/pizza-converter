@@ -1187,3 +1187,294 @@ body {
   border: 1px solid rgba(192, 132, 252, 0.68);
   box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
 }
+
+/* =========================================================================
+   STUDIO WHITE RADIAL WHEEL THEME (Solid Apple Studio Aesthetic · Zero Clutter)
+   ========================================================================= */
+body.light-theme {
+  color: #1d1d1f !important;
+}
+
+/* 1. Slices: Solid Studio White (100% Opaque, No Glass, No Sheen) */
+body.light-theme .glass {
+  background: #ffffff !important;
+}
+
+body.light-theme .glass::before,
+body.light-theme .glass::after {
+  display: none !important;
+}
+
+body.light-theme #in-base {
+  background: #ffffff !important;
+}
+
+body.light-theme #out-base {
+  background: #ffffff !important;
+}
+
+/* Active / Hovered Slice */
+body.light-theme .glass.hi,
+body.light-theme #in-hi,
+body.light-theme #out-hi {
+  background: #eef3fc !important; /* Soft studio blue-white active tint */
+}
+
+body.light-theme .glass.hi::before {
+  display: none !important;
+}
+
+/* 2. Floating Ring Drop Shadow (Studio Floating Porcelain Disk) */
+body.light-theme .ring {
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.16))
+          drop-shadow(0 4px 14px rgba(0, 0, 0, 0.08))
+          drop-shadow(0 16px 36px rgba(0, 0, 0, 0.12)) !important;
+}
+
+body.light-theme .ring.noptr {
+  filter: drop-shadow(0 0 1px rgba(0, 113, 227, 0.45))
+          drop-shadow(0 0 18px rgba(0, 113, 227, 0.22))
+          drop-shadow(0 14px 36px rgba(0, 0, 0, 0.12)) !important;
+}
+
+/* 3. Center Hub (Solid Studio White Center Circle) */
+body.light-theme #center {
+  background: #ffffff !important;
+  border: 1px solid #e5e5ea !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04), inset 0 1px 0 #ffffff !important;
+}
+
+body.light-theme #center.cancel-armed {
+  border-color: rgba(255, 59, 48, 0.6) !important;
+  box-shadow: 0 0 32px rgba(255, 59, 48, 0.22), 0 12px 30px rgba(0, 0, 0, 0.1) !important;
+}
+
+body.light-theme #center-name {
+  color: #1d1d1f !important;
+  font-weight: 600 !important;
+}
+
+body.light-theme #center-meta {
+  color: #6e6e73 !important;
+}
+
+body.light-theme #center-meta.clickable {
+  color: #0071e3 !important;
+}
+
+body.light-theme #center-file-icon.idle-upload {
+  background: #f0f6ff !important;
+  border: 1px solid #b9d8ff !important;
+  color: #0071e3 !important;
+  box-shadow: 0 2px 8px rgba(0, 113, 227, 0.14) !important;
+}
+
+body.light-theme #center .faint {
+  color: #86868b !important;
+}
+
+body.light-theme #browse-btn {
+  background: #f2f2f7 !important;
+  border: 1px solid #d1d1d6 !important;
+  color: #1d1d1f !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+body.light-theme #browse-btn:hover {
+  background: #e5e5ea !important;
+}
+
+/* 4. Labels & Typography (High-contrast Apple typography, NO text shadows) */
+body.light-theme .plabel {
+  color: #1d1d1f !important;
+  text-shadow: none !important;
+  font-weight: 600 !important;
+}
+
+body.light-theme .plabel.hot {
+  color: #0071e3 !important;
+  font-weight: 700 !important;
+}
+
+body.light-theme .plabel.dim {
+  opacity: 0.35 !important;
+}
+
+body.light-theme .glabel {
+  color: #1d1d1f !important;
+  text-shadow: none !important;
+  font-weight: 700 !important;
+}
+
+body.light-theme .glabel .gicon {
+  color: #48484a !important;
+}
+
+body.light-theme .glabel.hot {
+  color: #0071e3 !important;
+}
+
+body.light-theme .glabel.hot .gicon {
+  color: #0071e3 !important;
+  filter: drop-shadow(0 2px 6px rgba(0, 113, 227, 0.35)) !important;
+}
+
+body.light-theme .glabel.dim {
+  opacity: 0.45 !important;
+}
+
+/* Badges on Slices */
+body.light-theme .slice-pro-badge {
+  color: #b45309 !important;
+  background: #fef3c7 !important;
+  border: 1px solid #fde68a !important;
+  box-shadow: none !important;
+}
+
+body.light-theme .slice-ai-badge {
+  color: #6b21a8 !important;
+  background: #f3e8ff !important;
+  border: 1px solid #d8b4fe !important;
+  box-shadow: none !important;
+}
+
+body.light-theme .slice-conn-status.ok {
+  color: #15803d !important;
+  background: #dcfce7 !important;
+  border: 1px solid #bbf7d0 !important;
+}
+
+body.light-theme .slice-conn-status.warn {
+  color: #b45309 !important;
+  background: #fef3c7 !important;
+  border: 1px solid #fde68a !important;
+}
+
+/* 5. Smart Pill, Tooltip, Hint & Toast */
+body.light-theme #smart-pill {
+  background: #ffffff !important;
+  color: #1d1d1f !important;
+  border: 1px solid #e5e5ea !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.light-theme #tooltip {
+  background: #ffffff !important;
+  color: #1d1d1f !important;
+  border: 1px solid #e5e5ea !important;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.12) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.light-theme #tooltip-title {
+  color: #1d1d1f !important;
+}
+
+body.light-theme #tooltip-text {
+  color: #6e6e73 !important;
+}
+
+body.light-theme #tooltip-size {
+  color: #1d1d1f !important;
+}
+
+body.light-theme #tooltip-delta {
+  color: #86868b !important;
+}
+
+body.light-theme #tooltip-upgrade {
+  background: #0071e3 !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+body.light-theme #hint {
+  background: #ffffff !important;
+  color: #1d1d1f !important;
+  border: 1px solid #e5e5ea !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08) !important;
+  text-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.light-theme #hint b {
+  color: #1d1d1f !important;
+}
+
+body.light-theme #hint .key {
+  background: #f2f2f7 !important;
+  border: 1px solid #d1d1d6 !important;
+  color: #1d1d1f !important;
+}
+
+body.light-theme #toast {
+  background: #ffffff !important;
+  color: #1d1d1f !important;
+  border: 1px solid #e5e5ea !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* 6. AI Ring 2 Controls & Barcode in Center */
+body.light-theme #center.ai-ring2-active {
+  border-color: #0071e3 !important;
+  box-shadow: 0 0 24px rgba(0, 113, 227, 0.18), 0 12px 28px rgba(0, 0, 0, 0.08) !important;
+}
+
+body.light-theme .ai-center-head {
+  color: #1d1d1f !important;
+}
+
+body.light-theme .ai-pill-btn {
+  background: #f2f2f7 !important;
+  border: 1px solid #d1d1d6 !important;
+  color: #1d1d1f !important;
+}
+
+body.light-theme .ai-pill-btn:hover {
+  background: #e5e5ea !important;
+  border-color: #c7c7cc !important;
+}
+
+body.light-theme .ai-pill-btn.on {
+  background: #e8f2fc !important;
+  border-color: #0071e3 !important;
+  color: #0071e3 !important;
+}
+
+body.light-theme .ai-pill-val {
+  color: #0071e3 !important;
+}
+
+body.light-theme .ai-pill-btn:not(.on) .ai-pill-val {
+  color: #86868b !important;
+}
+
+body.light-theme .ai-hub-pill {
+  background: #f2f2f7 !important;
+  border: 1px solid #d1d1d6 !important;
+  color: #1d1d1f !important;
+}
+
+body.light-theme .ai-hub-pill:hover {
+  background: #e5e5ea !important;
+  border-color: #0071e3 !important;
+  color: #0071e3 !important;
+}
+
+body.light-theme .merge-order-btn {
+  background: #f2f2f7 !important;
+  border: 1px solid #d1d1d6 !important;
+  color: #0071e3 !important;
+}
+
+body.light-theme #bc-hub-price-input {
+  background: #ffffff !important;
+  border: 1px solid #d1d1d6 !important;
+  color: #1d1d1f !important;
+}
